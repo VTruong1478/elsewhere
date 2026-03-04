@@ -8,12 +8,12 @@ Next.js App Router + Tailwind v3. Mobile-first; desktop feed and layout must mat
 
 These decisions are locked for MVP. Do not deviate without updating this plan.
 
-| Concern | Decision | Reason |
-|---------|----------|--------|
-| **Tailwind version** | **v3** | v4 config syntax is incompatible with v3; pick one before setup and do not mix. Use `tailwind.config.js` (not `tailwind.config.ts` unless the project is fully ESM). |
-| **Map library** | **`@vis.gl/react-google-maps`** | Official Google Maps library built for React; works correctly with Next.js App Router (no SSR issues); maintained by the vis.gl team. Install: `npm install @vis.gl/react-google-maps`. Wrap the app (or the map route) in `<APIProvider apiKey={...}>`. Do not use `@react-google-maps/api` or `google-maps-react`; both are unmaintained. |
-| **Feed/map state sync** | **Zustand** | A single lightweight Zustand store holds `selectedPlaceId` (and optionally `hoveredPlaceId`). Both the feed column and the map read from and write to this store. No prop drilling; no React context for this concern. Install: `npm install zustand`. See Section 11 for store shape. |
-| **Client-side data fetching** | **TanStack Query v5** | Used for all client-side data needs: toggling favorites, submitting ratings, refreshing the feed on filter/search change, and any paginated or cached fetches. Server Components handle initial page data; TanStack Query handles mutations and subsequent client fetches. Install: `npm install @tanstack/react-query`. Wrap the app in `<QueryClientProvider>` in the root layout. Do not mix SWR and TanStack Query; pick one. |
+| Concern                       | Decision                        | Reason                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ----------------------------- | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Tailwind version**          | **v3**                          | v4 config syntax is incompatible with v3; pick one before setup and do not mix. Use `tailwind.config.js` (not `tailwind.config.ts` unless the project is fully ESM).                                                                                                                                                                                                                                                              |
+| **Map library**               | **`@vis.gl/react-google-maps`** | Official Google Maps library built for React; works correctly with Next.js App Router (no SSR issues); maintained by the vis.gl team. Install: `npm install @vis.gl/react-google-maps`. Wrap the app (or the map route) in `<APIProvider apiKey={...}>`. Do not use `@react-google-maps/api` or `google-maps-react`; both are unmaintained.                                                                                       |
+| **Feed/map state sync**       | **Zustand**                     | A single lightweight Zustand store holds `selectedPlaceId` (and optionally `hoveredPlaceId`). Both the feed column and the map read from and write to this store. No prop drilling; no React context for this concern. Install: `npm install zustand`. See Section 11 for store shape.                                                                                                                                            |
+| **Client-side data fetching** | **TanStack Query v5**           | Used for all client-side data needs: toggling favorites, submitting ratings, refreshing the feed on filter/search change, and any paginated or cached fetches. Server Components handle initial page data; TanStack Query handles mutations and subsequent client fetches. Install: `npm install @tanstack/react-query`. Wrap the app in `<QueryClientProvider>` in the root layout. Do not mix SWR and TanStack Query; pick one. |
 
 ---
 
@@ -32,23 +32,23 @@ Use a consistent prefix and scale name so Tailwind (or CSS variables) can refere
 
 ### 1.2 Color token table
 
-| Token role | Hex / value | Use |
-|------------|-------------|-----|
-| primary | #4F5D3F | Primary actions, high emphasis |
-| secondary | #8C9F7B | Secondary elements |
-| accent | #3E4F73 | Accent (e.g. links, highlights) |
-| background | #EFEBE0 | Page background |
-| surface | #FCF9F4 | Cards, panels |
-| surface-alt / border | #D2D4C7 | Borders, dividers (use at 1px; see Borders rule below) |
-| surface-chip | #D8D3C6 | Chip background |
-| text | #2F2F2F | Primary text |
-| text-secondary | #6B6A62 | Secondary text |
-| text-tertiary | #9B9A91 | Tertiary text |
-| text-inverse | #FFFFFF | Text on dark/primary |
-| status-high | #4F5D3F | Positive/success |
-| status-medium | #C4943A | Warning/medium |
-| status-low | #A85C3A | Error/low |
-| overlay-selected | #FFFFFF 15% | Selected state overlay |
+| Token role           | Hex / value | Use                                                    |
+| -------------------- | ----------- | ------------------------------------------------------ |
+| primary              | #4F5D3F     | Primary actions, high emphasis                         |
+| secondary            | #8C9F7B     | Secondary elements                                     |
+| accent               | #3E4F73     | Accent (e.g. links, highlights)                        |
+| background           | #EFEBE0     | Page background                                        |
+| surface              | #FCF9F4     | Cards, panels                                          |
+| surface-alt / border | #D2D4C7     | Borders, dividers (use at 1px; see Borders rule below) |
+| surface-chip         | #D8D3C6     | Chip background                                        |
+| text                 | #2F2F2F     | Primary text                                           |
+| text-secondary       | #6B6A62     | Secondary text                                         |
+| text-tertiary        | #9B9A91     | Tertiary text                                          |
+| text-inverse         | #FFFFFF     | Text on dark/primary                                   |
+| status-high          | #4F5D3F     | Positive/success                                       |
+| status-medium        | #C4943A     | Warning/medium                                         |
+| status-low           | #A85C3A     | Error/low                                              |
+| overlay-selected     | #FFFFFF 15% | Selected state overlay                                 |
 
 **Borders:** All borders use surface-alt (#D2D4C7) at 1px. No other border colors or widths unless specified in Figma.
 
@@ -56,31 +56,31 @@ Use a consistent prefix and scale name so Tailwind (or CSS variables) can refere
 
 Lora is used only for display and heading styles. Do not use Lora for body text, labels, buttons, or captions.
 
-| Token | Font | Size/line | Weight | Notes |
-|-------|------|-----------|--------|-------|
-| display-xl | Lora | 48/56 | Bold | |
-| display-l | Lora | 32/40 | Bold | |
-| heading-xl | Lora | 28/36 | Bold | |
-| heading-l | Lora | 24/32 | Bold | |
-| heading-m | Lora | 20/28 | Bold | |
-| heading-s | Lora | 16/24 | Bold | |
-| heading-italic | Lora | 24/32 | Bold Italic | |
+| Token          | Font | Size/line | Weight      | Notes |
+| -------------- | ---- | --------- | ----------- | ----- |
+| display-xl     | Lora | 48/56     | Bold        |       |
+| display-l      | Lora | 32/40     | Bold        |       |
+| heading-xl     | Lora | 28/36     | Bold        |       |
+| heading-l      | Lora | 24/32     | Bold        |       |
+| heading-m      | Lora | 20/28     | Bold        |       |
+| heading-s      | Lora | 16/24     | Bold        |       |
+| heading-italic | Lora | 24/32     | Bold Italic |       |
 
 ### 1.4 Typography token table (DM Sans — body, UI labels, buttons, captions only)
 
 DM Sans is used only for body text, UI labels, buttons, and captions. Do not use DM Sans for display or heading styles.
 
-| Token | Font | Size/line | Weight | Notes |
-|-------|------|-----------|--------|-------|
-| body-l | DM Sans | 16/24 | Regular | |
-| body-m | DM Sans | 14/24 | Regular | |
-| body-s | DM Sans | 12/20 | Regular | |
-| ui-button | DM Sans | 16/20 | Bold | |
-| ui-label-l | DM Sans | 16/20 | Bold | |
-| ui-label-m | DM Sans | 12/16 | Bold | |
-| ui-label-s | DM Sans | 10/14 | Bold | |
-| ui-caption | DM Sans | 12/20 | Regular | |
-| ui-overline | DM Sans | 10/14 | Bold, UPPERCASE | |
+| Token       | Font    | Size/line | Weight          | Notes |
+| ----------- | ------- | --------- | --------------- | ----- |
+| body-l      | DM Sans | 16/24     | Regular         |       |
+| body-m      | DM Sans | 14/24     | Regular         |       |
+| body-s      | DM Sans | 12/20     | Regular         |       |
+| ui-button   | DM Sans | 16/20     | Bold            |       |
+| ui-label-l  | DM Sans | 16/20     | Bold            |       |
+| ui-label-m  | DM Sans | 12/16     | Bold            |       |
+| ui-label-s  | DM Sans | 10/14     | Bold            |       |
+| ui-caption  | DM Sans | 12/20     | Regular         |       |
+| ui-overline | DM Sans | 10/14     | Bold, UPPERCASE |       |
 
 **Typography rules:** Do not mix font families within a single component unless the combination is defined in the token tables (e.g. heading + body on a card = Lora + DM Sans per tokens). Do not override font-weight beyond the defined token weight for each style.
 
@@ -102,13 +102,13 @@ DM Sans is used only for body text, UI labels, buttons, and captions. Do not use
 
 Use only the following z-index values; no arbitrary z-index values outside this scale.
 
-| Value | Use |
-|-------|-----|
-| 10 | Card overlays / selected overlay layer |
-| 20 | Dropdowns / popovers |
-| 30 | Map overlay card |
-| 40 | Top navigation |
-| 50 | Modals |
+| Value | Use                                    |
+| ----- | -------------------------------------- |
+| 10    | Card overlays / selected overlay layer |
+| 20    | Dropdowns / popovers                   |
+| 30    | Map overlay card                       |
+| 40    | Top navigation                         |
+| 50    | Modals                                 |
 
 ---
 
@@ -116,11 +116,11 @@ Use only the following z-index values; no arbitrary z-index values outside this 
 
 ### 2.1 Breakpoints
 
-| Breakpoint | Range | Columns | Margin | Gutter |
-|------------|--------|---------|--------|--------|
-| Mobile | 320–480px | 4 | 16px | 8px |
-| Tablet | 481–1024px | 8 | 24px | 16px |
-| Desktop | 1025px+ | 12 | 40px | 24px |
+| Breakpoint | Range      | Columns | Margin | Gutter |
+| ---------- | ---------- | ------- | ------ | ------ |
+| Mobile     | 320–480px  | 4       | 16px   | 8px    |
+| Tablet     | 481–1024px | 8       | 24px   | 16px   |
+| Desktop    | 1025px+    | 12      | 40px   | 24px   |
 
 ### 2.2 Layout rules by breakpoint
 
@@ -179,13 +179,13 @@ Use only the following z-index values; no arbitrary z-index values outside this 
 
 Skeletons are required at these points; do not skip them:
 
-| Context | Skeleton behavior |
-|---------|-----------------|
-| Feed initial load | Render 5 `PlaceCardSkeleton` components while TanStack Query fetches the first page |
-| Feed filter or search change | Replace current cards with 5 skeletons while the new query fetches |
-| Place detail | Show skeleton for the detail layout (image area, heading, stats block) while loading |
-| Favorites list | Show 3–4 card skeletons on initial load |
-| Map overlay card | Show a compact skeleton in the overlay position while place data resolves |
+| Context                      | Skeleton behavior                                                                    |
+| ---------------------------- | ------------------------------------------------------------------------------------ |
+| Feed initial load            | Render 5 `PlaceCardSkeleton` components while TanStack Query fetches the first page  |
+| Feed filter or search change | Replace current cards with 5 skeletons while the new query fetches                   |
+| Place detail                 | Show skeleton for the detail layout (image area, heading, stats block) while loading |
+| Favorites list               | Show 3–4 card skeletons on initial load                                              |
+| Map overlay card             | Show a compact skeleton in the overlay position while place data resolves            |
 
 All skeletons use `animate-pulse` with surface-alt (#D2D4C7) fill blocks. No spinner components. No "Loading…" text. Skeleton dimensions must match the corresponding real component as closely as possible.
 
@@ -312,7 +312,7 @@ Keep styles and tokens in one place; reference tokens from Tailwind config or CS
 
 ```ts
 // store/usePlaceStore.ts
-import { create } from 'zustand';
+import { create } from "zustand";
 
 interface PlaceStore {
   selectedPlaceId: string | null;
@@ -330,6 +330,7 @@ export const usePlaceStore = create<PlaceStore>((set) => ({
 ```
 
 **Usage:**
+
 - Feed card `onClick` → `setSelectedPlaceId(place.id)`
 - Feed card `onMouseEnter` → `setHoveredPlaceId(place.id)` (optional; for map pin hover highlight)
 - Map pin `onClick` → `setSelectedPlaceId(place.id)`
