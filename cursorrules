@@ -1,0 +1,72 @@
+# Project Rules
+
+## Rule Files
+- Frontend-specific rules: `frontend/.cursorrules`
+- Backend-specific rules: `backend/.cursorrules`
+- This file covers everything that spans both.
+
+---
+
+## Repo Structure
+```
+/
+├── frontend/        # UI (see frontend/.cursorrules)
+├── backend/         # API/server (see backend/.cursorrules)
+├── shared/          # Types, constants, and utils used by both sides
+├── scripts/         # Dev, build, and deployment scripts
+└── docs/            # Architecture decisions and API contracts
+```
+
+---
+
+## Shared Code (`/shared`)
+- Any type, constant, or utility used by both frontend and backend lives in `/shared`.
+- Never duplicate a type definition on both sides -- define it once in `/shared` and import it.
+- Treat `/shared` as a strict boundary: no framework-specific code (no React, no Express, etc.).
+
+---
+
+## API Contract
+- The backend exposes a REST (or GraphQL) API. The frontend only communicates via that API -- no direct DB access, no shared runtime.
+- API response shapes are defined as TypeScript types in `/shared/types`.
+- When changing an endpoint, update the shared type first, then fix both sides.
+- Use consistent envelope format for all responses:
+  ```json
+  { "data": {}, "error": null }
+  ```
+
+---
+
+## Naming Conventions
+- Files: `kebab-case` everywhere.
+- Exported types/interfaces: `PascalCase`.
+- Environment variables: `SCREAMING_SNAKE_CASE`, prefixed by scope (e.g. `VITE_API_URL`, `DB_HOST`).
+
+---
+
+## Environment Variables
+- Never hardcode secrets or URLs.
+- Frontend env vars: defined in `frontend/.env`, prefixed with `VITE_`.
+- Backend env vars: defined in `backend/.env`.
+- Document every variable in the relevant `.env.example` file.
+
+---
+
+## Git
+- Branch naming: `type/short-description` (e.g. `feat/user-auth`, `fix/cors-headers`).
+- Commits follow Conventional Commits: `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`.
+- Never commit `.env` files. Only commit `.env.example`.
+
+---
+
+## Testing
+- Unit tests live next to the file they test (`foo.test.ts` beside `foo.ts`).
+- Integration and end-to-end tests live in `/tests`.
+- A PR should not break any existing tests.
+
+---
+
+## What NOT to Put Here
+- Component rules -> `frontend/.cursorrules`
+- Database / ORM rules -> `backend/.cursorrules`
+- Framework-specific patterns -> the relevant side's rules file

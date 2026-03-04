@@ -1,6 +1,19 @@
 # Elsewhere — Frontend Plan
 
-Next.js App Router + Tailwind. Mobile-first; desktop feed and layout must match the provided Figma mockup 1:1. This plan follows the design system strictly; no improvisation.
+Next.js App Router + Tailwind v3. Mobile-first; desktop feed and layout must match the provided Figma mockup 1:1. This plan follows the design system strictly; no improvisation.
+
+---
+
+## 0. Stack Decisions
+
+These decisions are locked for MVP. Do not deviate without updating this plan.
+
+| Concern | Decision | Reason |
+|---------|----------|--------|
+| **Tailwind version** | **v3** | v4 config syntax is incompatible with v3; pick one before setup and do not mix. Use `tailwind.config.js` (not `tailwind.config.ts` unless the project is fully ESM). |
+| **Map library** | **`@vis.gl/react-google-maps`** | Official Google Maps library built for React; works correctly with Next.js App Router (no SSR issues); maintained by the vis.gl team. Install: `npm install @vis.gl/react-google-maps`. Wrap the app (or the map route) in `<APIProvider apiKey={...}>`. Do not use `@react-google-maps/api` or `google-maps-react`; both are unmaintained. |
+| **Feed/map state sync** | **Zustand** | A single lightweight Zustand store holds `selectedPlaceId` (and optionally `hoveredPlaceId`). Both the feed column and the map read from and write to this store. No prop drilling; no React context for this concern. Install: `npm install zustand`. See Section 11 for store shape. |
+| **Client-side data fetching** | **TanStack Query v5** | Used for all client-side data needs: toggling favorites, submitting ratings, refreshing the feed on filter/search change, and any paginated or cached fetches. Server Components handle initial page data; TanStack Query handles mutations and subsequent client fetches. Install: `npm install @tanstack/react-query`. Wrap the app in `<QueryClientProvider>` in the root layout. Do not mix SWR and TanStack Query; pick one. |
 
 ---
 
@@ -137,29 +150,44 @@ Use only the following z-index values; no arbitrary z-index values outside this 
 
 ### 3.3 Place cards and metrics
 
-- **Place card:** Card for one place in the feed. Surface background, border surface-alt 1px (if bordered), border radius 8px or 16px. Shadow: use shadow-map only if the Figma mockup shows a shadow on the card; otherwise no shadow. Contains: place name (heading token = Lora), address/secondary text (body/caption token = DM Sans), metric tiles (Noise, Tables, Outlets), pills (per MVP pill rule below), match badge, save button, and any “Open until” / “Closing soon” / “Open late” text. Selected state: overlay-selected (#FFFFFF 15%) on top of card. Font mix per token table only.
-- **Match badge:** Displays match score percent (and optionally 2–3 “why matched” reasons). Uses typography and colors from palette only (e.g. primary or accent for score). No custom shapes or colors.
+- **Place card:** Card for one place in the feed. Surface background, border surface-alt 1px (if bordered), border radius 8px or 16px. Shadow: use shadow-map only if the Figma mockup shows a shadow on the card; otherwise no shadow. Contains: place name (heading token = Lora), address/secondary text (body/caption token = DM Sans), metric tiles (Noise, Tables, Outlets), pills (per MVP pill rule below), match badge, save button, and any "Open until" / "Closing soon" / "Open late" text. Selected state: overlay-selected (#FFFFFF 15%) on top of card. Font mix per token table only.
+- **Place card skeleton:** Shown while feed data is loading. Must match the card shape exactly: same height, same internal layout as a real card, using a pulsing shimmer animation in surface-alt (#D2D4C7). Includes placeholder blocks for: image area, heading line, address line, three metric tiles, and pill area. No text content. Use `animate-pulse` (Tailwind v3). Render a list of 4–6 skeletons on initial feed load and on filter/search change while TanStack Query is fetching.
+- **Match badge:** Displays match score percent (and optionally 2–3 "why matched" reasons). Uses typography and colors from palette only (e.g. primary or accent for score). No custom shapes or colors.
 - **Metric tiles (Noise / Tables / Outlets):** Three metrics with exact UI labels. Noise: Silent / Quiet / Vibrant. Tables: Limited / Mixed / Ideal (with 5-dot display: Limited=1 filled, Mixed=3, Ideal=5; frontend-only mapping; backend stores category only). Outlets: None / Limited / Ample. Typography UI label or caption; colors text and text-secondary. Tiles laid out per Figma (e.g. side by side or stacked).
-- **Pills:** Small tags (e.g. “study rooms”, “cozy nooks”). Surface-chip or surface-alt background; border radius 8px only; typography ui-caption or body-s. No new colors.
+- **Pills:** Small tags (e.g. "study rooms", "cozy nooks"). Surface-chip or surface-alt background; border radius 8px only; typography ui-caption or body-s. No new colors.
 - **Pills on feed cards (MVP rule):** For each place card, use the data provided by the feed API (backend computes per backend plan). Display rule: for each place, take the most recent N ratings where N = 20; collect all values from `ratings.pills` across those ratings; select the top 2 pill strings by frequency; if there are no pills in that window, show none — render nothing in the pills row (no empty row, no placeholder).
 
 ### 3.4 Actions and map
 
-- **Save button:** Button or icon to save/unsave place (favorite). Uses primary or secondary color; selected state = overlay-selected (#FFFFFF 15%) or filled state per Figma. Icon from Lucide unless Figma specifies a custom SVG.
-- **Rate button:** Triggers rating flow (noise, tables, outlets, wifi, vibe, pills, notes). Style: primary or secondary per Figma; typography ui-button; border radius 8px or 16px.
-- **Map:** Map view is implemented with **Google Maps**. Styling should remain consistent with the design system where the map UI (controls, overlay card) is concerned; do not invent new colors for map styling. Use default Google Maps styling for MVP unless a custom style is provided (e.g. from Figma or design). **Google Maps controls policy:** Disable default Google Maps UI controls (zoom, map type, fullscreen) unless explicitly required. If controls are needed, build custom controls using the Elsewhere design system (spacing, colors, radii from this plan). Do not introduce Google’s default UI styling into the app chrome. Map tile styling remains default Google styling for MVP unless a custom map style is provided.
-- **Map pins:** Pin marker per place. **Scale definition:** Default pin scale = 1; selected pin scale = 1.15. When motion is allowed: selected pin scales to 1.15 with a subtle bounce. When prefers-reduced-motion is enabled: selected pin switches instantly to scale 1.15 with no animation and no bounce. Unselected: no animation. No other animation anywhere in the app (see Accessibility).
-- **Map overlay card:** Compact place card shown on the map when a pin is selected. Same design system as place card (surface, radii 8/16, typography, metric labels). Position per Figma. Z-index: 30 (per z-index scale). Shadow: use shadow-map only if Figma shows a shadow on this element; otherwise no shadow.
+- **Save button:** Button or icon to save/unsave place (favorite). Uses primary or secondary color; selected state = overlay-selected (#FFFFFF 15%) or filled state per Figma. Icon from Lucide unless Figma specifies a custom SVG. Favorite toggle uses a TanStack Query mutation; optimistic update recommended.
+- **Rate button:** Triggers rating flow (noise, tables, outlets, wifi, vibe, pills, notes). Style: primary or secondary per Figma; typography ui-button; border radius 8px or 16px. Rating submit uses a TanStack Query mutation.
+- **Map:** Implemented with **`@vis.gl/react-google-maps`** (see Section 0). Wrap in `<APIProvider apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}>`. Use `<Map>` and `<AdvancedMarker>` components. Do not use the legacy `Marker` component. Styling should remain consistent with the design system where the map UI (controls, overlay card) is concerned; do not invent new colors for map styling. Use default Google Maps styling for MVP unless a custom style is provided. **Google Maps controls policy:** Disable default Google Maps UI controls (zoom, map type, fullscreen) via `disableDefaultUI` prop on `<Map>`. If controls are needed, build custom controls using the Elsewhere design system. Do not introduce Google's default UI styling into the app chrome.
+- **Map pins:** Pin marker per place using `<AdvancedMarker>`. **Scale definition:** Default pin scale = 1; selected pin scale = 1.15 (driven by Zustand `selectedPlaceId`). When motion is allowed: selected pin scales to 1.15 with a subtle bounce. When prefers-reduced-motion is enabled: selected pin switches instantly to scale 1.15 with no animation and no bounce. Unselected: no animation.
+- **Map overlay card:** Compact place card shown on the map when a pin is selected (driven by Zustand `selectedPlaceId`). Same design system as place card (surface, radii 8/16, typography, metric labels). Position per Figma. Z-index: 30 (per z-index scale). Shadow: use shadow-map only if Figma shows a shadow on this element; otherwise no shadow.
 
 ### 3.5 Auth and onboarding
 
-- **Login:** Screen for Google sign-in. Background, surface, and text tokens only. One primary button “Sign in with Google”; typography ui-button. No extra illustrations or colors unless in Figma.
+- **Login:** Screen for Google sign-in. Background, surface, and text tokens only. One primary button "Sign in with Google"; typography ui-button. No extra illustrations or colors unless in Figma.
 - **Onboarding:** Steps for radius, noise preference, needs outlets, needs wifi, vibe preference. Form controls (inputs, toggles, chips) use only palette + overlay-selected. Lora for headings, DM Sans for body and labels. Radii 8px and 16px only.
 
 ### 3.6 Profile and empty states
 
 - **Profile:** Screen for user info and preferences (and possibly sign-out). Uses same typography and color tokens. No new components beyond app shell, headings, body text, and buttons/chips.
 - **Empty states (MVP):** When a list or section has no content (e.g. no favorites, no search results), use a placeholder empty state: a Lucide icon + friendly text. Use only existing typography and palette; no new colors. If custom illustrations are added later, they can replace the placeholder.
+
+### 3.7 Loading and skeleton states
+
+Skeletons are required at these points; do not skip them:
+
+| Context | Skeleton behavior |
+|---------|-----------------|
+| Feed initial load | Render 5 `PlaceCardSkeleton` components while TanStack Query fetches the first page |
+| Feed filter or search change | Replace current cards with 5 skeletons while the new query fetches |
+| Place detail | Show skeleton for the detail layout (image area, heading, stats block) while loading |
+| Favorites list | Show 3–4 card skeletons on initial load |
+| Map overlay card | Show a compact skeleton in the overlay position while place data resolves |
+
+All skeletons use `animate-pulse` with surface-alt (#D2D4C7) fill blocks. No spinner components. No "Loading…" text. Skeleton dimensions must match the corresponding real component as closely as possible.
 
 ---
 
@@ -180,7 +208,7 @@ Hover, pressed, and selected use ONLY the selected overlay: #FFFFFF at 15% opaci
 - **Hover:** Apply overlay-selected (#FFFFFF 15%) over the component background. **Desktop hover feedback:** Hover feedback is allowed but must be **instant** (no animation or transition). No fade transitions, no easing, no transform animations. Cursor must show pointer on interactive elements.
 - **Pressed / Active:** Apply overlay-selected (#FFFFFF 15%) over the component background (same overlay; may combine with active styling per Figma, but no additional colors).
 - **Selected:** Apply overlay-selected (#FFFFFF 15%) over the component background. Used for selected chip, selected card, selected tab.
-- **Disabled:** Use only existing palette: reduce visibility via text-tertiary and/or opacity on the element (e.g. 50% opacity). No new hex values; no separate “disabled” color.
+- **Disabled:** Use only existing palette: reduce visibility via text-tertiary and/or opacity on the element (e.g. 50% opacity). No new hex values; no separate "disabled" color.
 - **Focus:** Visible focus ring for keyboard users. Ring color: accent (#3E4F73) or primary (#4F5D3F) only; ring width and offset from spacing scale. Ensure 3:1 contrast against background (WCAG AA for focus indicator).
 
 **Overlay implementation rule:** The selected overlay (#FFFFFF at 15% opacity) must be applied as a **layered overlay** (e.g. pseudo-element or separate overlay layer). Do NOT reduce opacity of the entire component. Do NOT modify the base background color. Text and icons must retain full opacity and contrast. The overlay must not affect accessibility contrast compliance (contrast is measured against the underlying surface; the overlay is a visual state indicator only).
@@ -229,8 +257,9 @@ Do not use lighter/darker shades, derived colors, or any overlay other than #FFF
 Recommendation only; adjust to team conventions.
 
 - **app:** Route segments. Layouts per breakpoint (e.g. (auth), (app) with feed/map split on desktop). Pages: feed, map, places/[id], favorites, onboarding, login, profile. Route handlers only where needed (e.g. API proxy for photos); most data from Server Components or client fetch per backend plan.
-- **components:** Reusable UI. Subfolders suggested: ui (buttons, inputs, chips), feed (search bar, filter chips, place card, match badge, metric tiles, pills), map (pins, overlay card), layout (app shell, top nav, bottom tabs), auth (login form), onboarding (steps), profile, empty-state. One component per file; no code in this plan.
-- **lib:** Utilities (formatting, distance, API clients), constants (metrics labels, filter chip keys), and any shared helpers. Types in lib or a dedicated types folder.
+- **components:** Reusable UI. Subfolders suggested: ui (buttons, inputs, chips, skeletons), feed (search bar, filter chips, place card, place card skeleton, match badge, metric tiles, pills), map (pins, overlay card), layout (app shell, top nav, bottom tabs), auth (login form), onboarding (steps), profile, empty-state. One component per file; no code in this plan.
+- **lib:** Utilities (formatting, distance, API clients), constants (metrics labels, filter chip keys, `pills.ts`), and any shared helpers. Types in lib or a dedicated types folder.
+- **store:** Zustand stores. `usePlaceStore.ts` for `selectedPlaceId` / `hoveredPlaceId`. Keep stores small and single-purpose.
 - **styles:** Global CSS and Tailwind entry. Design tokens (colors, typography, spacing, radii, shadows) defined here or in tailwind.config; single source of truth for the token naming scheme.
 - **types:** Shared TypeScript types (place, rating, user preferences, feed item) if not colocated with components or lib.
 
@@ -240,21 +269,23 @@ Keep styles and tokens in one place; reference tokens from Tailwind config or CS
 
 ## 9. Build Order Checklist
 
-- Set up Next.js App Router project and Tailwind; install Lora and DM Sans (e.g. next/font or link).
+- Set up Next.js App Router project with **Tailwind v3** (`tailwind.config.js`); install Lora and DM Sans (e.g. next/font or link). Install `@vis.gl/react-google-maps`, `zustand`, and `@tanstack/react-query` at project init.
 - Define design tokens (colors, typography, spacing, radii, shadow, z-index) in Tailwind theme or CSS variables; enforce 8px/16px radii, spacing scale (4, 8, 12, 16, 20, 24, 32, 40) only, z-index scale (10, 20, 30, 40, 50) only, and no extra colors.
+- Set up Zustand store (`store/usePlaceStore.ts`) with `selectedPlaceId` and `hoveredPlaceId`. Set up TanStack Query `QueryClientProvider` in root layout.
 - Implement app shell: desktop split view (feed left, map right, top nav) and mobile layout (single column, bottom tabs); match Figma for desktop 1:1.
 - Build top nav (desktop) and bottom tabs (mobile) with correct typography and colors; selected state = overlay-selected.
 - Add search bar and filter chips; wire to feed query params (q, filter) per backend plan.
-- Build place card: surface, radii, shadow only if Figma shows a shadow on the card (shadow-map; otherwise none); match badge, metric tiles (Noise/Tables/Outlets with exact labels; tables 5-dot frontend mapping), pills per MVP rule (top 2 from last 20 ratings, or nothing), save and rate buttons; “Open until” / “Closing soon” / “Open late” copy.
-- Implement map with Google Maps: map view, pins (animate/scale on select only; instant state change when prefers-reduced-motion), overlay card (shadow only if Figma shows it); feed and map data from same feed API.
+- Build `PlaceCardSkeleton` component first, then build the real `PlaceCard` on top of it. Skeleton: pulsing surface-alt blocks matching card layout. Card: surface, radii, shadow only if Figma shows it (shadow-map; otherwise none); match badge, metric tiles (Noise/Tables/Outlets with exact labels; tables 5-dot frontend mapping), pills per MVP rule, save and rate buttons, "Open until" / "Closing soon" / "Open late" copy.
+- Wire feed data fetch with TanStack Query. Show `PlaceCardSkeleton` list while loading; show empty state when results are zero.
+- Implement map with `@vis.gl/react-google-maps`: `<APIProvider>` + `<Map disableDefaultUI>` + `<AdvancedMarker>` per place. Connect pins to Zustand `selectedPlaceId`: clicking a pin sets `selectedPlaceId`; clicking a feed card sets `selectedPlaceId`; map pin and feed card both respond to the same value. Overlay card appears when `selectedPlaceId` is set. Animate/scale pins on select only; instant state change when prefers-reduced-motion.
 - Add login and auth callback; then onboarding (radius, noise, outlets, wifi, vibe) and profile.
-- Implement place detail page (rating form: noise, tables, outlets, wifi, vibe, pills, notes); submit rating and favorites.
+- Implement place detail page (rating form: noise, tables, outlets, wifi, vibe, pills, notes); submit rating via TanStack Query mutation; favorite toggle via TanStack Query mutation with optimistic update.
 - Add empty states: placeholder (Lucide icon + friendly text) for feed, search, favorites; existing typography and palette only; custom illustrations can replace placeholder later.
 - Run accessibility pass: contrast, focus styles, tap targets, keyboard nav, prefers-reduced-motion (instant map pin state change only; all other animation off).
 
 ---
 
-## 10. Explicit “Do Not” Constraints
+## 10. Explicit "Do Not" Constraints
 
 - **Colors:** Do not introduce any new hex values or new palette colors. Use only the defined primary, secondary, accent, background, surface, surface-alt, surface-chip, text, text-secondary, text-tertiary, text-inverse, status-high/medium/low, and overlay-selected (white 15%).
 - **Radii:** Do not use any border-radius other than 8px and 16px.
@@ -263,11 +294,47 @@ Keep styles and tokens in one place; reference tokens from Tailwind config or CS
 - **Spacing:** Do not use spacing values outside the 4px scale: 4, 8, 12, 16, 20, 24, 32, 40 only. No arbitrary pixel spacing.
 - **Overlay:** Apply overlay-selected as a layered overlay (pseudo-element or separate layer); do not reduce opacity of the entire component; do not modify base background; text/icons full opacity; overlay must not break contrast.
 - **Z-index:** Use only the defined z-index scale (10, 20, 30, 40, 50). No arbitrary z-index values.
-- **Map controls:** Do not introduce default Google Maps UI controls into the app chrome unless required; if needed, use custom controls from the design system.
+- **Map library:** Use only `@vis.gl/react-google-maps`. Do not use `@react-google-maps/api`, `google-maps-react`, or any other map library.
+- **Map controls:** Do not introduce default Google Maps UI controls into the app chrome unless required; if needed, use custom controls from the design system. Always set `disableDefaultUI` on `<Map>`.
+- **State sync:** Do not prop-drill `selectedPlaceId` between feed and map. Use the Zustand store only.
+- **Data fetching:** Do not mix TanStack Query and SWR. Use TanStack Query for all client-side fetches and mutations.
+- **Tailwind version:** Do not upgrade to Tailwind v4 without updating this plan and the config. v3 and v4 config syntax are not compatible.
+- **Skeletons:** Do not use spinners or "Loading…" text. Use skeleton components that match the shape of the real content.
 - **Design:** Do not improvise. Desktop feed and layout must match the provided Figma mockup 1:1. If something is ambiguous or missing, ask instead of inventing.
 - **Typography:** Do not use fonts other than Lora and DM Sans, or sizes/weights outside the defined styles (display-xl through ui-overline). Lora only for display and headings; DM Sans only for body, UI labels, buttons, captions. Do not mix font families within a component except as defined in the token tables. Do not override font-weight beyond the defined token weight.
 - **Borders:** Use only surface-alt (#D2D4C7) at 1px for borders. No other border colors or widths unless specified in Figma.
 - **Shadows:** Shadow-map is the only shadow allowed. Use it ONLY if the Figma mockup shows a shadow on that element; if Figma shows no shadow, use no shadow at all.
 - **Icons:** Do not invent custom icon styles; use Lucide React or a custom SVG only when required to match Figma exactly.
 
-This frontend plan is the single source of truth for the Elsewhere UI implementation. Any design suggestion or deviation should be confirmed before changing the plan or the design system.
+---
+
+## 11. Zustand Store Shape
+
+```ts
+// store/usePlaceStore.ts
+import { create } from 'zustand';
+
+interface PlaceStore {
+  selectedPlaceId: string | null;
+  hoveredPlaceId: string | null;
+  setSelectedPlaceId: (id: string | null) => void;
+  setHoveredPlaceId: (id: string | null) => void;
+}
+
+export const usePlaceStore = create<PlaceStore>((set) => ({
+  selectedPlaceId: null,
+  hoveredPlaceId: null,
+  setSelectedPlaceId: (id) => set({ selectedPlaceId: id }),
+  setHoveredPlaceId: (id) => set({ hoveredPlaceId: id }),
+}));
+```
+
+**Usage:**
+- Feed card `onClick` → `setSelectedPlaceId(place.id)`
+- Feed card `onMouseEnter` → `setHoveredPlaceId(place.id)` (optional; for map pin hover highlight)
+- Map pin `onClick` → `setSelectedPlaceId(place.id)`
+- Map pin reads `selectedPlaceId` to determine scale (1.15 if selected, 1 otherwise)
+- Map overlay card reads `selectedPlaceId` to know which place to display
+- Closing overlay card → `setSelectedPlaceId(null)`
+
+This plan is the single source of truth for the Elsewhere UI implementation. Any design suggestion or deviation should be confirmed before changing the plan or the design system.
