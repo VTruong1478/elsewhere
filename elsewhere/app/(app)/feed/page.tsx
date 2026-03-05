@@ -24,6 +24,8 @@ type LocationState =
   | { status: "denied" }
   | { status: "ready"; lat: number; lng: number };
 
+const LOCATION_TIMEOUT_MS = 10_000;
+
 function useUserLocation(): LocationState {
   const [state, setState] = useState<LocationState>({ status: "loading" });
   useEffect(() => {
@@ -31,15 +33,32 @@ function useUserLocation(): LocationState {
       setState({ status: "unavailable" });
       return;
     }
+    let cancelled = false;
+    const timeoutId = window.setTimeout(() => {
+      if (cancelled) return;
+      setState({ status: "denied" });
+    }, LOCATION_TIMEOUT_MS);
     navigator.geolocation.getCurrentPosition(
-      (pos) =>
+      (pos) => {
+        if (cancelled) return;
+        window.clearTimeout(timeoutId);
         setState({
           status: "ready",
           lat: pos.coords.latitude,
           lng: pos.coords.longitude,
-        }),
-      () => setState({ status: "denied" }),
+        });
+      },
+      () => {
+        if (cancelled) return;
+        window.clearTimeout(timeoutId);
+        setState({ status: "denied" });
+      },
+      { timeout: LOCATION_TIMEOUT_MS, maximumAge: 0 },
     );
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
   }, []);
   return state;
 }
@@ -169,7 +188,7 @@ function FeedContent() {
           )}
           {showResults && places.length === 0 && <FeedEmptyState />}
           {showResults && places.length > 0 && (
-            <div className="space-y-4">
+            <div className="space-y-12">
               {places.map((place) => (
                 <PlaceCard key={place.id} place={place} />
               ))}

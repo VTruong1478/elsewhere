@@ -28,6 +28,10 @@ export interface FeedItem {
   image_url?: string | null;
   /** Google Places (New) photo name for /api/place-photo (when available) */
   google_photo_ref?: string | null;
+  /** Admin-selected vibe photo ref (preferred over google_photo_ref when set) */
+  vibe_photo_ref?: string | null;
+  /** Attribution for vibe photo: { authorAttributions?: Array<{ displayName?, uri? }> } */
+  vibe_photo_attribution?: unknown;
   /** Number of ratings (when available) */
   rating_count?: number;
   /** Cost indicator for card pill, e.g. "Free" or "$" (when available) */

@@ -14,6 +14,8 @@ type PlaceStatsRow = {
   opening_hours: Record<string, unknown> | null;
   timezone: string | null;
   google_photo_ref: string | null;
+  vibe_photo_ref: string | null;
+  vibe_photo_attribution: unknown;
   cost: string | null;
   rating_count: number | bigint;
   noise_silent: number | bigint;
@@ -22,10 +24,41 @@ type PlaceStatsRow = {
   tables_limited: number | bigint;
   tables_mixed: number | bigint;
   tables_ideal: number | bigint;
+  tables_none: number | bigint;
   outlets_none: number | bigint;
   outlets_limited: number | bigint;
   outlets_ample: number | bigint;
+  place_noise_level: string | null;
+  place_tables_level: string | null;
+  place_outlets_level: string | null;
 };
+
+function placeNoiseToLabel(v: string | null): NoiseLabel | null {
+  if (!v) return null;
+  const s = v.toLowerCase();
+  if (s === "silent") return "Silent";
+  if (s === "quiet") return "Quiet";
+  if (s === "vibrant") return "Vibrant";
+  return null;
+}
+
+function placeTablesToLabel(v: string | null): TablesLabel | null {
+  if (!v) return null;
+  const s = v.toLowerCase();
+  if (s === "limited") return "Limited";
+  if (s === "mixed") return "Mixed";
+  if (s === "ideal") return "Ideal";
+  return null;
+}
+
+function placeOutletsToLabel(v: string | null): OutletsLabel | null {
+  if (!v) return null;
+  const s = v.toLowerCase();
+  if (s === "none") return "None";
+  if (s === "limited") return "Limited";
+  if (s === "ample") return "Ample";
+  return null;
+}
 
 function n(v: number | bigint): number {
   return typeof v === "bigint" ? Number(v) : v;
@@ -184,29 +217,25 @@ export async function GET(request: NextRequest) {
   );
 
   if (rpcError) {
-    return NextResponse.json(
-      { data: null, error: "Feed unavailable" },
-      { status: 500 },
-    );
+    console.error("[feed] get_feed_places RPC error:", rpcError);
+    const message =
+      process.env.NODE_ENV === "development"
+        ? (rpcError.message ?? "Feed unavailable")
+        : "Feed unavailable";
+    return NextResponse.json({ data: null, error: message }, { status: 500 });
   }
 
   const placeList = rows ?? [];
   console.log(
-    '[feed] RPC returned',
+    "[feed] RPC returned",
     placeList.length,
-    'places; lat=',
+    "places; lat=",
     lat,
-    'lng=',
+    "lng=",
     lng,
-    'radius_miles=',
+    "radius_miles=",
     radiusMiles,
   );
-  if (placeList.length > 0) {
-    console.log(
-      '[feed] First 3 names:',
-      placeList.slice(0, 3).map((r: { name: string }) => r.name),
-    );
-  }
   const placeIds = placeList.map((r: { id: string }) => r.id);
   let pillsByPlace: Record<string, string[]> = {};
   if (placeIds.length > 0) {
@@ -288,6 +317,23 @@ export async function GET(request: NextRequest) {
 
     const ratingCount = Number(row.rating_count ?? 0);
     const lowData = ratingCount < LOW_DATA_THRESHOLD;
+    const placeNoise = placeNoiseToLabel(row.place_noise_level ?? null);
+    const placeTables = placeTablesToLabel(row.place_tables_level ?? null);
+    const placeOutlets = placeOutletsToLabel(row.place_outlets_level ?? null);
+    const raw = row as Record<string, unknown>;
+    const googlePhotoRef =
+      (row.google_photo_ref as string | null | undefined) ??
+      (raw.google_photo_ref as string | null | undefined) ??
+      (raw.googlePhotoRef as string | null | undefined) ??
+      null;
+    const vibePhotoRef =
+      (row.vibe_photo_ref as string | null | undefined) ??
+      (raw.vibe_photo_ref as string | null | undefined) ??
+      null;
+    const vibePhotoAttribution =
+      (row.vibe_photo_attribution as unknown) ??
+      (raw.vibe_photo_attribution as unknown) ??
+      null;
 
     return {
       id: row.id,
@@ -296,9 +342,9 @@ export async function GET(request: NextRequest) {
       lat: Number(row.lat),
       lng: Number(row.lng),
       place_type: row.place_type,
-      noise: lowData ? null : dominantNoise(row),
-      tables: lowData ? null : dominantTables(row),
-      outlets: lowData ? null : dominantOutlets(row),
+      noise: placeNoise ?? (lowData ? null : dominantNoise(row)),
+      tables: placeTables ?? (lowData ? null : dominantTables(row)),
+      outlets: placeOutlets ?? (lowData ? null : dominantOutlets(row)),
       match_score_percent: score,
       why_matched: reasons,
       open_now: opening.open_now,
@@ -309,7 +355,12 @@ export async function GET(request: NextRequest) {
       is_favorited: favorites.has(row.id),
       distance_mi: dist / 1609.344,
       rating_count: ratingCount,
-      google_photo_ref: row.google_photo_ref ?? null,
+      image_url: null,
+      google_photo_ref:
+        googlePhotoRef && String(googlePhotoRef).trim() ? googlePhotoRef : null,
+      vibe_photo_ref:
+        vibePhotoRef && String(vibePhotoRef).trim() ? vibePhotoRef : null,
+      vibe_photo_attribution: vibePhotoAttribution,
       cost: row.cost ?? null,
       _distanceMeters: dist,
       _score: score,

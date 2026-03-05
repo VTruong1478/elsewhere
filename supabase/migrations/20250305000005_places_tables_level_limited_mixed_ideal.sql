@@ -1,3 +1,6 @@
+-- Replace places.tables_level enum with limited, mixed, ideal only.
+-- Run each block in Supabase SQL Editor (or all at once). Existing none/ample become 'limited'.
+
 -- 1. Create new enum with the three desired values
 CREATE TYPE tables_level_enum_new AS ENUM ('limited', 'mixed', 'ideal');
 

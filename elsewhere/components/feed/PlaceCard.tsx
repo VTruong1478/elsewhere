@@ -74,14 +74,20 @@ export function PlaceCard({ place }: { place: FeedItem }) {
             alt=""
             className="h-full w-full object-cover"
           />
-        ) : place.google_photo_ref ? (
-          <img
-            src={`/api/place-photo?photoName=${encodeURIComponent(place.google_photo_ref)}`}
-            alt=""
-            className="h-full w-full object-cover"
-          />
         ) : (
-          <div className="h-full w-full bg-surface-alt" />
+          (() => {
+            const ref =
+              place.vibe_photo_ref?.trim() ?? place.google_photo_ref?.trim();
+            return ref ? (
+              <img
+                src={`/api/place-photo?ref=${encodeURIComponent(ref)}`}
+                alt=""
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <div className="h-full w-full bg-surface-alt" />
+            );
+          })()
         )}
 
         <div className="overlay-gradient rounded-t-radius-md" aria-hidden />
@@ -128,29 +134,11 @@ export function PlaceCard({ place }: { place: FeedItem }) {
         </div>
       </div>
 
-      {/* Stats row */}
-      <div className="flex gap-8 p-16">
-        <div className="flex min-w-0 flex-1">
-          <MetricTile
-            type="noise"
-            value={place.noise}
-            iconClassName="text-accent"
-          />
-        </div>
-        <div className="flex min-w-0 flex-1">
-          <MetricTile
-            type="tables"
-            value={place.tables}
-            iconClassName="text-accent"
-          />
-        </div>
-        <div className="flex min-w-0 flex-1">
-          <MetricTile
-            type="outlets"
-            value={place.outlets}
-            iconClassName="text-accent"
-          />
-        </div>
+      {/* Stats row: equal-width tiles, 8px gap, full width */}
+      <div className="grid w-full grid-cols-3 gap-2 p-16">
+        <MetricTile type="noise" value={place.noise} iconClassName="text-accent" />
+        <MetricTile type="tables" value={place.tables} />
+        <MetricTile type="outlets" value={place.outlets} iconClassName="text-accent" />
       </div>
 
       {/* Amenity tags row */}
