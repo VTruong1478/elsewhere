@@ -22,7 +22,7 @@ function OpenStatus({
   if (closing_soon && closes_at) {
     return (
       <span className="text-ui-caption text-status-medium">
-        Closing soon · {closes_at}
+        Closing soon ({closes_at})
       </span>
     );
   }

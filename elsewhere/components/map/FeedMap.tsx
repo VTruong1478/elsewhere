@@ -20,8 +20,11 @@ function FeedMapInner({
   center = ATLANTA_CENTER,
   zoom = 12,
 }: FeedMapProps) {
+  const mapId = process.env.NEXT_PUBLIC_GOOGLE_MAP_ID ?? 'DEMO_MAP_ID';
+
   return (
     <Map
+      mapId={mapId}
       defaultCenter={center}
       defaultZoom={zoom}
       disableDefaultUI
@@ -70,8 +73,10 @@ export function FeedMap(props: FeedMapProps) {
   }
 
   return (
-    <APIProvider apiKey={apiKey}>
-      <FeedMapInner {...props} />
-    </APIProvider>
+    <div className="h-full w-full min-h-[200px]">
+      <APIProvider apiKey={apiKey}>
+        <FeedMapInner {...props} />
+      </APIProvider>
+    </div>
   );
 }

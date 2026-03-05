@@ -6,8 +6,10 @@ interface MetricTilesProps {
   outlets: OutletsLabel | null;
 }
 
+const LOW_DATA_LABEL = 'Not enough data';
+
 function TablesDots({ level }: { level: TablesLabel | null }) {
-  if (!level) return <span className="text-ui-caption text-text-tertiary">—</span>;
+  if (!level) return <span className="text-ui-caption text-text-tertiary">{LOW_DATA_LABEL}</span>;
   const filled = level === 'Limited' ? 1 : level === 'Mixed' ? 3 : 5;
   return (
     <span className="flex items-center gap-1">
@@ -30,7 +32,7 @@ export function MetricTiles({ noise, tables, outlets }: MetricTilesProps) {
       <div className="flex items-center gap-1 rounded-radius-sm border border-surface-alt bg-surface px-2 py-1">
         <span className="text-ui-label-s text-text-secondary">Noise</span>
         <span className="text-ui-caption text-text">
-          {noise ?? '—'}
+          {noise ?? LOW_DATA_LABEL}
         </span>
       </div>
       <div className="flex items-center gap-1 rounded-radius-sm border border-surface-alt bg-surface px-2 py-1">
@@ -40,7 +42,7 @@ export function MetricTiles({ noise, tables, outlets }: MetricTilesProps) {
       <div className="flex items-center gap-1 rounded-radius-sm border border-surface-alt bg-surface px-2 py-1">
         <span className="text-ui-label-s text-text-secondary">Outlets</span>
         <span className="text-ui-caption text-text">
-          {outlets ?? '—'}
+          {outlets ?? LOW_DATA_LABEL}
         </span>
       </div>
     </div>
