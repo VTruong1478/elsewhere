@@ -47,6 +47,10 @@ module.exports = {
       boxShadow: {
         map: '0 2px 8px rgba(47,47,47,0.5)',
       },
+      backgroundImage: {
+        'image-overlay':
+          'linear-gradient(to bottom, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.55) 100%)',
+      },
       fontFamily: {
         lora: ['var(--font-lora)', 'serif'],
         sans: ['var(--font-dm-sans)', 'sans-serif'],
@@ -55,10 +59,24 @@ module.exports = {
     },
   },
   plugins: [
-    function ({ addUtilities, theme }) {
+    function ({ addUtilities, addBase, theme }) {
       const lora = theme('fontFamily.lora');
       const sans = theme('fontFamily.sans');
+
+      addBase({
+        body: {
+          backgroundColor: theme('colors.background'),
+          color: theme('colors.text'),
+        },
+      });
+
       addUtilities({
+        '.overlay-gradient': {
+          position: 'absolute',
+          inset: 0,
+          backgroundImage: theme('backgroundImage.image-overlay'),
+          pointerEvents: 'none',
+        },
         // Lora — display and headings only
         '.text-display-xl': {
           fontFamily: lora,
