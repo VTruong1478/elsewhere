@@ -1,24 +1,15 @@
-'use client';
+"use client";
 
-import { Bookmark } from 'lucide-react';
-import type { FeedItem } from '@/types/feed';
-import { usePlaceStore } from '@/store/usePlaceStore';
-import { Badge } from '@/components/ui/Badge';
-import { Button } from '@/components/ui/Button';
-import { MatchRing } from '@/components/ui/MatchRing';
-import { MetricTile } from '@/components/ui/MetricTile';
-import { Pill } from '@/components/ui/Pill';
-import { StatusDot } from '@/components/ui/StatusDot';
+import { Bookmark } from "lucide-react";
+import type { FeedItem } from "@/types/feed";
+import { usePlaceStore } from "@/store/usePlaceStore";
+import { Button } from "@/components/ui/Button";
+import { MatchRing } from "@/components/ui/MatchRing";
+import { MetricTile } from "@/components/ui/MetricTile";
+import { Pill } from "@/components/ui/Pill";
+import { StatusDot } from "@/components/ui/StatusDot";
 
-function getPlaceTypeVariant(
-  place_type: string,
-): 'library' | 'cafe' {
-  const t = place_type?.toLowerCase() ?? '';
-  if (t === 'cafe' || t === 'coffee') return 'cafe';
-  return 'library';
-}
-
-type StatusKind = 'open' | 'closing-soon' | 'closed';
+type StatusKind = "open" | "closing-soon" | "closed";
 
 function getOpenStatus(
   open_now: boolean,
@@ -27,25 +18,23 @@ function getOpenStatus(
   open_late: boolean,
 ): { status: StatusKind; label: string } | null {
   if (open_late && open_now) {
-    return { status: 'open', label: 'Open late' };
+    return { status: "open", label: "Open late" };
   }
   if (closing_soon && closes_at) {
-    return { status: 'closing-soon', label: `Closing soon (${closes_at})` };
+    return { status: "closing-soon", label: `Closing soon (${closes_at})` };
   }
   if (open_now && closes_at) {
-    return { status: 'open', label: `Open until ${closes_at}` };
+    return { status: "open", label: `Open until ${closes_at}` };
   }
   if (!open_now) {
-    return { status: 'closed', label: 'Closed' };
+    return { status: "closed", label: "Closed" };
   }
   return null;
 }
 
 export function PlaceCard({ place }: { place: FeedItem }) {
-  const { selectedPlaceId, setSelectedPlaceId } = usePlaceStore();
-  const isSelected = selectedPlaceId === place.id;
+  const { setSelectedPlaceId } = usePlaceStore();
   const matchPercent = place.match_score_percent ?? 0;
-  const typeVariant = getPlaceTypeVariant(place.place_type);
   const distanceNeighborhood =
     place.distance_mi != null && place.neighborhood
       ? `${place.distance_mi.toFixed(1)} mi · ${place.neighborhood}`
@@ -55,9 +44,7 @@ export function PlaceCard({ place }: { place: FeedItem }) {
           ? `${place.distance_mi.toFixed(1)} mi`
           : place.address;
   const ratingLabel =
-    place.rating_count != null
-      ? `· ${place.rating_count} ratings`
-      : undefined;
+    place.rating_count != null ? `· ${place.rating_count} ratings` : undefined;
   const openStatus = getOpenStatus(
     place.open_now,
     place.closes_at,
@@ -71,25 +58,24 @@ export function PlaceCard({ place }: { place: FeedItem }) {
       tabIndex={0}
       onClick={() => setSelectedPlaceId(place.id)}
       onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
+        if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
           setSelectedPlaceId(place.id);
         }
       }}
       className="relative cursor-pointer overflow-hidden rounded-radius-md border border-surface-alt bg-surface focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2"
     >
-      {isSelected && (
-        <div
-          className="pointer-events-none absolute inset-0 z-10 bg-white/15"
-          aria-hidden
-        />
-      )}
-
       {/* Hero image area */}
-      <div className="relative aspect-[4/3] w-full overflow-hidden rounded-t-radius-md bg-surface-alt">
+      <div className="relative h-[192px] w-full overflow-hidden rounded-t-radius-md bg-surface-alt">
         {place.image_url ? (
           <img
             src={place.image_url}
+            alt=""
+            className="h-full w-full object-cover"
+          />
+        ) : place.google_photo_ref ? (
+          <img
+            src={`/api/place-photo?photoName=${encodeURIComponent(place.google_photo_ref)}`}
             alt=""
             className="h-full w-full object-cover"
           />
@@ -97,45 +83,48 @@ export function PlaceCard({ place }: { place: FeedItem }) {
           <div className="h-full w-full bg-surface-alt" />
         )}
 
-        {/* Top-left: badges */}
-        <div className="absolute left-12 top-12 flex gap-8">
-          <Badge variant="free">Free</Badge>
-          <Badge variant={typeVariant}>
-            {place.place_type ? place.place_type.charAt(0).toUpperCase() + place.place_type.slice(1) : 'Spot'}
-          </Badge>
-        </div>
+        <div className="overlay-gradient rounded-t-radius-md" aria-hidden />
 
-        {/* Top-right: match ring */}
-        <div className="absolute right-12 top-12">
-          <MatchRing percent={matchPercent} />
-        </div>
+        {/* Content layer: pills, title, rating badge */}
+        <div className="absolute inset-0 flex flex-col">
+          <div className="absolute left-12 top-12 flex gap-8">
+            <Pill variant="cost">{place.cost ?? "Free"}</Pill>
+            <Pill variant="placeType">
+              {place.place_type
+                ? place.place_type.charAt(0).toUpperCase() +
+                  place.place_type.slice(1)
+                : "Spot"}
+            </Pill>
+          </div>
 
-        {/* Bottom-left: name + distance · neighborhood */}
-        <div className="absolute bottom-12 left-12 right-12 flex flex-col gap-4">
-          <h2 className="text-display-l text-text-inverse">
-            {place.name}
-          </h2>
-          <p className="text-body-l text-text-inverse">
-            {distanceNeighborhood}
-          </p>
-        </div>
+          <div className="absolute right-12 top-12">
+            <MatchRing score={matchPercent} />
+          </div>
 
-        {/* Bottom-right: bookmark button */}
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            // TODO: favorite mutation
-          }}
-          className="absolute bottom-12 right-12 flex h-10 w-10 items-center justify-center rounded-full bg-text-inverse text-text focus:outline-none focus:ring-2 focus:ring-accent"
-          aria-label={place.is_favorited ? 'Unsave place' : 'Save place'}
-        >
-          <Bookmark
-            size={20}
-            fill={place.is_favorited ? 'currentColor' : 'none'}
-            stroke="currentColor"
-          />
-        </button>
+          <div className="absolute bottom-12 left-12 right-12 flex flex-col">
+            <h2 className="text-heading-m text-text-inverse">{place.name}</h2>
+            <p className="text-body-s text-text-inverse">
+              {distanceNeighborhood}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              // TODO: favorite mutation
+            }}
+            className="absolute bottom-12 right-12 flex h-[32px] w-[32px] items-center justify-center rounded-full bg-text-inverse text-text shadow-map focus:outline-none focus:ring-2 focus:ring-accent"
+            aria-label={place.is_favorited ? "Unsave place" : "Save place"}
+          >
+            <Bookmark
+              size={18}
+              fill={place.is_favorited ? "currentColor" : "none"}
+              stroke="currentColor"
+              strokeWidth={2}
+            />
+          </button>
+        </div>
       </div>
 
       {/* Stats row */}
@@ -175,7 +164,7 @@ export function PlaceCard({ place }: { place: FeedItem }) {
       )}
 
       {/* Footer row */}
-      <div className="flex flex-wrap items-center justify-between gap-8 border-t border-surface-alt px-12 py-12">
+      <div className="flex flex-wrap items-center justify-between gap-8 px-12 py-12">
         <div className="flex items-center gap-8">
           {openStatus && (
             <StatusDot

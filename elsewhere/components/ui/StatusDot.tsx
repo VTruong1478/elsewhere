@@ -9,7 +9,7 @@ interface StatusDotProps {
 const dotColors: Record<Status, string> = {
   open: 'bg-status-high',
   'closing-soon': 'bg-status-medium',
-  closed: 'bg-surface-alt',
+  closed: 'bg-status-low',
 };
 
 export function StatusDot({ status, label, subLabel }: StatusDotProps) {
@@ -22,7 +22,7 @@ export function StatusDot({ status, label, subLabel }: StatusDotProps) {
       <span className="flex items-center gap-8">
         <span className="text-body-s text-text">{label}</span>
         {subLabel && (
-          <span className="text-ui-caption text-text-tertiary">{subLabel}</span>
+          <span className="text-body-s text-text-tertiary">{subLabel}</span>
         )}
       </span>
     </span>

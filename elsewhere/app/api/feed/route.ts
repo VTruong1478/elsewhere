@@ -13,6 +13,8 @@ type PlaceStatsRow = {
   place_type: string;
   opening_hours: Record<string, unknown> | null;
   timezone: string | null;
+  google_photo_ref: string | null;
+  cost: string | null;
   rating_count: number | bigint;
   noise_silent: number | bigint;
   noise_quiet: number | bigint;
@@ -307,6 +309,8 @@ export async function GET(request: NextRequest) {
       is_favorited: favorites.has(row.id),
       distance_mi: dist / 1609.344,
       rating_count: ratingCount,
+      google_photo_ref: row.google_photo_ref ?? null,
+      cost: row.cost ?? null,
       _distanceMeters: dist,
       _score: score,
     };

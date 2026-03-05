@@ -42,17 +42,18 @@ const TYPE_OVERLINE: Record<MetricType, string> = {
   outlets: 'OUTLETS',
 };
 
-function NoiseContent({
-  value,
-  iconClassName = 'text-text',
-}: {
-  value: string | null;
-  iconClassName?: string;
-}) {
+type TileContent = {
+  middle: React.ReactNode;
+  bottomText: string;
+  lowData: boolean;
+};
+
+function getNoiseContent(
+  value: string | null,
+  iconClassName: string,
+): TileContent {
   if (value === null) {
-    return (
-      <span className="text-ui-caption text-text-tertiary">{LOW_DATA}</span>
-    );
+    return { middle: null, bottomText: LOW_DATA, lowData: true };
   }
   const Icon =
     value === 'Silent'
@@ -63,39 +64,33 @@ function NoiseContent({
           ? Volume2
           : null;
   const label = NOISE_LABELS[value] ?? value.toUpperCase();
-  return (
-    <>
-      {Icon && (
-        <Icon
-          size={20}
-          className={`shrink-0 ${iconClassName}`}
-          aria-hidden
-        />
-      )}
-      <span className="text-ui-label-s text-text">{label}</span>
-    </>
-  );
+  return {
+    middle: Icon ? (
+      <Icon
+        size={20}
+        className={`shrink-0 ${iconClassName}`}
+        aria-hidden
+      />
+    ) : null,
+    bottomText: label,
+    lowData: false,
+  };
 }
 
-function TablesContent({
-  value,
-  iconClassName = 'bg-text',
-}: {
-  value: string | null;
-  iconClassName?: string;
-}) {
+function getTablesContent(
+  value: string | null,
+  iconClassName: string,
+): TileContent {
   if (value === null) {
-    return (
-      <span className="text-ui-caption text-text-tertiary">{LOW_DATA}</span>
-    );
+    return { middle: null, bottomText: LOW_DATA, lowData: true };
   }
   const filled =
     value === 'Limited' ? 1 : value === 'Mixed' ? 3 : value === 'Ideal' ? 5 : 0;
   const label = TABLES_LABELS[value] ?? value.toUpperCase();
   const filledClass = iconClassName === 'text-accent' ? 'bg-accent' : 'bg-text';
-  return (
-    <>
-      {filled > 0 && (
+  return {
+    middle:
+      filled > 0 ? (
         <span className="flex gap-0.5" aria-hidden>
           {[1, 2, 3, 4, 5].map((i) => (
             <span
@@ -105,23 +100,18 @@ function TablesContent({
             />
           ))}
         </span>
-      )}
-      <span className="text-ui-label-s text-text">{label}</span>
-    </>
-  );
+      ) : null,
+    bottomText: label,
+    lowData: false,
+  };
 }
 
-function OutletsContent({
-  value,
-  iconClassName = 'text-text',
-}: {
-  value: string | null;
-  iconClassName?: string;
-}) {
+function getOutletsContent(
+  value: string | null,
+  iconClassName: string,
+): TileContent {
   if (value === null) {
-    return (
-      <span className="text-ui-caption text-text-tertiary">{LOW_DATA}</span>
-    );
+    return { middle: null, bottomText: LOW_DATA, lowData: true };
   }
   const Icon =
     value === 'Ample'
@@ -132,18 +122,17 @@ function OutletsContent({
           ? Plug
           : null;
   const label = OUTLETS_LABELS[value] ?? value.toUpperCase();
-  return (
-    <>
-      {Icon && (
-        <Icon
-          size={20}
-          className={`shrink-0 ${iconClassName}`}
-          aria-hidden
-        />
-      )}
-      <span className="text-ui-label-s text-text">{label}</span>
-    </>
-  );
+  return {
+    middle: Icon ? (
+      <Icon
+        size={20}
+        className={`shrink-0 ${iconClassName}`}
+        aria-hidden
+      />
+    ) : null,
+    bottomText: label,
+    lowData: false,
+  };
 }
 
 export function MetricTile({
@@ -151,22 +140,30 @@ export function MetricTile({
   value,
   iconClassName = 'text-text',
 }: MetricTileProps) {
+  const content =
+    type === 'noise'
+      ? getNoiseContent(value, iconClassName)
+      : type === 'tables'
+        ? getTablesContent(value, iconClassName)
+        : getOutletsContent(value, iconClassName);
+
   return (
-    <div className="flex min-w-fit flex-col gap-4 rounded-radius-sm bg-surface-chip px-12 py-8">
-      <span className="text-ui-overline text-text-tertiary">
+    <div className="flex min-w-fit flex-col items-center gap-4 rounded-radius-sm bg-surface-chip px-12 py-8 text-center">
+      <span className="text-ui-overline text-text-tertiary uppercase">
         {TYPE_OVERLINE[type]}
       </span>
-      <div className="flex flex-col items-start gap-4">
-        {type === 'noise' && (
-          <NoiseContent value={value} iconClassName={iconClassName} />
-        )}
-        {type === 'tables' && (
-          <TablesContent value={value} iconClassName={iconClassName} />
-        )}
-        {type === 'outlets' && (
-          <OutletsContent value={value} iconClassName={iconClassName} />
-        )}
+      <div className="flex min-h-[20px] items-center justify-center">
+        {content.middle}
       </div>
+      <span
+        className={
+          content.lowData
+            ? 'text-ui-label-s font-bold uppercase text-text-tertiary'
+            : 'text-ui-label-s font-bold uppercase text-text'
+        }
+      >
+        {content.bottomText}
+      </span>
     </div>
   );
 }

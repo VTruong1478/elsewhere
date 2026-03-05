@@ -22,7 +22,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         type="button"
         disabled={disabled}
         className={`
-          group relative inline-flex min-h-[44px] min-w-[44px] cursor-pointer items-center justify-center rounded-radius-sm px-16 py-12 text-ui-button
+          group relative inline-flex min-w-[44px] cursor-pointer items-center justify-center rounded-radius-md px-24 py-8 text-ui-label-l
           ${variantStyles[variant]}
           ${disabled ? 'opacity-50' : ''}
           ${className}
@@ -31,7 +31,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       >
         {!disabled && (
           <span
-            className="pointer-events-none absolute inset-0 rounded-radius-sm bg-white/15 opacity-0 group-hover:opacity-100"
+            className="pointer-events-none absolute inset-0 rounded-radius-md bg-white/15 opacity-0 group-hover:opacity-100"
             aria-hidden
           />
         )}

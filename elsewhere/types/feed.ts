@@ -26,8 +26,12 @@ export interface FeedItem {
   neighborhood?: string;
   /** Place photo URL (when available) */
   image_url?: string | null;
+  /** Google Places (New) photo name for /api/place-photo (when available) */
+  google_photo_ref?: string | null;
   /** Number of ratings (when available) */
   rating_count?: number;
+  /** Cost indicator for card pill, e.g. "Free" or "$" (when available) */
+  cost?: string | null;
 }
 
 export type FeedFilter = '' | 'quiet' | 'free' | 'libraries' | 'open_late';

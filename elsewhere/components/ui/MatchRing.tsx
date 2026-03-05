@@ -1,37 +1,43 @@
 /**
+ * MatchRing — percentage score inside a circular ring.
+ * Uses SVG for precise 4px stroke. Ring color from score:
+ * 80–100 High (green), 60–79 Medium (yellow), 0–59 Low (orange/red).
  * Hex values from tailwind.config.js theme.extend.colors.
- * Used for SVG stroke/fill where Tailwind classes cannot be applied.
  */
 const SVG_COLORS = {
-  primary: '#4F5D3F',
-  'status-medium': '#C4943A',
-  'status-low': '#A85C3A',
+  'status-high': '#4F5D3F',   /* green */
+  'status-medium': '#C4943A', /* yellow */
+  'status-low': '#A85C3A',    /* orange/red */
 } as const;
 
 interface MatchRingProps {
-  percent: number;
+  /** Score 0–100; ring color: 80–100 green, 60–79 yellow, 0–59 orange/red. */
+  score: number;
 }
 
-function getRingColor(percent: number): string {
-  if (percent >= 80) return SVG_COLORS.primary;
-  if (percent >= 50) return SVG_COLORS['status-medium'];
-  return SVG_COLORS['status-low'];
+function getRingColor(score: number): string {
+  if (score >= 80) return SVG_COLORS['status-high'];   /* 80–100: green */
+  if (score >= 60) return SVG_COLORS['status-medium']; /* 60–79: yellow */
+  return SVG_COLORS['status-low'];                      /* 0–59: orange/red */
 }
 
-const SIZE = 40;
+const SIZE = 48;
 const STROKE = 4;
-const R = (SIZE - STROKE) / 2;
+/** Radius so 4px stroke stays inside 48px (stroke center at 22, outer at 24). */
+const R = SIZE / 2 - STROKE / 2;
 const CX = SIZE / 2;
 const CY = SIZE / 2;
 const CIRCUMFERENCE = 2 * Math.PI * R;
 
-export function MatchRing({ percent }: MatchRingProps) {
-  const clamped = Math.min(100, Math.max(0, percent));
+export function MatchRing({ score }: MatchRingProps) {
+  const clamped = Math.min(100, Math.max(0, score));
   const strokeDashoffset = CIRCUMFERENCE - (clamped / 100) * CIRCUMFERENCE;
   const color = getRingColor(clamped);
 
   return (
-    <div className="relative inline-flex h-40 w-40 items-center justify-center" style={{ width: SIZE, height: SIZE }}>
+    <div
+      className="relative flex h-[48px] w-[48px] items-center justify-center rounded-full bg-surface"
+    >
       <svg
         width={SIZE}
         height={SIZE}
@@ -39,8 +45,7 @@ export function MatchRing({ percent }: MatchRingProps) {
         className="absolute rotate-[-90deg]"
         aria-hidden
       >
-        {/* White inner fill so percentage text sits on white */}
-        <circle cx={CX} cy={CY} r={R - STROKE} fill="currentColor" className="text-text-inverse" />
+        {/* Track: full circle, subtle stroke */}
         <circle
           cx={CX}
           cy={CY}
@@ -50,6 +55,7 @@ export function MatchRing({ percent }: MatchRingProps) {
           strokeWidth={STROKE}
           className="text-surface-alt"
         />
+        {/* Progress arc */}
         <circle
           cx={CX}
           cy={CY}
@@ -62,7 +68,7 @@ export function MatchRing({ percent }: MatchRingProps) {
           strokeLinecap="round"
         />
       </svg>
-      <span className="text-ui-label-s font-bold text-text relative z-10">
+      <span className="relative z-10 text-center text-ui-label-s text-text">
         {Math.round(clamped)}%
       </span>
     </div>
