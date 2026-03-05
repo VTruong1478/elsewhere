@@ -1,0 +1,42 @@
+'use client';
+
+import { forwardRef } from 'react';
+
+type ButtonVariant = 'primary' | 'secondary';
+
+interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: ButtonVariant;
+  children: React.ReactNode;
+}
+
+const variantStyles: Record<ButtonVariant, string> = {
+  primary: 'bg-primary text-text-inverse',
+  secondary: 'bg-surface-chip text-text',
+};
+
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
+  function Button({ variant = 'primary', disabled, className = '', children, ...props }, ref) {
+    return (
+      <button
+        ref={ref}
+        type="button"
+        disabled={disabled}
+        className={`
+          group relative inline-flex min-h-[44px] min-w-[44px] cursor-pointer items-center justify-center rounded-radius-sm px-16 py-12 text-ui-button
+          ${variantStyles[variant]}
+          ${disabled ? 'opacity-50' : ''}
+          ${className}
+        `.trim()}
+        {...props}
+      >
+        {!disabled && (
+          <span
+            className="pointer-events-none absolute inset-0 rounded-radius-sm bg-white/15 opacity-0 group-hover:opacity-100"
+            aria-hidden
+          />
+        )}
+        <span className="relative">{children}</span>
+      </button>
+    );
+  }
+);

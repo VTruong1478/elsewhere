@@ -22,7 +22,10 @@ module.exports = {
         'status-high': '#4F5D3F',
         'status-medium': '#C4943A',
         'status-low': '#A85C3A',
-        'overlay-selected': 'rgba(255, 255, 255, 0.15)',
+      },
+      borderRadius: {
+        'radius-sm': '8px',
+        'radius-md': '16px',
       },
       spacing: {
         4: '4px',
@@ -34,43 +37,130 @@ module.exports = {
         32: '32px',
         40: '40px',
       },
-      borderRadius: {
-        'radius-sm': '8px',
-        'radius-md': '16px',
+      zIndex: {
+        10: '10',
+        20: '20',
+        30: '30',
+        40: '40',
+        50: '50',
       },
       boxShadow: {
-        'shadow-map': '0 2px 8px rgba(47, 47, 47, 0.5)',
-      },
-      zIndex: {
-        'z-overlay': '10',
-        'z-dropdown': '20',
-        'z-map-card': '30',
-        'z-nav': '40',
-        'z-modal': '50',
+        map: '0 2px 8px rgba(47,47,47,0.5)',
       },
       fontFamily: {
         lora: ['var(--font-lora)', 'serif'],
+        sans: ['var(--font-dm-sans)', 'sans-serif'],
         'dm-sans': ['var(--font-dm-sans)', 'sans-serif'],
-      },
-      fontSize: {
-        'display-xl': ['48px', { lineHeight: '56px', fontWeight: '700' }],
-        'display-l': ['32px', { lineHeight: '40px', fontWeight: '700' }],
-        'heading-xl': ['28px', { lineHeight: '36px', fontWeight: '700' }],
-        'heading-l': ['24px', { lineHeight: '32px', fontWeight: '700' }],
-        'heading-m': ['20px', { lineHeight: '28px', fontWeight: '700' }],
-        'heading-s': ['16px', { lineHeight: '24px', fontWeight: '700' }],
-        'heading-italic': ['24px', { lineHeight: '32px', fontWeight: '700', fontStyle: 'italic' }],
-        'body-l': ['16px', { lineHeight: '24px', fontWeight: '400' }],
-        'body-m': ['14px', { lineHeight: '24px', fontWeight: '400' }],
-        'body-s': ['12px', { lineHeight: '20px', fontWeight: '400' }],
-        'ui-button': ['16px', { lineHeight: '20px', fontWeight: '700' }],
-        'ui-label-l': ['16px', { lineHeight: '20px', fontWeight: '700' }],
-        'ui-label-m': ['12px', { lineHeight: '16px', fontWeight: '700' }],
-        'ui-label-s': ['10px', { lineHeight: '14px', fontWeight: '700' }],
-        'ui-caption': ['12px', { lineHeight: '20px', fontWeight: '400' }],
-        'ui-overline': ['10px', { lineHeight: '14px', fontWeight: '700' }],
       },
     },
   },
-  plugins: [],
+  plugins: [
+    function ({ addUtilities, theme }) {
+      const lora = theme('fontFamily.lora');
+      const sans = theme('fontFamily.sans');
+      addUtilities({
+        // Lora — display and headings only
+        '.text-display-xl': {
+          fontFamily: lora,
+          fontSize: '48px',
+          lineHeight: '56px',
+          fontWeight: '700',
+        },
+        '.text-display-l': {
+          fontFamily: lora,
+          fontSize: '32px',
+          lineHeight: '40px',
+          fontWeight: '700',
+        },
+        '.text-heading-xl': {
+          fontFamily: lora,
+          fontSize: '28px',
+          lineHeight: '36px',
+          fontWeight: '700',
+        },
+        '.text-heading-l': {
+          fontFamily: lora,
+          fontSize: '24px',
+          lineHeight: '32px',
+          fontWeight: '700',
+        },
+        '.text-heading-m': {
+          fontFamily: lora,
+          fontSize: '20px',
+          lineHeight: '28px',
+          fontWeight: '700',
+        },
+        '.text-heading-s': {
+          fontFamily: lora,
+          fontSize: '16px',
+          lineHeight: '24px',
+          fontWeight: '700',
+        },
+        '.text-heading-italic': {
+          fontFamily: lora,
+          fontSize: '24px',
+          lineHeight: '32px',
+          fontWeight: '700',
+          fontStyle: 'italic',
+        },
+        // DM Sans — body, labels, buttons, captions only
+        '.text-body-l': {
+          fontFamily: sans,
+          fontSize: '16px',
+          lineHeight: '24px',
+          fontWeight: '400',
+        },
+        '.text-body-m': {
+          fontFamily: sans,
+          fontSize: '14px',
+          lineHeight: '24px',
+          fontWeight: '400',
+        },
+        '.text-body-s': {
+          fontFamily: sans,
+          fontSize: '12px',
+          lineHeight: '20px',
+          fontWeight: '400',
+        },
+        '.text-ui-button': {
+          fontFamily: sans,
+          fontSize: '16px',
+          lineHeight: '20px',
+          fontWeight: '700',
+        },
+        '.text-ui-label-l': {
+          fontFamily: sans,
+          fontSize: '16px',
+          lineHeight: '20px',
+          fontWeight: '700',
+        },
+        '.text-ui-label-m': {
+          fontFamily: sans,
+          fontSize: '12px',
+          lineHeight: '16px',
+          fontWeight: '700',
+        },
+        '.text-ui-label-s': {
+          fontFamily: sans,
+          fontSize: '10px',
+          lineHeight: '14px',
+          fontWeight: '700',
+        },
+        '.text-ui-caption': {
+          fontFamily: sans,
+          fontSize: '12px',
+          lineHeight: '20px',
+          fontWeight: '400',
+        },
+        '.text-ui-overline': {
+          fontFamily: sans,
+          fontSize: '10px',
+          lineHeight: '14px',
+          fontWeight: '700',
+          textTransform: 'uppercase',
+          letterSpacing: '0.025em',
+        },
+      });
+    },
+  ],
 };
