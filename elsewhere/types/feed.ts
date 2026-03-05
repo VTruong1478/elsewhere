@@ -20,6 +20,14 @@ export interface FeedItem {
   open_late: boolean;
   pills: string[];
   is_favorited?: boolean;
+  /** Distance from user in miles (when available) */
+  distance_mi?: number;
+  /** Neighborhood or area label (when available) */
+  neighborhood?: string;
+  /** Place photo URL (when available) */
+  image_url?: string | null;
+  /** Number of ratings (when available) */
+  rating_count?: number;
 }
 
 export type FeedFilter = '' | 'quiet' | 'free' | 'libraries' | 'open_late';

@@ -139,6 +139,7 @@ export async function GET(request: NextRequest) {
 
   const q = (searchParams.get("q") ?? "").trim();
   const filter = searchParams.get("filter") ?? "";
+  const radiusParam = searchParams.get("radius_miles");
 
   const supabase = await createClient();
   const {
@@ -151,7 +152,10 @@ export async function GET(request: NextRequest) {
   let needsWifi = false;
   let hasPreferences = false;
 
-  if (user) {
+  if (radiusParam != null && radiusParam !== "") {
+    const parsed = Number(radiusParam);
+    if (!Number.isNaN(parsed) && parsed > 0) radiusMiles = parsed;
+  } else if (user) {
     const { data: prefs } = await supabase
       .from("user_preferences")
       .select("radius_miles, noise_preference, needs_outlets, needs_wifi")
@@ -184,7 +188,24 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const placeIds = (rows ?? []).map((r: { id: string }) => r.id);
+  const placeList = rows ?? [];
+  console.log(
+    '[feed] RPC returned',
+    placeList.length,
+    'places; lat=',
+    lat,
+    'lng=',
+    lng,
+    'radius_miles=',
+    radiusMiles,
+  );
+  if (placeList.length > 0) {
+    console.log(
+      '[feed] First 3 names:',
+      placeList.slice(0, 3).map((r: { name: string }) => r.name),
+    );
+  }
+  const placeIds = placeList.map((r: { id: string }) => r.id);
   let pillsByPlace: Record<string, string[]> = {};
   if (placeIds.length > 0) {
     const { data: ratings } = await supabase
@@ -284,6 +305,8 @@ export async function GET(request: NextRequest) {
       open_late: openLate,
       pills: pillsByPlace[row.id] ?? [],
       is_favorited: favorites.has(row.id),
+      distance_mi: dist / 1609.344,
+      rating_count: ratingCount,
       _distanceMeters: dist,
       _score: score,
     };

@@ -19,7 +19,7 @@ export function StatusDot({ status, label, subLabel }: StatusDotProps) {
         className={`h-8 w-8 shrink-0 rounded-full ${dotColors[status]}`}
         aria-hidden
       />
-      <span className="flex flex-col">
+      <span className="flex items-center gap-8">
         <span className="text-body-s text-text">{label}</span>
         {subLabel && (
           <span className="text-ui-caption text-text-tertiary">{subLabel}</span>

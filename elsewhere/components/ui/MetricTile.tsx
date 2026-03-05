@@ -12,6 +12,8 @@ type MetricType = 'noise' | 'tables' | 'outlets';
 interface MetricTileProps {
   type: MetricType;
   value: string | null;
+  /** Optional class for icon/dots (e.g. text-accent for dark navy) */
+  iconClassName?: string;
 }
 
 const LOW_DATA = 'Not enough data';
@@ -40,7 +42,13 @@ const TYPE_OVERLINE: Record<MetricType, string> = {
   outlets: 'OUTLETS',
 };
 
-function NoiseContent({ value }: { value: string | null }) {
+function NoiseContent({
+  value,
+  iconClassName = 'text-text',
+}: {
+  value: string | null;
+  iconClassName?: string;
+}) {
   if (value === null) {
     return (
       <span className="text-ui-caption text-text-tertiary">{LOW_DATA}</span>
@@ -57,13 +65,25 @@ function NoiseContent({ value }: { value: string | null }) {
   const label = NOISE_LABELS[value] ?? value.toUpperCase();
   return (
     <>
-      {Icon && <Icon size={20} className="text-text shrink-0" aria-hidden />}
+      {Icon && (
+        <Icon
+          size={20}
+          className={`shrink-0 ${iconClassName}`}
+          aria-hidden
+        />
+      )}
       <span className="text-ui-label-s text-text">{label}</span>
     </>
   );
 }
 
-function TablesContent({ value }: { value: string | null }) {
+function TablesContent({
+  value,
+  iconClassName = 'bg-text',
+}: {
+  value: string | null;
+  iconClassName?: string;
+}) {
   if (value === null) {
     return (
       <span className="text-ui-caption text-text-tertiary">{LOW_DATA}</span>
@@ -72,6 +92,7 @@ function TablesContent({ value }: { value: string | null }) {
   const filled =
     value === 'Limited' ? 1 : value === 'Mixed' ? 3 : value === 'Ideal' ? 5 : 0;
   const label = TABLES_LABELS[value] ?? value.toUpperCase();
+  const filledClass = iconClassName === 'text-accent' ? 'bg-accent' : 'bg-text';
   return (
     <>
       {filled > 0 && (
@@ -79,7 +100,7 @@ function TablesContent({ value }: { value: string | null }) {
           {[1, 2, 3, 4, 5].map((i) => (
             <span
               key={i}
-              className={`rounded-full ${i <= filled ? 'bg-text' : 'bg-surface-alt'}`}
+              className={`rounded-full ${i <= filled ? filledClass : 'bg-surface-alt'}`}
               style={{ width: '6px', height: '6px' }}
             />
           ))}
@@ -90,7 +111,13 @@ function TablesContent({ value }: { value: string | null }) {
   );
 }
 
-function OutletsContent({ value }: { value: string | null }) {
+function OutletsContent({
+  value,
+  iconClassName = 'text-text',
+}: {
+  value: string | null;
+  iconClassName?: string;
+}) {
   if (value === null) {
     return (
       <span className="text-ui-caption text-text-tertiary">{LOW_DATA}</span>
@@ -107,22 +134,38 @@ function OutletsContent({ value }: { value: string | null }) {
   const label = OUTLETS_LABELS[value] ?? value.toUpperCase();
   return (
     <>
-      {Icon && <Icon size={20} className="text-text shrink-0" aria-hidden />}
+      {Icon && (
+        <Icon
+          size={20}
+          className={`shrink-0 ${iconClassName}`}
+          aria-hidden
+        />
+      )}
       <span className="text-ui-label-s text-text">{label}</span>
     </>
   );
 }
 
-export function MetricTile({ type, value }: MetricTileProps) {
+export function MetricTile({
+  type,
+  value,
+  iconClassName = 'text-text',
+}: MetricTileProps) {
   return (
     <div className="flex min-w-fit flex-col gap-4 rounded-radius-sm bg-surface-chip px-12 py-8">
       <span className="text-ui-overline text-text-tertiary">
         {TYPE_OVERLINE[type]}
       </span>
       <div className="flex flex-col items-start gap-4">
-        {type === 'noise' && <NoiseContent value={value} />}
-        {type === 'tables' && <TablesContent value={value} />}
-        {type === 'outlets' && <OutletsContent value={value} />}
+        {type === 'noise' && (
+          <NoiseContent value={value} iconClassName={iconClassName} />
+        )}
+        {type === 'tables' && (
+          <TablesContent value={value} iconClassName={iconClassName} />
+        )}
+        {type === 'outlets' && (
+          <OutletsContent value={value} iconClassName={iconClassName} />
+        )}
       </div>
     </div>
   );

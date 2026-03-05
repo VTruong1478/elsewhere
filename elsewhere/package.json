@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "seed-places": "ts-node scripts/seed-places.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",
@@ -20,6 +21,7 @@
   },
   "devDependencies": {
     "@types/node": "^20",
+    "ts-node": "^10.9.2",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "autoprefixer": "^10.4.20",

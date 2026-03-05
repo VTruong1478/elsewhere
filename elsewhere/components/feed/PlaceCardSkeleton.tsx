@@ -1,16 +1,26 @@
 export function PlaceCardSkeleton() {
   return (
-    <div className="rounded-radius-sm border border-surface-alt bg-surface p-4">
-      <div className="mb-3 h-4 w-3/4 rounded bg-surface-alt animate-pulse" />
-      <div className="mb-4 h-3 w-full rounded bg-surface-alt animate-pulse" />
-      <div className="mb-4 flex gap-2">
-        <div className="h-8 w-20 rounded bg-surface-alt animate-pulse" />
-        <div className="h-8 w-20 rounded bg-surface-alt animate-pulse" />
-        <div className="h-8 w-20 rounded bg-surface-alt animate-pulse" />
+    <div className="overflow-hidden rounded-radius-md border border-surface-alt bg-surface">
+      {/* Hero area */}
+      <div className="aspect-[4/3] w-full bg-surface-alt animate-pulse" />
+      {/* Stats row */}
+      <div className="flex gap-8 p-12">
+        <div className="h-16 min-w-0 flex-1 rounded-radius-sm bg-surface-alt animate-pulse" />
+        <div className="h-16 min-w-0 flex-1 rounded-radius-sm bg-surface-alt animate-pulse" />
+        <div className="h-16 min-w-0 flex-1 rounded-radius-sm bg-surface-alt animate-pulse" />
       </div>
-      <div className="flex gap-2">
-        <div className="h-6 w-24 rounded bg-surface-alt animate-pulse" />
-        <div className="h-6 w-20 rounded bg-surface-alt animate-pulse" />
+      {/* Pills row */}
+      <div className="flex gap-8 px-12 pb-8">
+        <div className="h-8 w-24 rounded-radius-sm bg-surface-alt animate-pulse" />
+        <div className="h-8 w-28 rounded-radius-sm bg-surface-alt animate-pulse" />
+      </div>
+      {/* Footer */}
+      <div className="flex items-center justify-between gap-8 border-t border-surface-alt px-12 py-12">
+        <div className="flex items-center gap-8">
+          <div className="h-8 w-8 rounded-full bg-surface-alt animate-pulse" />
+          <div className="h-4 w-32 rounded bg-surface-alt animate-pulse" />
+        </div>
+        <div className="h-11 w-16 rounded-radius-sm bg-surface-alt animate-pulse" />
       </div>
     </div>
   );

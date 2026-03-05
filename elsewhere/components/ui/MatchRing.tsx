@@ -39,6 +39,8 @@ export function MatchRing({ percent }: MatchRingProps) {
         className="absolute rotate-[-90deg]"
         aria-hidden
       >
+        {/* White inner fill so percentage text sits on white */}
+        <circle cx={CX} cy={CY} r={R - STROKE} fill="currentColor" className="text-text-inverse" />
         <circle
           cx={CX}
           cy={CY}
@@ -60,8 +62,8 @@ export function MatchRing({ percent }: MatchRingProps) {
           strokeLinecap="round"
         />
       </svg>
-      <span className="text-ui-label-s font-bold relative z-10">
-        {Math.round(clamped)}
+      <span className="text-ui-label-s font-bold text-text relative z-10">
+        {Math.round(clamped)}%
       </span>
     </div>
   );

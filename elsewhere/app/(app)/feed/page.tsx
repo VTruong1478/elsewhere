@@ -12,6 +12,11 @@ import { FeedMap } from "@/components/map/FeedMap";
 import { usePlaceStore } from "@/store/usePlaceStore";
 import type { FeedItem } from "@/types/feed";
 
+// Fallback when location is denied/unavailable so the feed still shows seeded data (e.g. Atlanta)
+const FALLBACK_CENTER = { lat: 33.749, lng: -84.388 };
+// Larger radius when using fallback so all seeded Atlanta-area places (can be 10+ mi apart) show
+const FALLBACK_RADIUS_MILES = 25;
+
 type LocationState =
   | { status: "loading" }
   | { status: "unavailable" }
@@ -43,6 +48,7 @@ function fetchFeed(params: {
   lng: number;
   q: string;
   filter: string;
+  radius_miles?: number;
 }): Promise<FeedItem[]> {
   const sp = new URLSearchParams({
     lat: String(params.lat),
@@ -50,6 +56,7 @@ function fetchFeed(params: {
   });
   if (params.q) sp.set("q", params.q);
   if (params.filter) sp.set("filter", params.filter);
+  if (params.radius_miles != null) sp.set("radius_miles", String(params.radius_miles));
   return fetch(`/api/feed?${sp.toString()}`).then(async (res) => {
     const body = await res.json();
     if (!res.ok) {
@@ -71,16 +78,23 @@ function FeedContent() {
   const coords =
     locationState.status === "ready"
       ? { lat: locationState.lat, lng: locationState.lng }
-      : null;
+      : locationState.status === "denied" || locationState.status === "unavailable"
+        ? FALLBACK_CENTER
+        : null;
+
+  const usingFallbackCoords =
+    (locationState.status === "denied" || locationState.status === "unavailable") &&
+    coords != null;
 
   const query = useQuery({
-    queryKey: ["feed", coords?.lat, coords?.lng, q, filter],
+    queryKey: ["feed", coords?.lat, coords?.lng, q, filter, usingFallbackCoords],
     queryFn: () =>
       fetchFeed({
         lat: coords!.lat,
         lng: coords!.lng,
         q,
         filter,
+        radius_miles: usingFallbackCoords ? FALLBACK_RADIUS_MILES : undefined,
       }),
     enabled: coords != null,
   });
@@ -112,7 +126,7 @@ function FeedContent() {
               ))}
             </div>
           )}
-          {showEnableLocation && (
+          {showEnableLocation && !usingFallbackCoords && (
             <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
               <p className="font-lora text-heading-m text-text mb-2">
                 Location required
@@ -122,6 +136,11 @@ function FeedContent() {
                 don&apos;t use a default location.
               </p>
             </div>
+          )}
+          {usingFallbackCoords && (
+            <p className="text-body-s text-text-tertiary px-4 py-2 text-center">
+              Showing places near Atlanta. Enable location to see spots near you.
+            </p>
           )}
           {coords != null && query.isError && (
             <div className="flex flex-col items-center justify-center py-16 px-6 text-center">

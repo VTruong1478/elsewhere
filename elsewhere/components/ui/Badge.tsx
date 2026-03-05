@@ -8,8 +8,8 @@ interface BadgeProps {
 
 const variantStyles: Record<BadgeVariant, string> = {
   free: 'bg-primary text-text-inverse',
-  library: 'bg-surface-chip text-text',
-  cafe: 'bg-surface-chip text-text',
+  library: 'border border-surface-alt bg-surface-chip text-text',
+  cafe: 'border border-surface-alt bg-surface-chip text-text',
 };
 
 export function Badge({ variant, children, className = '' }: BadgeProps) {
