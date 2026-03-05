@@ -1,8 +1,16 @@
 const DEFAULT_TZ = 'America/New_York';
 
+/** Supports both legacy (time: "0900") and Places API New (hour, minute) */
+type PeriodEnd = {
+  day?: number;
+  time?: string;
+  hour?: number;
+  minute?: number;
+};
+
 type OpeningPeriod = {
-  open?: { day: number; time?: string };
-  close?: { day: number; time?: string };
+  open?: PeriodEnd;
+  close?: PeriodEnd;
 };
 
 type OpeningHours = {
@@ -20,28 +28,48 @@ function getTodayInTz(timezone: string = DEFAULT_TZ): { day: number; hour: numbe
     hour12: false,
   });
   const parts = formatter.formatToParts(now);
-  let day = 0;
   const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const hour = parseInt(parts.find((p) => p.type === 'hour')?.value ?? '0', 10);
   const minute = parseInt(parts.find((p) => p.type === 'minute')?.value ?? '0', 10);
   const weekday = parts.find((p) => p.type === 'weekday')?.value ?? 'Sun';
-  day = dayNames.indexOf(weekday);
-  if (day === -1) day = 0;
-  return { day, hour, minute };
+  const day = dayNames.indexOf(weekday);
+  return { day: day === -1 ? 0 : day, hour, minute };
 }
 
+/** Parse "0900" or "09:30" to minutes since midnight */
 function parseTime(t: string): number {
-  if (!t) return 0;
-  const h = parseInt(t.slice(0, 2), 10);
-  const m = parseInt(t.slice(2, 4), 10);
+  if (!t || typeof t !== 'string') return 0;
+  const normalized = t.replace(':', '');
+  const h = parseInt(normalized.slice(0, 2), 10);
+  const m = parseInt(normalized.slice(2, 4), 10);
+  if (Number.isNaN(h) || Number.isNaN(m)) return 0;
   return h * 60 + m;
 }
 
-function parseCloseTime(period: OpeningPeriod): number | null {
-  if (!period.close) return null;
-  const t = period.close.time;
-  if (!t) return null;
-  return parseTime(t);
+/** Get minutes since midnight from period end (open or close). Supports time string or hour+minute (Places API New). */
+function getMinutesFromEnd(end: PeriodEnd | undefined): number | null {
+  if (!end) return null;
+  if (end.time != null) return parseTime(end.time);
+  if (typeof end.hour === 'number' && typeof end.minute === 'number') {
+    return end.hour * 60 + end.minute;
+  }
+  return null;
+}
+
+function getOpenTime(period: OpeningPeriod): number {
+  return getMinutesFromEnd(period.open) ?? 0;
+}
+
+function getCloseTime(period: OpeningPeriod): number | null {
+  return getMinutesFromEnd(period.close);
+}
+
+function formatCloseTime(closeTime: number): string {
+  const closeHour = Math.floor(closeTime / 60);
+  const closeMin = closeTime % 60;
+  return closeHour >= 12
+    ? `${closeHour === 12 ? 12 : closeHour - 12}:${closeMin.toString().padStart(2, '0')}pm`
+    : `${closeHour}:${closeMin.toString().padStart(2, '0')}am`;
 }
 
 export function deriveOpeningState(
@@ -70,31 +98,71 @@ export function deriveOpeningState(
     return result;
   }
 
-  const todayPeriod = openingHours.periods.find(
-    (p) => p.open?.day === now.day || (p.open?.day === undefined && p.close?.day === now.day)
-  );
+  const openDay = (p: OpeningPeriod) => {
+    const d = p.open?.day;
+    return typeof d === 'number' ? d : undefined;
+  };
+  const closeDay = (p: OpeningPeriod) => {
+    const d = p.close?.day;
+    return typeof d === 'number' ? d : undefined;
+  };
+
+  let todayPeriod: OpeningPeriod | undefined;
+  let isOvernightIntoToday = false;
+
+  for (const p of openingHours.periods) {
+    const oDay = openDay(p);
+    const cDay = closeDay(p);
+    if (oDay === now.day) {
+      todayPeriod = p;
+      isOvernightIntoToday = cDay !== undefined && cDay !== now.day;
+      break;
+    }
+    if (cDay === now.day && oDay !== undefined && oDay !== now.day) {
+      todayPeriod = p;
+      isOvernightIntoToday = true;
+      break;
+    }
+  }
+
   if (!todayPeriod) {
     return result;
   }
 
-  const openTime = todayPeriod.open?.time ? parseTime(todayPeriod.open.time) : 0;
-  const closeTime = parseCloseTime(todayPeriod);
-  if (closeTime == null) {
+  const openTime = getOpenTime(todayPeriod);
+  const closeTimeRaw = getCloseTime(todayPeriod);
+  if (closeTimeRaw == null) {
     return result;
   }
 
-  result.open_now = nowMinutes >= openTime && nowMinutes < closeTime;
-  const closeHour = Math.floor(closeTime / 60);
-  const closeMin = closeTime % 60;
-  result.closes_at =
-    closeHour >= 12
-      ? `${closeHour === 12 ? 12 : closeHour - 12}:${closeMin.toString().padStart(2, '0')}pm`
-      : `${closeHour}:${closeMin.toString().padStart(2, '0')}am`;
+  const closesNextDay =
+    closeTimeRaw < openTime ||
+    (todayPeriod.close?.day != null &&
+      todayPeriod.open?.day != null &&
+      todayPeriod.close.day !== todayPeriod.open.day);
 
-  if (result.open_now && closeTime - nowMinutes <= CLOSING_SOON_MINUTES) {
-    result.closing_soon = true;
+  if (isOvernightIntoToday && closesNextDay) {
+    result.open_now = nowMinutes < closeTimeRaw;
+  } else if (closesNextDay) {
+    result.open_now = nowMinutes >= openTime;
+  } else {
+    result.open_now = nowMinutes >= openTime && nowMinutes < closeTimeRaw;
   }
-  if (closeTime >= OPEN_LATE_THRESHOLD_MINUTES || closeTime < 6 * 60) {
+
+  result.closes_at = formatCloseTime(closeTimeRaw);
+
+  if (result.open_now) {
+    const minsUntilClose = isOvernightIntoToday && nowMinutes < closeTimeRaw
+      ? closeTimeRaw - nowMinutes
+      : closesNextDay && nowMinutes >= openTime
+        ? (24 * 60 - nowMinutes) + closeTimeRaw
+        : closeTimeRaw - nowMinutes;
+    if (minsUntilClose <= CLOSING_SOON_MINUTES && minsUntilClose >= 0) {
+      result.closing_soon = true;
+    }
+  }
+
+  if (closeTimeRaw >= OPEN_LATE_THRESHOLD_MINUTES || closeTimeRaw < 6 * 60) {
     result.open_late = true;
   }
 
@@ -102,11 +170,10 @@ export function deriveOpeningState(
 }
 
 export function hasOpenLate(openingHours: OpeningHours | null, timezone: string | null): boolean {
-  const tz = timezone ?? DEFAULT_TZ;
   if (!openingHours?.periods?.length) return false;
   const OPEN_LATE_MINUTES = 22 * 60;
   for (const p of openingHours.periods) {
-    const closeTime = parseCloseTime(p);
+    const closeTime = getCloseTime(p);
     if (closeTime != null && closeTime >= OPEN_LATE_MINUTES) return true;
   }
   return false;

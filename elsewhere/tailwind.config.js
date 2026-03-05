@@ -77,6 +77,11 @@ module.exports = {
           backgroundImage: theme('backgroundImage.image-overlay'),
           pointerEvents: 'none',
         },
+        '.scrollbar-hide': {
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+          '&::-webkit-scrollbar': { display: 'none' },
+        },
         // Lora — display and headings only
         '.text-display-xl': {
           fontFamily: lora,

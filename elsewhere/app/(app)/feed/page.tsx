@@ -9,6 +9,7 @@ import { PlaceCard } from "@/components/feed/PlaceCard";
 import { PlaceCardSkeleton } from "@/components/feed/PlaceCardSkeleton";
 import { FeedEmptyState } from "@/components/feed/EmptyState";
 import { FeedMap } from "@/components/map/FeedMap";
+import { MapPanel } from "@/components/map/MapPanel";
 import { usePlaceStore } from "@/store/usePlaceStore";
 import type { FeedItem } from "@/types/feed";
 
@@ -105,6 +106,13 @@ function FeedContent() {
     [setSelectedPlaceId],
   );
 
+  // Scroll feed to the selected card when selection changes (e.g. from map marker click)
+  useEffect(() => {
+    if (!selectedPlaceId) return;
+    const el = document.querySelector(`[data-place-id="${selectedPlaceId}"]`);
+    el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, [selectedPlaceId]);
+
   const showSkeletons =
     locationState.status === "loading" || (coords != null && query.isLoading);
   const showEnableLocation =
@@ -113,12 +121,12 @@ function FeedContent() {
 
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col md:flex-row">
-      <div className="flex min-h-0 w-full flex-col overflow-hidden md:max-w-md md:flex-shrink-0 md:overflow-y-auto">
+      <div className="scrollbar-hide flex min-h-0 w-full flex-col overflow-y-auto md:max-w-md md:flex-shrink-0">
         <div className="shrink-0 space-y-4 p-4 md:p-6">
           <SearchBar />
           <FilterChips />
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-8 md:px-6">
+        <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto px-4 pb-8 md:px-6">
           {showSkeletons && (
             <div className="space-y-4">
               {Array.from({ length: 5 }).map((_, i) => (
@@ -169,7 +177,8 @@ function FeedContent() {
           )}
         </div>
       </div>
-      <div className="relative h-[280px] min-h-[280px] flex-1 md:min-h-[60vh] md:min-w-[320px]">
+      {/* Mobile: map strip below feed */}
+      <div className="block h-[280px] w-full flex-shrink-0 md:hidden">
         <FeedMap
           places={places}
           selectedPlaceId={selectedPlaceId}
@@ -177,6 +186,13 @@ function FeedContent() {
           center={coords ?? undefined}
         />
       </div>
+      {/* Desktop: map panel fills right column */}
+      <MapPanel
+        places={places}
+        selectedPlaceId={selectedPlaceId}
+        onSelectPlace={onSelectPlace}
+        center={coords ?? undefined}
+      />
     </div>
   );
 }

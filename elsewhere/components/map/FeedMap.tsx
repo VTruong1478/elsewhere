@@ -1,9 +1,24 @@
 'use client';
 
-import { APIProvider, Map, AdvancedMarker, Pin } from '@vis.gl/react-google-maps';
+import { useEffect } from 'react';
+import { APIProvider, Map, AdvancedMarker, useMap } from '@vis.gl/react-google-maps';
 import type { FeedItem } from '@/types/feed';
+import { usePlaceStore } from '@/store/usePlaceStore';
 
 const ATLANTA_CENTER = { lat: 33.749, lng: -84.388 };
+
+/** Same tier colors as MatchRing (tailwind theme: status-high, status-medium, status-low) */
+const TIER_COLORS = {
+  high: '#4F5D3F',
+  medium: '#C4943A',
+  low: '#A85C3A',
+} as const;
+
+function getTierColor(score: number): string {
+  if (score >= 80) return TIER_COLORS.high;
+  if (score >= 60) return TIER_COLORS.medium;
+  return TIER_COLORS.low;
+}
 
 interface FeedMapProps {
   places: FeedItem[];
@@ -13,6 +28,89 @@ interface FeedMapProps {
   zoom?: number;
 }
 
+const PADDING_PX = 48;
+const MAX_ZOOM = 15;
+const MIN_ZOOM = 10;
+
+function MapFitBounds({ places }: { places: FeedItem[] }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!map || places.length === 0) return;
+    const valid = places.filter(
+      (p) => typeof p.lat === 'number' && typeof p.lng === 'number' && !Number.isNaN(p.lat) && !Number.isNaN(p.lng)
+    );
+    if (valid.length === 0) return;
+    if (valid.length === 1) {
+      map.setCenter({ lat: valid[0].lat, lng: valid[0].lng });
+      map.setZoom(MAX_ZOOM);
+      return;
+    }
+    const bounds = new google.maps.LatLngBounds();
+    valid.forEach((p) => bounds.extend({ lat: p.lat, lng: p.lng }));
+    map.fitBounds(bounds, { top: PADDING_PX, right: PADDING_PX, bottom: PADDING_PX, left: PADDING_PX });
+    const listener = google.maps.event.addListener(map, 'idle', () => {
+      const z = map.getZoom();
+      if (z != null && z > MAX_ZOOM) map.setZoom(MAX_ZOOM);
+      if (z != null && z < MIN_ZOOM) map.setZoom(MIN_ZOOM);
+      google.maps.event.removeListener(listener);
+    });
+    return () => google.maps.event.removeListener(listener);
+  }, [map, places]);
+
+  return null;
+}
+
+function MapMarkerContent({
+  score,
+  selected,
+  hovered,
+  onMouseEnter,
+  onMouseLeave,
+}: {
+  score: number;
+  selected: boolean;
+  hovered: boolean;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
+}) {
+  const color = getTierColor(score);
+  const scale = selected ? 1.2 : hovered ? 1.1 : 1;
+  const ring = selected ? '0 0 0 3px rgba(255,255,255,0.9)' : 'none';
+
+  return (
+    <div
+      className="relative flex origin-bottom cursor-pointer items-center justify-center transition-transform duration-150 ease-out"
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      role="img"
+      aria-label={`${Math.round(score)}% match`}
+      style={{
+        transform: `scale(${scale})`,
+        filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.25))',
+      }}
+    >
+      <div
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-text-inverse"
+        style={{
+          backgroundColor: color,
+          boxShadow: ring,
+          border: '2px solid rgba(255,255,255,0.9)',
+        }}
+      >
+        <span className="text-ui-label-s font-bold tabular-nums">
+          {Math.round(Math.min(100, Math.max(0, score)))}%
+        </span>
+      </div>
+      {/* Small pointer at bottom to match pin style */}
+      <div
+        className="absolute bottom-0 left-1/2 h-2 w-2 -translate-x-1/2 translate-y-1/2 rotate-45 border-b border-r border-white/90"
+        style={{ backgroundColor: color }}
+      />
+    </div>
+  );
+}
+
 function FeedMapInner({
   places,
   selectedPlaceId,
@@ -20,31 +118,44 @@ function FeedMapInner({
   center = ATLANTA_CENTER,
   zoom = 12,
 }: FeedMapProps) {
+  const { hoveredPlaceId, setHoveredPlaceId } = usePlaceStore();
   const mapId = process.env.NEXT_PUBLIC_GOOGLE_MAP_ID ?? 'DEMO_MAP_ID';
+
+  const validPlaces = places.filter(
+    (p) => typeof p.lat === 'number' && typeof p.lng === 'number' && !Number.isNaN(p.lat) && !Number.isNaN(p.lng)
+  );
 
   return (
     <Map
       mapId={mapId}
       defaultCenter={center}
       defaultZoom={zoom}
-      disableDefaultUI
+      disableDefaultUI={false}
+      zoomControl
       className="h-full w-full"
     >
-      {places.map((place) => (
-        <AdvancedMarker
-          key={place.id}
-          position={{ lat: place.lat, lng: place.lng }}
-          title={place.name}
-          onClick={() => onSelectPlace(place.id)}
-        >
-          <Pin
-            scale={selectedPlaceId === place.id ? 1.15 : 1}
-            background="#4F5D3F"
-            borderColor="#4F5D3F"
-            glyphColor="#FFFFFF"
-          />
-        </AdvancedMarker>
-      ))}
+      <MapFitBounds places={validPlaces} />
+      {validPlaces.map((place) => {
+        const score = place.match_score_percent ?? 0;
+        const selected = selectedPlaceId === place.id;
+        const hovered = hoveredPlaceId === place.id;
+        return (
+          <AdvancedMarker
+            key={place.id}
+            position={{ lat: place.lat, lng: place.lng }}
+            title={place.name}
+            onClick={() => onSelectPlace(place.id)}
+          >
+            <MapMarkerContent
+              score={score}
+              selected={selected}
+              hovered={hovered}
+              onMouseEnter={() => setHoveredPlaceId(place.id)}
+              onMouseLeave={() => setHoveredPlaceId(null)}
+            />
+          </AdvancedMarker>
+        );
+      })}
     </Map>
   );
 }

@@ -54,6 +54,7 @@ export function PlaceCard({ place }: { place: FeedItem }) {
 
   return (
     <article
+      data-place-id={place.id}
       role="button"
       tabIndex={0}
       onClick={() => setSelectedPlaceId(place.id)}
@@ -87,7 +88,7 @@ export function PlaceCard({ place }: { place: FeedItem }) {
 
         {/* Content layer: pills, title, rating badge */}
         <div className="absolute inset-0 flex flex-col">
-          <div className="absolute left-12 top-12 flex gap-8">
+          <div className="absolute left-16 top-16 flex gap-8">
             <Pill variant="cost">{place.cost ?? "Free"}</Pill>
             <Pill variant="placeType">
               {place.place_type
@@ -97,7 +98,7 @@ export function PlaceCard({ place }: { place: FeedItem }) {
             </Pill>
           </div>
 
-          <div className="absolute right-12 top-12">
+          <div className="absolute right-16 top-16">
             <MatchRing score={matchPercent} />
           </div>
 
@@ -128,7 +129,7 @@ export function PlaceCard({ place }: { place: FeedItem }) {
       </div>
 
       {/* Stats row */}
-      <div className="flex gap-8 p-12">
+      <div className="flex gap-8 p-16">
         <div className="flex min-w-0 flex-1">
           <MetricTile
             type="noise"
@@ -164,7 +165,7 @@ export function PlaceCard({ place }: { place: FeedItem }) {
       )}
 
       {/* Footer row */}
-      <div className="flex flex-wrap items-center justify-between gap-8 px-12 py-12">
+      <div className="flex flex-wrap items-center justify-between gap-8 px-16 py-16">
         <div className="flex items-center gap-8">
           {openStatus && (
             <StatusDot

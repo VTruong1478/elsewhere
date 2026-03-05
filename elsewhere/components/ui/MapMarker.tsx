@@ -6,8 +6,9 @@ import { useEffect, useState } from 'react';
  * Hex values from tailwind.config.js theme.extend.colors.
  * Used for SVG stroke/fill where Tailwind classes cannot be applied.
  */
+/** Same tier colors as MatchRing (status-high, status-medium, status-low) */
 const SVG_COLORS = {
-  primary: '#4F5D3F',
+  'status-high': '#4F5D3F',
   'status-medium': '#C4943A',
   'status-low': '#A85C3A',
 } as const;
@@ -18,8 +19,8 @@ interface MapMarkerProps {
 }
 
 function getMarkerColor(percent: number): string {
-  if (percent >= 80) return SVG_COLORS.primary;
-  if (percent >= 50) return SVG_COLORS['status-medium'];
+  if (percent >= 80) return SVG_COLORS['status-high'];
+  if (percent >= 60) return SVG_COLORS['status-medium'];
   return SVG_COLORS['status-low'];
 }
 

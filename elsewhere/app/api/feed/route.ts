@@ -148,7 +148,7 @@ export async function GET(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  let radiusMiles = 10;
+  let radiusMiles = 25;
   let noisePreference: string | null = null;
   let needsOutlets = false;
   let needsWifi = false;
@@ -164,7 +164,7 @@ export async function GET(request: NextRequest) {
       .eq("user_id", user.id)
       .single();
     if (prefs) {
-      radiusMiles = Number(prefs.radius_miles) || 10;
+      radiusMiles = Number(prefs.radius_miles) || 25;
       noisePreference = prefs.noise_preference;
       needsOutlets = prefs.needs_outlets ?? false;
       needsWifi = prefs.needs_wifi ?? false;
