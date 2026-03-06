@@ -13,7 +13,9 @@ export default async function PlaceDetailPage({ params }: PageProps) {
   const supabase = await createClient();
   const { data: place, error } = await supabase
     .from("places")
-    .select("id, name, address, vibe_photo_ref, google_photo_ref, vibe_photo_attribution")
+    .select(
+      "id, name, address, vibe_photo_ref, google_photo_ref, vibe_photo_attribution",
+    )
     .eq("id", id)
     .single();
 
@@ -22,10 +24,11 @@ export default async function PlaceDetailPage({ params }: PageProps) {
   const photoRef =
     (place.vibe_photo_ref as string | null)?.trim() ||
     (place.google_photo_ref as string | null)?.trim();
-  const attribution = (place.vibe_photo_attribution as PhotoAttributionPayload) ?? null;
+  const attribution =
+    (place.vibe_photo_attribution as PhotoAttributionPayload) ?? null;
 
   return (
-    <div className="min-h-screen bg-surface p-4 md:p-6">
+    <div className="min-h-screen bg-surface p-4 ">
       <div className="mx-auto max-w-2xl">
         <Link
           href="/feed"

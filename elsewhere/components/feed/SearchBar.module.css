@@ -1,0 +1,14 @@
+/* Hide native search clear button (X) — scoped to SearchBar input only */
+.searchInput::-webkit-search-cancel-button,
+.searchInput::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.searchInput::-moz-search-cancel-button {
+  display: none;
+}
+
+.searchInput::-ms-clear {
+  display: none;
+}

@@ -76,7 +76,8 @@ function fetchFeed(params: {
   });
   if (params.q) sp.set("q", params.q);
   if (params.filter) sp.set("filter", params.filter);
-  if (params.radius_miles != null) sp.set("radius_miles", String(params.radius_miles));
+  if (params.radius_miles != null)
+    sp.set("radius_miles", String(params.radius_miles));
   return fetch(`/api/feed?${sp.toString()}`).then(async (res) => {
     const body = await res.json();
     if (!res.ok) {
@@ -98,16 +99,25 @@ function FeedContent() {
   const coords =
     locationState.status === "ready"
       ? { lat: locationState.lat, lng: locationState.lng }
-      : locationState.status === "denied" || locationState.status === "unavailable"
+      : locationState.status === "denied" ||
+          locationState.status === "unavailable"
         ? FALLBACK_CENTER
         : null;
 
   const usingFallbackCoords =
-    (locationState.status === "denied" || locationState.status === "unavailable") &&
+    (locationState.status === "denied" ||
+      locationState.status === "unavailable") &&
     coords != null;
 
   const query = useQuery({
-    queryKey: ["feed", coords?.lat, coords?.lng, q, filter, usingFallbackCoords],
+    queryKey: [
+      "feed",
+      coords?.lat,
+      coords?.lng,
+      q,
+      filter,
+      usingFallbackCoords,
+    ],
     queryFn: () =>
       fetchFeed({
         lat: coords!.lat,
@@ -129,7 +139,7 @@ function FeedContent() {
   useEffect(() => {
     if (!selectedPlaceId) return;
     const el = document.querySelector(`[data-place-id="${selectedPlaceId}"]`);
-    el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    el?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [selectedPlaceId]);
 
   const showSkeletons =
@@ -141,11 +151,11 @@ function FeedContent() {
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col md:flex-row">
       <div className="scrollbar-hide flex min-h-0 w-full flex-col overflow-y-auto md:max-w-md md:flex-shrink-0">
-        <div className="shrink-0 space-y-4 p-4 md:p-6">
+        <div className="shrink-0 p-16">
           <SearchBar />
           <FilterChips />
         </div>
-        <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto px-4 pb-8 md:px-6">
+        <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto px-16 pb-8">
           {showSkeletons && (
             <div className="space-y-4">
               {Array.from({ length: 5 }).map((_, i) => (
@@ -166,7 +176,8 @@ function FeedContent() {
           )}
           {usingFallbackCoords && (
             <p className="text-body-s text-text-tertiary px-4 py-2 text-center">
-              Showing places near Atlanta. Enable location to see spots near you.
+              Showing places near Atlanta. Enable location to see spots near
+              you.
             </p>
           )}
           {coords != null && query.isError && (
@@ -220,7 +231,7 @@ function FeedPageFallback() {
   return (
     <>
       <div className="flex min-h-0 w-full flex-col overflow-hidden md:max-w-md md:flex-shrink-0 md:overflow-y-auto">
-        <div className="shrink-0 space-y-4 p-4 md:p-6">
+        <div className="shrink-0 space-y-4 p-4 ">
           <div className="h-12 rounded-radius-sm bg-surface-alt animate-pulse" />
           <div className="flex gap-2">
             {[1, 2, 3, 4].map((i) => (

@@ -36,7 +36,11 @@ async function fetchPlacePhotos(googlePlaceId: string): Promise<PhotoOption[]> {
   return json.photos ?? [];
 }
 
-async function setVibePhoto(placeId: string, ref: string, attribution: unknown) {
+async function setVibePhoto(
+  placeId: string,
+  ref: string,
+  attribution: unknown,
+) {
   const res = await fetch(`/api/admin/places/${placeId}/vibe-photo`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
@@ -61,9 +65,11 @@ export default function AdminPhotosPage() {
   const placesWithGoogle = places.filter((p) => p.google_place_id);
 
   return (
-    <div className="min-h-screen bg-surface p-4 md:p-6">
+    <div className="min-h-screen bg-surface p-4 ">
       <div className="mx-auto max-w-3xl">
-        <h1 className="font-lora text-heading-l text-text">Vibe photo selection</h1>
+        <h1 className="font-lora text-heading-l text-text">
+          Vibe photo selection
+        </h1>
         <p className="text-body-m text-text-secondary mt-1">
           Choose a photo for each place. Only places with a Google Place ID can
           load photos.
@@ -92,7 +98,9 @@ export default function AdminPhotosPage() {
                     }
                     className="rounded-radius-sm bg-accent px-3 py-1.5 text-ui-button text-text-inverse"
                   >
-                    {expandedId === place.id ? "Hide photos" : "Choose vibe photo"}
+                    {expandedId === place.id
+                      ? "Hide photos"
+                      : "Choose vibe photo"}
                   </button>
                 ) : (
                   <span className="text-ui-label-s text-text-tertiary">
@@ -106,7 +114,9 @@ export default function AdminPhotosPage() {
                   googlePlaceId={place.google_place_id}
                   currentRef={place.vibe_photo_ref}
                   onSaved={() => {
-                    queryClient.invalidateQueries({ queryKey: ["admin", "places"] });
+                    queryClient.invalidateQueries({
+                      queryKey: ["admin", "places"],
+                    });
                   }}
                 />
               )}
@@ -140,10 +150,23 @@ function PlacePhotoPicker({
     onSuccess: onSaved,
   });
 
-  if (query.isLoading) return <p className="mt-3 text-ui-label-s text-text-tertiary">Loading photos…</p>;
-  if (query.isError) return <p className="mt-3 text-ui-label-s text-red-600">Failed to load photos.</p>;
+  if (query.isLoading)
+    return (
+      <p className="mt-3 text-ui-label-s text-text-tertiary">Loading photos…</p>
+    );
+  if (query.isError)
+    return (
+      <p className="mt-3 text-ui-label-s text-red-600">
+        Failed to load photos.
+      </p>
+    );
   const photos = query.data ?? [];
-  if (photos.length === 0) return <p className="mt-3 text-ui-label-s text-text-tertiary">No photos returned.</p>;
+  if (photos.length === 0)
+    return (
+      <p className="mt-3 text-ui-label-s text-text-tertiary">
+        No photos returned.
+      </p>
+    );
 
   return (
     <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-5">

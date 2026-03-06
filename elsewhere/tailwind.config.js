@@ -15,6 +15,8 @@ module.exports = {
         surface: '#FCF9F4',
         'surface-alt': '#D2D4C7',
         'surface-chip': '#D8D3C6',
+        'header-bg': '#4F5D3F',
+        'header-selected-overlay': 'rgba(255, 255, 255, 0.15)',
         text: '#2F2F2F',
         'text-secondary': '#6B6A62',
         'text-tertiary': '#9B9A91',
