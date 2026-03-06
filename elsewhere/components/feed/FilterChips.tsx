@@ -20,7 +20,7 @@ export function FilterChips() {
   }
 
   return (
-    <div className="scrollbar-hide flex flex-nowrap gap-2 overflow-x-auto overflow-y-hidden py-16">
+    <div className="scrollbar-hide flex flex-nowrap gap-2 overflow-x-auto overflow-y-hidden px-16 py-8">
       {FEED_FILTER_OPTIONS.map(({ value, label }) => {
         const isSelected = current === value;
         return (

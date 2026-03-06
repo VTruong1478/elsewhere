@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { APIProvider, Map, AdvancedMarker, useMap } from '@vis.gl/react-google-maps';
+import { Locate } from 'lucide-react';
 import type { FeedItem } from '@/types/feed';
 import { usePlaceStore } from '@/store/usePlaceStore';
 
@@ -111,6 +112,90 @@ function MapMarkerContent({
   );
 }
 
+/** User location dot (blue "you are here" style) */
+function UserLocationMarker() {
+  return (
+    <div
+      className="flex items-center justify-center"
+      role="img"
+      aria-label="Your location"
+    >
+      {/* Outer pulse ring */}
+      <div
+        className="absolute h-6 w-6 rounded-full border-2 border-accent opacity-40"
+        style={{ backgroundColor: 'transparent' }}
+      />
+      {/* Inner solid dot */}
+      <div
+        className="h-3 w-3 rounded-full border-2 border-white shadow-map"
+        style={{ backgroundColor: '#3E4F73' }}
+      />
+    </div>
+  );
+}
+
+const USER_LOCATION_ZOOM = 14;
+
+function MapLocateControl() {
+  const map = useMap();
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [isLocating, setIsLocating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleLocate = useCallback(() => {
+    if (!navigator.geolocation) {
+      setError('Geolocation is not supported');
+      return;
+    }
+    setIsLocating(true);
+    setError(null);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        const location = { lat: latitude, lng: longitude };
+        setUserLocation(location);
+        if (map) {
+          map.setCenter(location);
+          map.setZoom(USER_LOCATION_ZOOM);
+        }
+        setIsLocating(false);
+      },
+      (err) => {
+        setError(err.message || 'Could not get location');
+        setIsLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+    );
+  }, [map]);
+
+  return (
+    <>
+      {userLocation && (
+        <AdvancedMarker position={userLocation} title="Your location" zIndex={1}>
+          <UserLocationMarker />
+        </AdvancedMarker>
+      )}
+      <div className="absolute bottom-3 right-3 z-30">
+        <button
+          type="button"
+          onClick={handleLocate}
+          disabled={isLocating}
+          className="flex h-10 w-10 items-center justify-center rounded-radius-sm bg-surface shadow-map text-text hover:bg-surface-alt disabled:opacity-60"
+          aria-label={isLocating ? 'Getting your location…' : 'Center map on your location'}
+          title={isLocating ? 'Getting your location…' : 'Center map on your location'}
+        >
+          <Locate className="h-5 w-5 text-accent" aria-hidden />
+        </button>
+        {error && (
+          <span className="sr-only" role="alert">
+            {error}
+          </span>
+        )}
+      </div>
+    </>
+  );
+}
+
 function FeedMapInner({
   places,
   selectedPlaceId,
@@ -126,37 +211,39 @@ function FeedMapInner({
   );
 
   return (
-    <Map
-      mapId={mapId}
-      defaultCenter={center}
-      defaultZoom={zoom}
-      disableDefaultUI={false}
-      zoomControl
-      className="h-full w-full"
-    >
-      <MapFitBounds places={validPlaces} />
-      {validPlaces.map((place) => {
-        const score = place.match_score_percent ?? 0;
-        const selected = selectedPlaceId === place.id;
-        const hovered = hoveredPlaceId === place.id;
-        return (
-          <AdvancedMarker
-            key={place.id}
-            position={{ lat: place.lat, lng: place.lng }}
-            title={place.name}
-            onClick={() => onSelectPlace(place.id)}
-          >
-            <MapMarkerContent
-              score={score}
-              selected={selected}
-              hovered={hovered}
-              onMouseEnter={() => setHoveredPlaceId(place.id)}
-              onMouseLeave={() => setHoveredPlaceId(null)}
-            />
-          </AdvancedMarker>
-        );
-      })}
-    </Map>
+    <div className="h-full w-full">
+      <Map
+        mapId={mapId}
+        defaultCenter={center}
+        defaultZoom={zoom}
+        disableDefaultUI
+        className="h-full w-full"
+      >
+        <MapFitBounds places={validPlaces} />
+        <MapLocateControl />
+        {validPlaces.map((place) => {
+          const score = place.match_score_percent ?? 0;
+          const selected = selectedPlaceId === place.id;
+          const hovered = hoveredPlaceId === place.id;
+          return (
+            <AdvancedMarker
+              key={place.id}
+              position={{ lat: place.lat, lng: place.lng }}
+              title={place.name}
+              onClick={() => onSelectPlace(place.id)}
+            >
+              <MapMarkerContent
+                score={score}
+                selected={selected}
+                hovered={hovered}
+                onMouseEnter={() => setHoveredPlaceId(place.id)}
+                onMouseLeave={() => setHoveredPlaceId(null)}
+              />
+            </AdvancedMarker>
+          );
+        })}
+      </Map>
+    </div>
   );
 }
 

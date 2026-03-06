@@ -151,11 +151,13 @@ function FeedContent() {
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col md:flex-row">
       <div className="scrollbar-hide flex min-h-0 w-full flex-col overflow-y-auto md:max-w-md md:flex-shrink-0">
-        <div className="shrink-0 p-16">
-          <SearchBar />
+        <div className="shrink-0 pt-16">
+          <div className="px-16">
+            <SearchBar />
+          </div>
           <FilterChips />
         </div>
-        <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto px-16 pb-8">
+        <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto px-16 py-8">
           {showSkeletons && (
             <div className="space-y-4">
               {Array.from({ length: 5 }).map((_, i) => (
