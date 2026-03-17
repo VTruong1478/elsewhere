@@ -1,22 +1,11 @@
--- 1. Create new enum with the three desired values
-CREATE TYPE tables_level_enum_new AS ENUM ('limited', 'mixed', 'ideal');
-
--- 2. Change column to new type (map old values into new enum)
-ALTER TABLE places
-  ALTER COLUMN tables_level TYPE tables_level_enum_new
-  USING (
-    CASE
-      WHEN tables_level IS NULL THEN NULL
-      WHEN tables_level::text = 'limited' THEN 'limited'::tables_level_enum_new
-      WHEN tables_level::text = 'mixed' THEN 'mixed'::tables_level_enum_new
-      WHEN tables_level::text = 'ideal' THEN 'ideal'::tables_level_enum_new
-      WHEN tables_level::text IN ('none', 'ample') THEN 'limited'::tables_level_enum_new
-      ELSE 'limited'::tables_level_enum_new
-    END
-  );
-
--- 3. Drop old enum
-DROP TYPE tables_level_enum;
-
--- 4. Rename new enum to original name
-ALTER TYPE tables_level_enum_new RENAME TO tables_level_enum;
+ALTER TABLE place_stats ADD COLUMN IF NOT EXISTS tables_plentiful integer DEFAULT 0;
+ALTER TABLE place_stats ADD COLUMN IF NOT EXISTS outlets_scarce integer DEFAULT 0;
+ALTER TABLE place_stats ADD COLUMN IF NOT EXISTS outlets_some integer DEFAULT 0;
+ALTER TABLE place_stats ADD COLUMN IF NOT EXISTS avg_overall_rating numeric;
+ALTER TABLE place_stats DROP COLUMN IF EXISTS tables_ideal;
+ALTER TABLE place_stats DROP COLUMN IF EXISTS tables_none;
+ALTER TABLE place_stats DROP COLUMN IF EXISTS outlets_none;
+ALTER TABLE place_stats DROP COLUMN IF EXISTS outlets_limited;
+ALTER TABLE place_stats DROP COLUMN IF EXISTS avg_wifi;
+ALTER TABLE place_stats DROP COLUMN IF EXISTS vibe_focus;
+ALTER TABLE place_stats DROP COLUMN IF EXISTS vibe_mixed;
