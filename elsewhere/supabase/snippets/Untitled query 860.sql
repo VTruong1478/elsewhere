@@ -1,11 +1,4 @@
-ALTER TABLE place_stats ADD COLUMN IF NOT EXISTS tables_plentiful integer DEFAULT 0;
-ALTER TABLE place_stats ADD COLUMN IF NOT EXISTS outlets_scarce integer DEFAULT 0;
-ALTER TABLE place_stats ADD COLUMN IF NOT EXISTS outlets_some integer DEFAULT 0;
-ALTER TABLE place_stats ADD COLUMN IF NOT EXISTS avg_overall_rating numeric;
-ALTER TABLE place_stats DROP COLUMN IF EXISTS tables_ideal;
-ALTER TABLE place_stats DROP COLUMN IF EXISTS tables_none;
-ALTER TABLE place_stats DROP COLUMN IF EXISTS outlets_none;
-ALTER TABLE place_stats DROP COLUMN IF EXISTS outlets_limited;
-ALTER TABLE place_stats DROP COLUMN IF EXISTS avg_wifi;
-ALTER TABLE place_stats DROP COLUMN IF EXISTS vibe_focus;
-ALTER TABLE place_stats DROP COLUMN IF EXISTS vibe_mixed;
+SELECT table_name 
+FROM information_schema.tables 
+WHERE table_schema = 'public' 
+AND table_name IN ('saved', 'favorites');

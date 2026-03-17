@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { Bookmark, Check } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { FeedItem } from "@/types/feed";
 import { usePlaceStore } from "@/store/usePlaceStore";
 import { Button } from "@/components/ui/Button";
@@ -36,6 +37,7 @@ function getOpenStatus(
 
 export function PlaceCard({ place }: { place: FeedItem }) {
   const { setSelectedPlaceId } = usePlaceStore();
+  const queryClient = useQueryClient();
   const ratedQuery = useQuery<string[]>({
     queryKey: ["rated-places"],
     // No network fetch needed; this query is purely client-side cache.
@@ -45,6 +47,71 @@ export function PlaceCard({ place }: { place: FeedItem }) {
   });
   const ratedPlaces = ratedQuery.data ?? [];
   const isRated = ratedPlaces.includes(place.id);
+  const [isSaved, setIsSaved] = useState<boolean>(!!place.is_favorited);
+
+  useEffect(() => {
+    setIsSaved(!!place.is_favorited);
+  }, [place.is_favorited]);
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/saved", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ place_id: place.id }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(
+          (body as { error?: string }).error ?? "Failed to save place",
+        );
+      }
+    },
+    onMutate: async () => {
+      setIsSaved(true);
+      queryClient.setQueryData<any[] | undefined>(
+        ["saved-places"],
+        (prev) => prev ?? [],
+      );
+    },
+    onError: () => {
+      setIsSaved(false);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["saved-places"] });
+    },
+  });
+
+  const unsaveMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/saved/${place.id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(
+          (body as { error?: string }).error ?? "Failed to unsave place",
+        );
+      }
+    },
+    onMutate: async () => {
+      setIsSaved(false);
+      queryClient.setQueryData<any[] | undefined>(
+        ["saved-places"],
+        (prev) =>
+          Array.isArray(prev)
+            ? prev.filter((row) => row.place_id !== place.id)
+            : prev,
+      );
+    },
+    onError: () => {
+      setIsSaved(true);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["saved-places"] });
+    },
+  });
+
   const matchPercent = place.match_score_percent ?? 0;
   const distanceNeighborhood =
     place.distance_mi != null && place.neighborhood
@@ -129,14 +196,18 @@ export function PlaceCard({ place }: { place: FeedItem }) {
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              // TODO: favorite mutation
+              if (isSaved) {
+                unsaveMutation.mutate();
+              } else {
+                saveMutation.mutate();
+              }
             }}
             className="absolute bottom-12 right-12 flex h-[32px] w-[32px] items-center justify-center rounded-full bg-text-inverse text-text shadow-map focus:outline-none focus:ring-2 focus:ring-accent"
-            aria-label={place.is_favorited ? "Unsave place" : "Save place"}
+            aria-label={isSaved ? "Unsave place" : "Save place"}
           >
             <Bookmark
               size={18}
-              fill={place.is_favorited ? "currentColor" : "none"}
+              fill={isSaved ? "currentColor" : "none"}
               stroke="currentColor"
               strokeWidth={2}
             />
