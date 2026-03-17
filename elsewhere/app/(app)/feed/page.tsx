@@ -178,8 +178,8 @@ function FeedContent() {
           )}
           {usingFallbackCoords && (
             <p className="text-body-s text-text-tertiary px-4 py-2 text-center">
-              Showing places near Atlanta. Enable location to see spots near
-              you.
+              Showing places near Northern Virginia. Enable location to see
+              spots near you.
             </p>
           )}
           {coords != null && query.isError && (
