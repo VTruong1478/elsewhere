@@ -1,4 +1,5 @@
 export type NoiseLabel = 'Silent' | 'Quiet' | 'Vibrant';
+export type VibeLabel = 'Focused' | 'Casual' | 'Social';
 export type TablesLabel = 'Limited' | 'Mixed' | 'Ideal';
 export type OutletsLabel = 'None' | 'Limited' | 'Ample';
 
@@ -10,6 +11,8 @@ export interface FeedItem {
   lng: number;
   place_type: string;
   noise: NoiseLabel | null;
+  /** Dominant vibe label when available */
+  vibe?: VibeLabel | null;
   tables: TablesLabel | null;
   outlets: OutletsLabel | null;
   match_score_percent: number | null;
@@ -38,12 +41,17 @@ export interface FeedItem {
   cost?: string | null;
 }
 
-export type FeedFilter = '' | 'quiet' | 'free' | 'libraries' | 'open_late';
+export type FeedFilter =
+  | ''
+  | 'quiet'
+  | 'cafes'
+  | 'libraries'
+  | 'open_now';
 
 export const FEED_FILTER_OPTIONS: { value: FeedFilter; label: string }[] = [
   { value: '', label: 'All spots' },
   { value: 'quiet', label: 'Quiet' },
-  { value: 'free', label: 'Free' },
+  { value: 'cafes', label: 'Cafes' },
   { value: 'libraries', label: 'Libraries' },
-  { value: 'open_late', label: 'Open late' },
+  { value: 'open_now', label: 'Open now' },
 ];

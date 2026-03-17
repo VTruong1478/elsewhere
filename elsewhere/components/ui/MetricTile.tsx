@@ -6,7 +6,7 @@ import {
   Plug,
   BatteryMedium,
   Headphones,
-  Smile,
+  User,
   MessagesSquare,
 } from "lucide-react";
 
@@ -95,7 +95,7 @@ function getVibesContent(
     value === "Focused"
       ? Headphones
       : value === "Casual"
-        ? Smile
+        ? User
         : value === "Social"
           ? MessagesSquare
           : null;
