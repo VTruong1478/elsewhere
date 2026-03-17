@@ -95,7 +95,6 @@ export function PlaceCard({ place }: { place: FeedItem }) {
         {/* Content layer: pills, title, rating badge */}
         <div className="absolute inset-0 flex flex-col">
           <div className="absolute left-16 top-16 flex gap-8">
-            <Pill variant="cost">{place.cost ?? "Free"}</Pill>
             <Pill variant="placeType">
               {place.place_type
                 ? place.place_type.charAt(0).toUpperCase() +
@@ -135,8 +134,9 @@ export function PlaceCard({ place }: { place: FeedItem }) {
       </div>
 
       {/* Stats row: equal-width tiles, 8px gap, full width */}
-      <div className="grid w-full grid-cols-3 gap-2 p-16">
+      <div className="grid w-full grid-cols-4 gap-2 p-16">
         <MetricTile type="noise" value={place.noise} iconClassName="text-accent" />
+        <MetricTile type="vibes" value={place.vibe ?? null} />
         <MetricTile type="tables" value={place.tables} />
         <MetricTile type="outlets" value={place.outlets} iconClassName="text-accent" />
       </div>

@@ -5,9 +5,12 @@ import {
   Zap,
   Plug,
   BatteryMedium,
+  Headphones,
+  Smile,
+  MessagesSquare,
 } from "lucide-react";
 
-type MetricType = "noise" | "tables" | "outlets";
+type MetricType = "noise" | "vibes" | "tables" | "outlets";
 
 interface MetricTileProps {
   type: MetricType;
@@ -22,6 +25,12 @@ const NOISE_LABELS: Record<string, string> = {
   Silent: "SILENT",
   Quiet: "QUIET",
   Vibrant: "VIBRANT",
+};
+
+const VIBE_LABELS: Record<string, string> = {
+  Focused: "FOCUSED",
+  Casual: "CASUAL",
+  Social: "SOCIAL",
 };
 
 const TABLES_LABELS: Record<string, string> = {
@@ -39,6 +48,7 @@ const OUTLETS_LABELS: Record<string, string> = {
 
 const TYPE_OVERLINE: Record<MetricType, string> = {
   noise: "NOISE",
+  vibes: "VIBES",
   tables: "TABLES",
   outlets: "OUTLETS",
 };
@@ -65,6 +75,31 @@ function getNoiseContent(
           ? Volume2
           : null;
   const label = NOISE_LABELS[value] ?? value.toUpperCase();
+  return {
+    middle: Icon ? (
+      <Icon size={20} className={`shrink-0 ${iconClassName}`} aria-hidden />
+    ) : null,
+    bottomText: label,
+    lowData: false,
+  };
+}
+
+function getVibesContent(
+  value: string | null,
+  iconClassName: string,
+): TileContent {
+  if (value === null) {
+    return { middle: null, bottomText: LOW_DATA, lowData: true };
+  }
+  const Icon =
+    value === "Focused"
+      ? Headphones
+      : value === "Casual"
+        ? Smile
+        : value === "Social"
+          ? MessagesSquare
+          : null;
+  const label = VIBE_LABELS[value] ?? value.toUpperCase();
   return {
     middle: Icon ? (
       <Icon size={20} className={`shrink-0 ${iconClassName}`} aria-hidden />
@@ -136,9 +171,11 @@ export function MetricTile({
   const content =
     type === "noise"
       ? getNoiseContent(value, iconClassName)
-      : type === "tables"
-        ? getTablesContent(value, iconClassName)
-        : getOutletsContent(value, iconClassName);
+      : type === "vibes"
+        ? getVibesContent(value, iconClassName)
+        : type === "tables"
+          ? getTablesContent(value, iconClassName)
+          : getOutletsContent(value, iconClassName);
 
   return (
     <div className="flex min-w-0 w-full flex-col items-center justify-center rounded-radius-sm bg-surface-alt px-4 py-8 text-center">
