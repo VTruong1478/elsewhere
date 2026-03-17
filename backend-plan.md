@@ -1,111 +1,210 @@
-# Elsewhere — Backend Plan & Endpoint Outline
+# Elsewhere — Backend Plan
 
-Mobile-first web app for discovering third spaces (cafes, libraries) in Atlanta. Google sign-in required; feed-first, location-based recommendations.
-
----
-
-## 1. Architecture Overview
-
-- **Auth:** Supabase Auth (Google OAuth). All app routes except sign-in/sign-up and auth callbacks require a session; redirect unauthenticated users to sign-in.
-- **Data:** Supabase Postgres + Row Level Security (RLS). No separate API service; use Supabase client from Next.js (server components + route handlers where server-only work is needed).
-- **External API:** Google Places API used **server-side only** (Next.js Route Handlers or Server Actions) for:
-  - Looking up/searching places when a user submits a new place.
-  - Enriching new places (name, address, lat/lng, photo reference) before saving to DB.
-  - Serving place photos: photos are **not** stored as permanent URLs. The app stores a photo reference; when a place image is needed, the server redirects to the Google Places Photo URL or proxies/streams the image. Attribution must be displayed when required. This keeps usage compliant with Google's terms.
-- **Match score:** Computed at read time for the feed and map using cached `place_stats`, distance, and user preferences. **Confidence-aware:** when `rating_count` is low, the score is dampened toward a neutral baseline and the UI shows only "Not enough data" (never use "Mixed" as a low-data fallback; "Mixed" is reserved for the Tables level and vibe option). Feed and map responses include match score as a percentage plus 2–3 "why matched" reasons (optional but recommended) for cards and map pins.
-- **UI metrics (exact labels):** Noise: Silent / Quiet / Vibrant. Tables: Limited / Mixed / Ideal. Outlets: None / Limited / Ample. DB stores lowercase enum values; UI displays title-case. Tables use a 5-dot UI on the frontend only (Limited = 1 filled dot, Mixed = 3, Ideal = 5); backend stores only the categorical level (limited/mixed/ideal).
+Mobile-first web app for discovering third spaces (cafes, libraries, bookstores) in the Northern Virginia area. Feed-first, location-based recommendations with personalized match scores.
 
 ---
 
-## 2. Database Schema
+## CRITICAL RULES FOR CURSOR
 
-### 2.1 Tables
+These rules are non-negotiable. Never deviate from them.
 
-| Table | Purpose |
-|-------|--------|
-| `profiles` | One row per user; minimal identity and onboarding state. |
-| `user_preferences` | One row per user; radius, noise, outlets, wifi, vibe preferences. |
-| `places` | Venues (cafes, libraries). Key fields from Google or manual submit; photo stored as reference only; opening hours in jsonb for "Open until" / "Closing soon" / "Open late". |
-| `place_stats` | Cached aggregates per place (noise/tables/outlets/vibe category counts, rating_count, optional avg wifi). Updated by trigger on ratings insert/update/delete. One row per place; created empty on place creation. |
-| `ratings` | User-submitted ratings per place (noise, tables, outlets, wifi, vibe, pills array). One current rating per user per place (upsert). DB enums **lowercase**; UI displays title-case (e.g. Silent, Quiet, Vibrant; Limited, Mixed, Ideal; None, Limited, Ample). |
-| `favorites` | User–place saves (favorites only; no lists). |
+1. **Never write directly to `places` or `place_stats` from the client.** All inserts and updates to these tables go through Next.js Route Handlers using the service role key only.
+2. **Never expose `user_id` from ratings to other users.** All client-facing rating reads use the `ratings_public` view. Never query the raw `ratings` table from the client.
+3. **Never hard delete a place row.** Always set `is_active = false`.
+4. **Never store a permanent Google photo URL.** Store only `google_photo_ref` and serve photos via a server proxy route.
+5. **Never ship the service role key to the browser.** It lives in server-only environment variables.
+6. **Every mutation goes through a route handler.** Ratings, place submissions, saves — no alternate server write paths. This is how rate limits and validation are consistently enforced.
+7. **Always create a `place_stats` row in the same transaction as the place insert.** Never lazy-create it on first rating.
+8. **Reject ratings and saves on inactive places** (`is_active = false`) in the route handler before any DB write.
+9. **Photo upload happens after the rating row is created.** Never allow standalone photo uploads outside a rating submission.
+10. **All categorical DB fields use Postgres enums.** Never use plain text for noise, vibe, tables, outlets, or place_type.
 
-### 2.2 `profiles`
+---
 
-- `id` (uuid, PK, FK → `auth.users.id`)
-- `onboarding_completed_at` (timestamptz, nullable until onboarding done)
-- `created_at`, `updated_at`
+## 1. Stack
 
-RLS: users can read/update only their own row.
+- **Framework:** Next.js (App Router)
+- **Database:** Supabase Postgres with Row Level Security (RLS)
+- **Auth:** Supabase Auth — Google OAuth only
+- **Storage:** Supabase Storage (bucket: `user-photos`)
+- **External API:** Google Places API — server-side only, never in client bundle
+- **Distance filtering:** Postgres `earthdistance` extension (requires `cube` extension)
 
-### 2.3 `user_preferences`
+---
 
-- `user_id` (uuid, PK, FK → `auth.users.id`)
-- `radius_miles` (numeric, e.g. 1–25)
-- `noise_preference` (enum: `silent` | `quiet` | `vibrant`) — UI: "Silent", "Quiet", "Vibrant".
-- `needs_outlets` (boolean)
-- `needs_wifi` (boolean)
-- `vibe_preference` (enum: `focus` | `mixed` | `social` | `any`)
-- `created_at`, `updated_at`
+## 2. Environment Variables
 
-RLS: users can read/update only their own row. Onboarding creates/updates both `profiles` and `user_preferences`.
+```
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY
+SUPABASE_SERVICE_ROLE_KEY        # server only, never in client bundle
+GOOGLE_PLACES_API_KEY            # server only, never in client bundle
+```
 
-### 2.4 `places`
+---
 
-- `id` (uuid, PK)
-- `google_place_id` (text, unique, nullable for manual-only places)
-- `name` (text)
-- `address` (text)
-- `lat`, `lng` (numeric)
-- `place_type` (text, e.g. `cafe`, `library`) — used for filter chip "Libraries"; also for MVP "Free" (library/public = free; cafes = low-cost, not "free").
-- `google_photo_ref` (text, nullable) — Google's photo reference for the Places Photo API; **do not** store a permanent photo URL (terms compliance).
-- `google_photo_attribution` (text, nullable) — optional attribution text to display when showing the photo.
-- `opening_hours` (jsonb, nullable) — Google opening hours data (e.g. weekday_text or periods). Server uses this to derive `open_now`, `closes_at`, and "closing soon" state.
-- `timezone` (text, nullable) — IANA timezone (e.g. `America/New_York`) for interpreting opening hours. **MVP (Atlanta-only):** if `places.timezone` is null or missing, default to `America/New_York` when deriving open_now, closes_at, closing_soon, open_late; this is acceptable because the MVP is Atlanta-only.
-- `created_at`, `updated_at`
-- Optional: `created_by` (uuid → auth.users) for "submitted by" and moderation.
+## 3. Database Schema
 
-**Photos:** When the app needs to show a place image, a server route (or Server Action) calls the Google Places Photo endpoint with `google_photo_ref`, then redirects to the Google Places Photo URL or proxies/streams the image. Display attribution when required. No long-lived photo URLs stored in DB.
+### 3.1 Postgres Extensions
 
-**Opening hours (cards and "Open late" chip):** Server derives from `opening_hours` + `timezone`: (1) **open_now** — whether the place is currently open. (2) **closes_at** — time today when it closes (e.g. "Open until 9pm", "Closing soon (9pm)"). (3) **Closing soon** — e.g. closing within 30–60 minutes; threshold is configurable. (4) **Open late** — for the filter chip and "Open late" pill: e.g. closes at or after a set hour (e.g. 10pm or 11pm); can be computed from `opening_hours` or stored as a derived boolean/cache if needed for filtering.
+Enable once in Supabase dashboard under Database → Extensions:
 
-RLS: all authenticated users can read. **Insert/update only via server route handlers using the service role** (validation + dedupe). No direct client insert to `places` for MVP.
+```sql
+CREATE EXTENSION IF NOT EXISTS cube;
+CREATE EXTENSION IF NOT EXISTS earthdistance;
+```
 
-### 2.5 `place_stats`
+### 3.2 Enums
 
-Cached aggregates per place to support fast feed and map rendering. One row per place (1:1 with `places`). **A row must exist for every place:** on place creation or seed, upsert an empty `place_stats` row for that `place_id` with `rating_count=0` (and zero category counts). All three metrics use **three-level category counts** aligned to UI labels (Noise: Silent/Quiet/Vibrant; Tables: Limited/Mixed/Ideal; Outlets: None/Limited/Ample).
+```sql
+CREATE TYPE noise_level   AS ENUM ('silent', 'quiet', 'vibrant');
+CREATE TYPE vibe_level    AS ENUM ('focused', 'casual', 'social');
+CREATE TYPE tables_level  AS ENUM ('limited', 'mixed', 'plentiful');
+CREATE TYPE outlets_level AS ENUM ('scarce', 'some', 'ample');
+CREATE TYPE place_type    AS ENUM ('cafe', 'library', 'bookstore');
+```
 
-- `place_id` (uuid, PK, FK → places)
-- `rating_count` (integer, default 0) — number of ratings for this place.
-- `noise_silent` (integer, default 0), `noise_quiet` (integer, default 0), `noise_vibrant` (integer, default 0) — counts per noise level (UI: Silent, Quiet, Vibrant).
-- `tables_limited` (integer, default 0), `tables_mixed` (integer, default 0), `tables_ideal` (integer, default 0) — counts per category (UI: Limited, Mixed, Ideal).
-- `outlets_none` (integer, default 0), `outlets_limited` (integer, default 0), `outlets_ample` (integer, default 0) — counts per category (UI: None, Limited, Ample).
-- `avg_wifi` (numeric, nullable) — average of `ratings.wifi_rating` where not null (optional 1–5 display).
-- `vibe_focus` (integer, default 0), `vibe_mixed` (integer, default 0), `vibe_social` (integer, default 0) — counts per vibe (from `ratings.vibe` where not null).
-- `updated_at` (timestamptz)
+### 3.3 Tables
 
-**Dominant level for display:** For feed cards and detail, derive the displayed label (e.g. "Quiet", "Ample") by taking the mode (highest count) from the relevant category counts. For Tables use Limited/Mixed/Ideal; for vibe use focus/mixed/social. When `rating_count` is low, show **"Not enough data"** only—do not use "Mixed" as a low-data fallback; reserve "Mixed" for the Tables level (Limited/Mixed/Ideal) and the vibe option (focus/mixed/social).
+#### profiles
 
-**Maintenance:** Updated automatically when ratings change. **Postgres trigger** on `ratings` that fires after INSERT, after UPDATE, and after DELETE. See Section 2.5a for the exact DELETE handling logic.
+```sql
+CREATE TABLE profiles (
+  id          uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE RESTRICT,
+  full_name   text,
+  avatar_url  text,
+  created_at  timestamptz DEFAULT now(),
+  updated_at  timestamptz DEFAULT now()
+);
+```
 
-RLS: all authenticated users can read. Only the trigger (or server with service role) can insert/update; no client write.
+#### user_preferences
 
-### 2.5a `place_stats` Trigger — DELETE Handling
+```sql
+CREATE TABLE user_preferences (
+  user_id      uuid PRIMARY KEY REFERENCES profiles(id) ON DELETE RESTRICT,
+  radius_miles numeric DEFAULT 5,
+  created_at   timestamptz DEFAULT now(),
+  updated_at   timestamptz DEFAULT now()
+);
+```
 
-The trigger fires AFTER INSERT, AFTER UPDATE, and AFTER DELETE on `ratings`. In all three cases it uses the same approach: **full recomputation from the remaining rows** for the affected `place_id`.
+#### places
 
-- **INSERT and UPDATE:** Use `NEW.place_id` as the target. Recompute all category counts and `rating_count` by running a fresh aggregate query over all rows in `ratings` where `place_id = NEW.place_id`, then upsert `place_stats`.
-- **DELETE:** Use `OLD.place_id` as the target (the deleted row is gone; `NEW` does not exist). Run the same full recompute over the remaining rows in `ratings` where `place_id = OLD.place_id`. If no rows remain, the result is all zeros and `rating_count = 0` — upsert those zeros.
-- **Do not** attempt to increment/decrement counts in the trigger. Always recompute from source. This is safe for MVP volumes and avoids drift bugs.
+```sql
+CREATE TABLE places (
+  id                        uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  google_place_id           text,
+  name                      text NOT NULL,
+  address                   text NOT NULL,
+  lat                       numeric NOT NULL,
+  lng                       numeric NOT NULL,
+  place_type                place_type NOT NULL,
+  has_wifi                  boolean,
+  google_photo_ref          text,
+  opening_hours             jsonb,
+  timezone                  text,
+  is_active                 boolean DEFAULT true NOT NULL,
+  created_by                uuid REFERENCES profiles(id) ON DELETE RESTRICT,
+  created_at                timestamptz DEFAULT now(),
+  updated_at                timestamptz DEFAULT now()
+);
 
-Example trigger pseudocode:
+CREATE UNIQUE INDEX places_google_place_id_unique
+  ON places (google_place_id)
+  WHERE google_place_id IS NOT NULL;
+```
+
+#### place_stats
+
+```sql
+CREATE TABLE place_stats (
+  place_id            uuid PRIMARY KEY REFERENCES places(id) ON DELETE RESTRICT,
+  rating_count        integer DEFAULT 0,
+  noise_silent        integer DEFAULT 0,
+  noise_quiet         integer DEFAULT 0,
+  noise_vibrant       integer DEFAULT 0,
+  tables_limited      integer DEFAULT 0,
+  tables_mixed        integer DEFAULT 0,
+  tables_plentiful    integer DEFAULT 0,
+  outlets_scarce      integer DEFAULT 0,
+  outlets_some        integer DEFAULT 0,
+  outlets_ample       integer DEFAULT 0,
+  vibe_focused        integer DEFAULT 0,
+  vibe_casual         integer DEFAULT 0,
+  vibe_social         integer DEFAULT 0,
+  avg_overall_rating  numeric,
+  updated_at          timestamptz DEFAULT now()
+);
+```
+
+#### ratings
+
+```sql
+CREATE TABLE ratings (
+  id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  place_id       uuid NOT NULL REFERENCES places(id) ON DELETE RESTRICT,
+  user_id        uuid NOT NULL REFERENCES profiles(id) ON DELETE RESTRICT,
+  noise          noise_level NOT NULL,
+  vibe           vibe_level NOT NULL,
+  tables         tables_level NOT NULL,
+  outlets        outlets_level NOT NULL,
+  overall_rating numeric(3,1) NOT NULL
+    CHECK (overall_rating >= 0 AND overall_rating <= 5)
+    CHECK (overall_rating * 2 = FLOOR(overall_rating * 2)),
+  photo_path     text,
+  notes          text CHECK (char_length(notes) <= 500),
+  created_at     timestamptz DEFAULT now(),
+  updated_at     timestamptz DEFAULT now(),
+  CONSTRAINT ratings_user_place_unique UNIQUE (user_id, place_id)
+);
+```
+
+#### saved
+
+```sql
+CREATE TABLE saved (
+  user_id   uuid NOT NULL REFERENCES profiles(id) ON DELETE RESTRICT,
+  place_id  uuid NOT NULL REFERENCES places(id) ON DELETE RESTRICT,
+  saved_at  timestamptz DEFAULT now(),
+  PRIMARY KEY (user_id, place_id)
+);
+```
+
+### 3.4 ratings_public View
+
+The client role has no direct SELECT on the raw `ratings` table. All client reads go through this view. Grant SELECT to authenticated role only — not anon.
+
+```sql
+CREATE VIEW ratings_public AS
+  SELECT
+    place_id,
+    noise,
+    vibe,
+    tables,
+    outlets,
+    overall_rating,
+    photo_path,
+    notes,
+    created_at
+  FROM ratings;
+
+REVOKE SELECT ON ratings FROM authenticated;
+GRANT SELECT ON ratings_public TO authenticated;
+```
+
+### 3.5 place_stats Trigger
+
+Fires AFTER INSERT, UPDATE, DELETE on `ratings`. Always does a full recompute from remaining rows — never increments or decrements. Runs with SECURITY DEFINER. Uses OLD.place_id for DELETE, NEW.place_id for INSERT/UPDATE.
+
 ```sql
 CREATE OR REPLACE FUNCTION update_place_stats()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+SECURITY DEFINER
+LANGUAGE plpgsql AS $$
 DECLARE
   target_place_id uuid;
 BEGIN
-  -- For DELETE use OLD; for INSERT/UPDATE use NEW
   IF TG_OP = 'DELETE' THEN
     target_place_id := OLD.place_id;
   ELSE
@@ -115,10 +214,10 @@ BEGIN
   INSERT INTO place_stats (
     place_id, rating_count,
     noise_silent, noise_quiet, noise_vibrant,
-    tables_limited, tables_mixed, tables_ideal,
-    outlets_none, outlets_limited, outlets_ample,
-    vibe_focus, vibe_mixed, vibe_social,
-    avg_wifi, updated_at
+    tables_limited, tables_mixed, tables_plentiful,
+    outlets_scarce, outlets_some, outlets_ample,
+    vibe_focused, vibe_casual, vibe_social,
+    avg_overall_rating, updated_at
   )
   SELECT
     target_place_id,
@@ -126,289 +225,519 @@ BEGIN
     COUNT(*) FILTER (WHERE noise = 'silent'),
     COUNT(*) FILTER (WHERE noise = 'quiet'),
     COUNT(*) FILTER (WHERE noise = 'vibrant'),
-    COUNT(*) FILTER (WHERE tables_label = 'limited'),
-    COUNT(*) FILTER (WHERE tables_label = 'mixed'),
-    COUNT(*) FILTER (WHERE tables_label = 'ideal'),
-    COUNT(*) FILTER (WHERE outlets_label = 'none'),
-    COUNT(*) FILTER (WHERE outlets_label = 'limited'),
-    COUNT(*) FILTER (WHERE outlets_label = 'ample'),
-    COUNT(*) FILTER (WHERE vibe = 'focus'),
-    COUNT(*) FILTER (WHERE vibe = 'mixed'),
+    COUNT(*) FILTER (WHERE tables = 'limited'),
+    COUNT(*) FILTER (WHERE tables = 'mixed'),
+    COUNT(*) FILTER (WHERE tables = 'plentiful'),
+    COUNT(*) FILTER (WHERE outlets = 'scarce'),
+    COUNT(*) FILTER (WHERE outlets = 'some'),
+    COUNT(*) FILTER (WHERE outlets = 'ample'),
+    COUNT(*) FILTER (WHERE vibe = 'focused'),
+    COUNT(*) FILTER (WHERE vibe = 'casual'),
     COUNT(*) FILTER (WHERE vibe = 'social'),
-    AVG(wifi_rating),
+    AVG(overall_rating),
     now()
   FROM ratings
   WHERE place_id = target_place_id
   ON CONFLICT (place_id) DO UPDATE SET
-    rating_count = EXCLUDED.rating_count,
-    noise_silent = EXCLUDED.noise_silent,
-    -- ... all fields
-    updated_at = now();
+    rating_count       = EXCLUDED.rating_count,
+    noise_silent       = EXCLUDED.noise_silent,
+    noise_quiet        = EXCLUDED.noise_quiet,
+    noise_vibrant      = EXCLUDED.noise_vibrant,
+    tables_limited     = EXCLUDED.tables_limited,
+    tables_mixed       = EXCLUDED.tables_mixed,
+    tables_plentiful   = EXCLUDED.tables_plentiful,
+    outlets_scarce     = EXCLUDED.outlets_scarce,
+    outlets_some       = EXCLUDED.outlets_some,
+    outlets_ample      = EXCLUDED.outlets_ample,
+    vibe_focused       = EXCLUDED.vibe_focused,
+    vibe_casual        = EXCLUDED.vibe_casual,
+    vibe_social        = EXCLUDED.vibe_social,
+    avg_overall_rating = EXCLUDED.avg_overall_rating,
+    updated_at         = now();
 
   RETURN NULL;
 END;
-$$ LANGUAGE plpgsql;
+$$;
+
+CREATE TRIGGER ratings_update_place_stats
+AFTER INSERT OR UPDATE OR DELETE ON ratings
+FOR EACH ROW EXECUTE FUNCTION update_place_stats();
 ```
 
-### 2.6 `ratings`
+### 3.6 Profile Creation Trigger
 
-- `id` (uuid, PK)
-- `place_id` (uuid, FK → places)
-- `user_id` (uuid, FK → auth.users)
-- `noise` (enum: `silent` | `quiet` | `vibrant`) — DB lowercase; UI: "Silent", "Quiet", "Vibrant".
-- `tables_label` (enum: `limited` | `mixed` | `ideal`) — DB lowercase; UI: "Limited", "Mixed", "Ideal". Frontend may show 5-dot display (1 = Limited, 3 = Mixed, 5 = Ideal); backend stores only the category.
-- `outlets_label` (enum: `none` | `limited` | `ample`) — DB lowercase; UI: "None", "Limited", "Ample".
-- `wifi_rating` (smallint 1–5, nullable)
-- `vibe` (enum: `focus` | `mixed` | `social`, nullable) — DB lowercase; UI displays capitalized.
-- `pills` (text[], default '{}') — array of pill keys selected by the user. **Must be validated against the allowed pill list** (see Section 2.6a). Stored per rating; feed/detail can show aggregated or most-common pills per place.
-- `notes` (text, nullable)
-- `created_at`, `updated_at`
-- Unique constraint on `(place_id, user_id)` — one rating per user per place (upsert).
+Fires on INSERT to `auth.users`. Creates a `profiles` row and a `user_preferences` row in the same operation. The auth callback then updates `full_name` and `avatar_url` from the Google OAuth response.
 
-### 2.6a Pill Validation
-
-Pills are a fixed set of allowed string keys. **Do not accept arbitrary strings.** Enforce in two places: (1) a shared constants file used by the server, and (2) a Postgres check constraint on `ratings.pills`.
-
-**Allowed pill keys (MVP):**
-
-```
-study rooms
-public computers
-morning rush
-cozy nooks
-outdoor seating
-good lighting
-fast wifi
-standing desks
-wheelchair accessible
-kid friendly
-dog friendly
-late night
-group friendly
-solo friendly
-```
-
-**Constants file** (`lib/constants/pills.ts`):
-```ts
-export const ALLOWED_PILLS = [
-  'study rooms',
-  'public computers',
-  'morning rush',
-  'cozy nooks',
-  'outdoor seating',
-  'good lighting',
-  'fast wifi',
-  'standing desks',
-  'wheelchair accessible',
-  'kid friendly',
-  'dog friendly',
-  'late night',
-  'group friendly',
-  'solo friendly',
-] as const;
-
-export type PillKey = typeof ALLOWED_PILLS[number];
-```
-
-**Postgres check constraint** (add in migration):
 ```sql
-ALTER TABLE ratings
-ADD CONSTRAINT ratings_pills_valid
-CHECK (
-  pills <@ ARRAY[
-    'study rooms','public computers','morning rush','cozy nooks',
-    'outdoor seating','good lighting','fast wifi','standing desks',
-    'wheelchair accessible','kid friendly','dog friendly',
-    'late night','group friendly','solo friendly'
-  ]::text[]
-);
+CREATE OR REPLACE FUNCTION handle_new_user()
+RETURNS TRIGGER
+SECURITY DEFINER
+LANGUAGE plpgsql AS $$
+BEGIN
+  INSERT INTO profiles (id, created_at, updated_at)
+  VALUES (NEW.id, now(), now());
+
+  INSERT INTO user_preferences (user_id, radius_miles, created_at, updated_at)
+  VALUES (NEW.id, 5, now(), now());
+
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER on_auth_user_created
+AFTER INSERT ON auth.users
+FOR EACH ROW EXECUTE FUNCTION handle_new_user();
 ```
 
-**Validation in route handler:** Before inserting/upserting a rating, validate that all values in `pills` are members of `ALLOWED_PILLS`. Return a `400` with a clear error if any unknown key is present.
+---
 
-**Pills on feed cards (MVP rule):** For each place, take the most recent N ratings (N = 20); collect all `ratings.pills` values across those ratings; select the top 2 pill strings by frequency; if there are no pills in the last N ratings, return an empty pills list. This is read-time aggregation for MVP and can be cached later.
+## 4. Row Level Security
 
-### 2.7 `favorites`
+Enable RLS on every table. These policies are the complete set — do not add permissive policies without review.
 
-- `user_id` (uuid, FK → auth.users)
-- `place_id` (uuid, FK → places)
-- `created_at`
-- Primary key `(user_id, place_id)`
+```sql
+-- profiles
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "profiles: own row" ON profiles
+  FOR ALL USING (auth.uid() = id);
 
-RLS: users can read/insert/delete only their own rows.
+-- user_preferences
+ALTER TABLE user_preferences ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "user_preferences: own row" ON user_preferences
+  FOR ALL USING (auth.uid() = user_id);
 
-### 2.8 Feed and detail data source
+-- places: authenticated users read, service role writes
+ALTER TABLE places ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "places: authenticated read" ON places
+  FOR SELECT USING (auth.role() = 'authenticated');
 
-- **Feed and map:** Join `places` + `place_stats` (and optionally `favorites` for current user). Include per-place: dominant Noise/Tables/Outlets labels from `place_stats` category counts; **open_now**, **closes_at**, **closing_soon** and **open_late** derived from `places.opening_hours` + effective timezone (see timezone default below); **match_score_percent** and 2–3 **why_matched** reasons (optional but recommended); **pills** for cards per the MVP pills rule (see below). No need to aggregate from `ratings` at read time for stats; use cached `place_stats`.
-- **Place detail:** Place row + its `place_stats` + current user's rating (if any) + favorite state + opening-hours-derived fields. For dominant tables, outlets, noise, and vibe labels, derive from category counts in `place_stats` (mode). When `rating_count` is low, UI shows **"Not enough data"** only (never "Mixed" as fallback).
+-- place_stats: authenticated users read, trigger writes
+ALTER TABLE place_stats ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "place_stats: authenticated read" ON place_stats
+  FOR SELECT USING (auth.role() = 'authenticated');
+
+-- ratings: own row for write, public view for read
+ALTER TABLE ratings ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "ratings: own row insert" ON ratings
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "ratings: own row update" ON ratings
+  FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "ratings: own row delete" ON ratings
+  FOR DELETE USING (auth.uid() = user_id);
+
+-- saved: own rows only
+ALTER TABLE saved ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "saved: own rows" ON saved
+  FOR ALL USING (auth.uid() = user_id);
+```
 
 ---
 
-## 3. Match Score & Confidence
+## 5. Auth Flow
 
-- **Inputs:** User preferences (from `user_preferences`), user's current lat/lng, per-place `place_stats`, and distance.
-- **Score components (conceptual):**
-  - Distance: better when closer (e.g. within radius, decay by distance).
-  - Noise: align dominant noise level (from `place_stats` counts: `noise_silent`, `noise_quiet`, `noise_vibrant`) to user's `noise_preference` (silent/quiet/vibrant); exact match scores highest.
-  - Outlets/WiFi: if user needs them, boost places with ample outlets and good avg wifi; penalize none/poor.
-  - Vibe: align dominant vibe (from `place_stats` vibe counts: `vibe_focus`, `vibe_mixed`, `vibe_social`) to user's `vibe_preference`; `any` = no penalty.
-- **Confidence handling:** When `place_stats.rating_count` is below a threshold (e.g. 2–3), apply a **dampener**: pull the match score toward a neutral baseline so low-data places don't rank as overconfident. In the UI, show **"Not enough data"** for places with few ratings (do not use "Mixed" as a low-data fallback).
-- **Output:** Single numeric score per place; feed and map sorted by score (e.g. descending). **Display:** Feed and map responses include **match_score_percent** (e.g. 0–100) and 2–3 **why_matched** reasons (optional but recommended) for cards and map pins (e.g. "Quiet", "Ample outlets", "Close to you"). Implementation can live in a server-side function or in the feed Route Handler / Server Component after fetching places + place_stats.
+- Sign-in: `supabase.auth.signInWithOAuth({ provider: 'google' })` — client-side
+- Callback route: `app/(auth)/auth/callback/route.ts`
+  - Exchange code for session
+  - Update `profiles.full_name` and `profiles.avatar_url` from Google OAuth metadata
+  - Redirect to feed
+- Middleware: `middleware.ts` — check session on all routes except `/login`, `/auth/callback`, and static assets. Redirect unauthenticated users to `/login`.
 
 ---
 
-## 4. Endpoint / Route Outline
+## 6. Route Handlers
 
-Assume **App Router**. Prefer Server Components for read-heavy pages; use Route Handlers for mutations and for any path that must call Google (server-only). **Place insertion is only through server route handlers** (service role, validation + dedupe); users never insert directly into `places` from the client.
+All mutations use the Supabase service role client. All reads use the Supabase anon/user client with RLS.
 
-### 4.1 Auth
+### POST /api/places
 
-- **Sign-in / Sign-up:** Supabase client-side `signInWithOAuth({ provider: 'google' })`. No custom endpoint unless you need a custom callback URL that then redirects into the app.
-- **Callback:** Next.js route that Supabase redirects to after Google sign-in (e.g. `/auth/callback`). Exchange code for session, set cookies, redirect to onboarding or feed.
-- **Middleware:** On all non-public routes (everything except sign-in, sign-up, auth callback, and static assets), check for Supabase session; redirect to sign-in if missing.
+Create a new place. Service role only.
 
-### 4.2 Onboarding
+1. Authenticate request — reject if no session
+2. Check rate limit: max 5 place submissions per user per UTC day. Query `places WHERE created_by = user_id AND created_at >= start_of_today_utc`. Return `429` if at limit.
+3. Check `is_active` of any existing place with same `google_place_id` — return existing place if found
+4. Call Google Places API with `google_place_id` to fetch: name, address, lat, lng, place_type, `google_photo_ref`, opening_hours, timezone, `has_wifi` (from `freeWifi` field — store null if not returned)
+5. Insert place row and place_stats row in the same transaction. place_stats initialised with all counts = 0.
+6. Return created place
 
-- **Read:** Server Component or server-side fetch of `profiles` and `user_preferences` for current user. If no profile or `profiles.onboarding_completed_at` is null, show onboarding.
-- **Write:** Client updates `profiles` and `user_preferences` via Supabase client (RLS allows only own rows), or a single `PATCH /api/user/preferences` (or Server Action) that validates and upserts both tables. On completion, set `profiles.onboarding_completed_at`.
+### GET /api/places/search
 
-### 4.3 Feed (and map data)
+Search for places before submission.
 
-- **Read:** Server Component or `GET /api/feed` with query params:
-  - **`lat`, `lng`** (required for distance) — user's location. **If either is missing or invalid, return `400 Bad Request` with body `{ error: 'lat and lng are required' }`.** Do not fall back to a default location; require the client to obtain and send the user's actual coordinates.
-  - **`q`** (optional) — search query; filters by place name and/or address (e.g. SQL `ILIKE` on `places.name` and `places.address`, or full-text search). Only places matching `q` (when provided) are returned.
-  - **Filter chips (optional):** `filter` or dedicated params (e.g. `quiet`, `free`, `libraries`, `open_late`) — see below.
-- **Behavior:**
-  - Load user preferences from `user_preferences` (and profile if needed).
-  - Fetches places within radius joined with `place_stats` (and optionally `places.opening_hours`/effective timezone for open-now/closing-soon/open-late). **Distance filtering (MVP):** use Postgres **earthdistance** in SQL only; no bounding-box + haversine in app code. **Prerequisite:** enable Supabase Postgres extensions `cube` and `earthdistance` (earthdistance depends on cube).
-  - Apply search `q` when present (name/address filter).
-  - Apply filter chip logic when present.
-  - Compute match score (confidence-aware using `rating_count`) and sort. Derive per-place: open_now, closes_at, closing_soon, open_late from `opening_hours` + timezone.
-  - Return payload includes for each place: place fields, `place_stats`-derived dominant labels (Noise: Silent/Quiet/Vibrant; Tables: Limited/Mixed/Ideal; Outlets: None/Limited/Ample), **match_score_percent**, 2–3 **why_matched** reasons, opening state ("Open until Xpm", "Closing soon (Xpm)", "Open late" chip), and **pills** for cards per the MVP rule (most recent 20 ratings, top 2 pills by frequency, or empty if none).
-- **Pagination:** Optional `limit`/`offset` or cursor; MVP can use a fixed limit (e.g. 20).
+1. Call Google Places API Text Search with `q` param
+2. For each result, check if `google_place_id` already exists in `places`
+3. Return list with `{ ...placeData, already_in_db: boolean }`
 
-**Filter chips (UI: All spots, Quiet, Free, Libraries, Open late):**
+### GET /api/places/[id]/photo
 
-| Chip       | Source / logic |
-|------------|-----------------|
-| **All spots** | No filter; show all places in radius (subject to `q` if present). |
-| **Quiet**   | Filter by dominant noise level from `place_stats`: include places where dominant noise is `quiet` (e.g. `noise_quiet` is the max of noise_silent/quiet/vibrant). |
-| **Free**    | MVP: "Free" = library and other public spaces. Filter by `place_type` (e.g. `place_type = 'library'` or allow a small set of free types). Cafes are low-cost but not "free"; do not include in Free chip. |
-| **Libraries** | Filter by `place_type = 'library'`. |
-| **Open late** | Filter by opening hours: place closes at or after a threshold hour (e.g. 22:00 or 23:00) on at least one day; derive from `places.opening_hours` (and `timezone`) or from a cached/computed field if needed for performance. |
+Proxy Google place photo.
 
-### 4.4 Place detail
+1. Fetch `google_photo_ref` from `places` for the given id
+2. Call Google Places Photo API with the ref
+3. Redirect to or stream the photo response
+4. Attribution: include `google_photo_attribution` in response headers or alongside the image where required
 
-- **Read:** Server Component or `GET /api/places/[id]` returning: place row (with `google_photo_ref`/attribution; no permanent photo URL), its `place_stats`, current user's rating (if any), and whether the user has favorited the place. When `rating_count` is low, UI shows **"Not enough data"** only.
-- **Photo:** When the UI needs the place image, call a server route (e.g. `GET /api/places/[id]/photo`) that uses `google_photo_ref` to redirect to the Google Places Photo URL or proxy/stream the image. Display attribution when required. No permanent photo URL stored.
-- **Submit rating:** Client inserts/upserts into `ratings` via Supabase (RLS allows only own row). **All `pills` values must be validated against `ALLOWED_PILLS` (see Section 2.6a) before insert; reject with `400` if any unknown key is present.** Trigger (or alternative handler) updates `place_stats`. Request body uses **lowercase** enum values: `noise` (silent|quiet|vibrant), `tables_label` (limited|mixed|ideal), `outlets_label`, `vibe`, and optional `pills` (array of strings from the allowed set only).
-- **Toggle favorite:** Client insert/delete on `favorites` via Supabase (RLS).
+### GET /api/feed
 
-### 4.5 Submit new place
+Feed and map data.
 
-- **Flow:** (1) User searches for the place (name/address). (2) Server checks existing places (by Google Place ID or dedupe rules). (3) If not found, user submits; **insertion into `places` happens only in a server route handler** with validation and dedupe.
-- **Search existing:** `GET /api/places/search?q=...` (and optionally `lat`/`lng`). Server-only: call Google Places API (Text Search or Find Place), then for each candidate check if `places.google_place_id` already exists; return list (e.g. "already in DB" vs "can add from Google").
-- **Add place:** `POST /api/places` — **only from server route handler (service role)**. Body: either `{ google_place_id }` (server fetches details from Google, including photo reference, and inserts one row into `places` and upserts an empty `place_stats` row for that place with `rating_count=0`) or `{ name, address, lat, lng, place_type?, ... }` for manual add. Server validates, dedupes (by `google_place_id` or nearby lat/lng), then inserts. **Ensure a `place_stats` row exists for every place on creation/seed.** Do not allow direct client insert to `places` for MVP.
-- **Rate limiting on `POST /api/places`:** Before inserting, check how many places the authenticated user has submitted in the current UTC day. **Limit: 5 submissions per user per day.** Query `places` where `created_by = auth.uid()` and `created_at >= start of today UTC`. If the count is at or above the limit, return `429 Too Many Requests` with body `{ error: 'Daily place submission limit reached. Try again tomorrow.' }`. This check runs in the route handler before any Google API call or DB insert.
+Query params:
 
-### 4.6 Favorites list
+- `lat`, `lng` — required. Return `400 { error: 'lat and lng are required' }` if missing or invalid. Never fall back to a default location server-side.
+- `q` — optional search string, filters by place name/address via ILIKE
+- `filter` — optional: `quiet`, `cafes`, `libraries`, `open_now`
 
-- **Read:** Server Component or `GET /api/favorites` that returns places the current user has in `favorites`, joined with `places` and `place_stats` for display.
+Logic:
 
----
+1. Load `user_preferences` for current user (radius_miles)
+2. Load user's rating history from `ratings` for implied preference calculation
+3. Query places within radius using earthdistance joined with place_stats. Only include `is_active = true` places.
+4. Apply filter chips:
+   - `quiet`: dominant noise level is silent or quiet (noise_silent or noise_quiet is the max count)
+   - `cafes`: place_type = 'cafe'
+   - `libraries`: place_type = 'library'
+   - `open_now`: derived from opening_hours + timezone (default America/New_York if null)
+5. Apply search `q` if present
+6. For each place, compute match score (see Section 7)
+7. Derive opening state: open_now, closes_at, closing_soon (within 30 min)
+8. Sort: match_score DESC, distance ASC, rating_count DESC
+9. Return max 20 results
 
-## 5. Google Places API Usage (Server-Side Only)
+Response payload per place:
 
-- **Keys:** Store in env (e.g. `GOOGLE_PLACES_API_KEY`). Use only in Route Handlers or Server Actions, never in client bundle.
-- **Calls:**
-  - **Place Details** (by `place_id`) when creating a place from a Google result; store name, address, lat/lng, `place_type`, **photo reference** (and optional attribution), and **opening hours** in `places.opening_hours` jsonb; set `timezone` if available from the API, otherwise leave null (MVP: when interpreting hours, default to `America/New_York` for Atlanta-only). Do not store a permanent photo URL.
-  - **Places Photo** endpoint when the app needs to display a place image: server redirects to the Google Places Photo URL or proxies/streams the image using `google_photo_ref`. Attribution must be displayed when required.
-  - **Text Search / Find Place** when user searches before adding a new place.
-- **Data stored in DB:** For photos, store only `google_photo_ref` and optional `google_photo_attribution`; serve images via redirect or proxy/stream when needed. For hours, store `opening_hours` (jsonb) and `timezone`; when `timezone` is null, use `America/New_York` for MVP (Atlanta-only).
+```json
+{
+  "id": "uuid",
+  "name": "string",
+  "address": "string",
+  "lat": 0,
+  "lng": 0,
+  "place_type": "cafe",
+  "has_wifi": true,
+  "google_photo_ref": "string",
+  "distance_miles": 1.2,
+  "is_active": true,
+  "dominant_noise": "silent",
+  "dominant_tables": "plentiful",
+  "dominant_outlets": "ample",
+  "dominant_vibe": "focused",
+  "rating_count": 42,
+  "match_score_percent": 92,
+  "open_now": true,
+  "closes_at": "9:00 PM",
+  "closing_soon": false,
+  "is_favorited": false
+}
+```
 
----
+When `rating_count = 0`, set all dominant labels to null and `match_score_percent` to null. The UI shows "--" for null values.
 
-## 6. Setup Prerequisites
+### GET /api/places/[id]
 
-- **Postgres extensions (required for distance filtering):** Enable the Supabase Postgres extensions **`cube`** and **`earthdistance`** so that radius/distance filtering can use `earth_distance` (or equivalent) in SQL. Do this once in the Supabase project (e.g. Database → Extensions).
+Place detail.
 
----
+Returns place row + place_stats + current user's rating (from raw `ratings` table server-side, user_id is safe here since it's their own row) + whether user has saved the place.
 
-## 7. DB Migration Strategy
+### POST /api/places/[id]/rate
 
-All schema changes are versioned using Supabase's local migrations workflow. This applies from the first line of schema, not retroactively.
+Submit or update a rating. Upsert on (user_id, place_id).
 
-- **Folder:** `/supabase/migrations/` in the repo root. Supabase CLI generates and runs files in this folder.
-- **Setup (once):**
-  ```bash
-  npx supabase init        # creates /supabase folder
-  npx supabase login
-  npx supabase link --project-ref <your-project-ref>
-  ```
-- **Creating a migration:**
-  ```bash
-  npx supabase migration new <descriptive_name>
-  # e.g. npx supabase migration new create_places_table
-  ```
-  Write the SQL in the generated file, then:
-  ```bash
-  npx supabase db push     # applies to remote Supabase project
-  ```
-- **Rules:**
-  - Never edit a migration file after it has been pushed to the remote project. Write a new migration to alter existing tables.
-  - Commit all migration files to git. Migration history is the source of truth for schema.
-  - The initial migration should include: all table definitions, all enums, all RLS policies, the `place_stats` trigger, and the `ratings_pills_valid` check constraint (see Section 2.6a).
-  - Seeding (e.g. initial Atlanta places) goes in `/supabase/seed.sql` or a dedicated seed migration, not in app code.
+1. Authenticate — reject if no session
+2. Check rate limit: max 100 ratings per user per UTC day
+3. Check place `is_active` — return `400` if false
+4. Validate all required fields: noise, vibe, tables, outlets, overall_rating
+5. Validate overall_rating is 0–5 in 0.5 increments
+6. Upsert into `ratings`
+7. Trigger fires automatically to update place_stats
+8. If `photo_path` is included, verify the path contains the user's own user_id before accepting
 
----
+### POST /api/saved
 
-## 8. RLS Summary
+Save a place.
 
-| Table | Select | Insert | Update | Delete |
-|-------|--------|--------|--------|--------|
-| `profiles` | own row | own row | own row | — |
-| `user_preferences` | own row | own row | own row | — |
-| `places` | all authenticated | **server only (service role)** | **server only (service role)** | — |
-| `place_stats` | all authenticated | trigger / server only | trigger / server only | — |
-| `ratings` | all authenticated | own row | own row | own row |
-| `favorites` | own rows | own row | — | own row |
+1. Check place `is_active` — return `400` if false
+2. Insert into `saved` (upsert safe due to composite PK)
 
-"Own" = `auth.uid() = user_id` (or `id` for `profiles`). For `places` and `place_stats`, client never inserts or updates; use a Supabase client with service role in Route Handlers (and triggers for `place_stats`).
+### DELETE /api/saved/[place_id]
 
----
+Unsave a place. Delete from `saved` where user_id = auth.uid().
 
-## 9. File / Route Map (Suggestions)
+### PATCH /api/user/preferences
 
-- `middleware.ts` — session check; redirect unauthenticated to sign-in.
-- `app/(auth)/login`, `app/(auth)/auth/callback` — sign-in and OAuth callback.
-- `app/(app)/onboarding` — onboarding form; reads/updates `profiles` and `user_preferences`.
-- `app/(app)/feed` — feed page and map (Server Component or client fetch of `/api/feed`); supports `q`, filter chips; uses `place_stats` for fast render; response includes match_score_percent, why_matched, opening state, pills.
-- `app/(app)/places/[id]` — place detail (Server Component + rating/favorite forms). Photo via server route that calls Places Photo API.
-- `app/(app)/places/[id]/photo` or `app/api/places/[id]/photo/route.ts` — GET place image from Google using `google_photo_ref`.
-- `app/(app)/places/new` — "Add place" flow (search then submit); submission goes to `POST /api/places` only.
-- `app/(app)/favorites` — list of saved places.
-- `app/api/places/route.ts` — **POST new place only (service role);** validation + dedupe + rate limit check (5/day per user); no client insert to DB.
-- `app/api/places/search/route.ts` — GET search (calls Google + DB check).
-- `app/api/places/[id]/rate/route.ts` — optional: POST upsert rating (or client + RLS); validates pills against `ALLOWED_PILLS`; trigger updates `place_stats`.
-- `app/api/favorites/route.ts` — GET list, POST add, DELETE remove (optional; client + RLS is sufficient).
-- `lib/constants/pills.ts` — `ALLOWED_PILLS` array and `PillKey` type; single source of truth for valid pill keys.
-- `supabase/migrations/` — all schema migrations; never edit after push.
+Update user radius.
+
+Upsert `user_preferences.radius_miles` for the current user.
 
 ---
 
-## 10. 30-Day MVP Simplifications
+## 7. Match Score Formula
 
-- **Geography:** Atlanta-only; no multi-city. **Distance filtering:** MVP uses Postgres earthdistance in SQL only; no bounding-box + haversine in app code. **Prerequisite:** enable Supabase Postgres extensions `cube` and `earthdistance` (see Setup Prerequisites). Optional: store Atlanta bounding box and filter places to that box.
-- **Place types:** Fixed set (e.g. cafe, library); no open-ended tags for MVP. **Free** filter = library/public spaces only; cafes are not "free".
-- **Place submission:** Users submit via UI; **all inserts to `places` go through server route handlers** (service role) with validation, dedupe, and rate limit check (5 submissions per user per UTC day; return `429` if exceeded). No direct client insert to `places`. Enrich from Google Place Details (name, address, lat/lng, place_type, photo reference, opening_hours, timezone if available).
-- **Ratings:** One rating per user per place (upsert); no rating history. **UI metrics:** Noise = Silent/Quiet/Vibrant; Tables = Limited/Mixed/Ideal; Outlets = None/Limited/Ample. DB enums **lowercase**; UI title-case. Tables: 5-dot UI is frontend-only; backend stores only categorical level. **Low-data labeling:** use only **"Not enough data"** for low-data states; reserve "Mixed" for Tables level (Limited/Mixed/Ideal) and vibe (focus/mixed/social). **Pills:** Fixed allowed set defined in `lib/constants/pills.ts` and enforced by a Postgres check constraint; stored per rating as `ratings.pills` text[]; validated server-side before insert; for feed cards, MVP rule: most recent 20 ratings per place, collect all pills, top 2 by frequency, or empty list if none — read-time aggregation, can be cached later.
-- **Feed `lat`/`lng`:** Required params. Missing or invalid → `400 Bad Request` with `{ error: 'lat and lng are required' }`. No default location fallback.
-- **Opening hours:** Store in `places.opening_hours` (jsonb) + `places.timezone`. If `timezone` is null, default to `America/New_York` (acceptable for Atlanta-only MVP). Server derives open_now, closes_at, "Closing soon", "Open late" for cards and filter chip.
-- **Feed and map:** Search via `q` (place name/address). Filter chips: All spots, Quiet (from place_stats noise), Free (place_type), Libraries (place_type), Open late (from opening_hours). Response includes match_score_percent, 2–3 why_matched reasons, opening state, and pills per MVP rule (top 2 from last 20 ratings).
-- **Favorites:** Single list only; no custom lists or folders.
-- **place_stats:** Three-level category counts for noise (silent/quiet/vibrant), tables (limited/mixed/ideal), outlets (none/limited/ample); dominant label = mode. Confidence dampener when rating_count is low; UI shows **"Not enough data"** only for low-data (never "Mixed" as fallback). Trigger handles INSERT, UPDATE, and DELETE via full recompute from remaining rows (see Section 2.5a).
-- **Photos:** Store only `google_photo_ref` (+ optional attribution); serve images via server route that redirects to or proxies/streams from the Google Places Photo endpoint. Display attribution when required.
-- **No real-time:** No Supabase Realtime for MVP; simple refresh or refetch on navigate.
-- **DB migrations:** All schema changes versioned in `/supabase/migrations/` from day one. Never edit a pushed migration; always write a new one.
+Computed server-side in the feed route handler. Never computed client-side.
 
-This gives you a corrected, concise backend plan aligned with the Elsewhere feed and map UI and ready to implement in Next.js + Supabase.
+### Step 1 — Derive implied preferences from rating history
+
+For each metric (noise and vibe only — tables and outlets do not feed the score):
+
+```
+For each level in the metric:
+  total_weight = SUM of overall_rating for all ratings where that level was selected
+
+implied_preference = level with the highest total_weight
+```
+
+If the user has no ratings, skip match score entirely. Return `match_score_percent: null`. Feed sorts by distance only.
+
+### Step 2 — Score each place
+
+```
+noise_match:
+  1.0 if dominant_noise === implied_noise
+  0.5 if one step away (Silent<->Quiet or Quiet<->Vibrant)
+  0.0 if two steps away (Silent<->Vibrant)
+
+vibe_match:
+  1.0 if dominant_vibe === implied_vibe
+  0.5 if one step away (Focused<->Casual or Casual<->Social)
+  0.0 if two steps away (Focused<->Social)
+
+Level order:
+  Noise:  silent -> quiet -> vibrant
+  Vibe:   focused -> casual -> social
+
+base_score = (noise_match + vibe_match) / 2
+```
+
+### Step 3 — Blend in place quality
+
+```
+place_quality = avg_overall_rating / 5.0
+
+match_score = (base_score * 0.7) + (place_quality * 0.3)
+
+match_score_percent = Math.round(match_score * 100)
+```
+
+If `rating_count < 1` or `avg_overall_rating` is null, return `match_score_percent: null`.
+
+### Dominant label logic
+
+For each metric, the dominant label is the level with the highest count in place_stats. Ties use the middle value. When `rating_count = 0`, all dominant labels are null.
+
+```
+dominant_noise:
+  max(noise_silent, noise_quiet, noise_vibrant) -> return that level
+  tie -> 'quiet'
+
+dominant_vibe:
+  max(vibe_focused, vibe_casual, vibe_social) -> return that level
+  tie -> 'casual'
+
+dominant_tables:
+  max(tables_limited, tables_mixed, tables_plentiful) -> return that level
+  tie -> 'mixed'
+
+dominant_outlets:
+  max(outlets_scarce, outlets_some, outlets_ample) -> return that level
+  tie -> 'some'
+```
+
+---
+
+## 8. Location
+
+The server never stores or defaults the user's location. `lat` and `lng` are always sent by the client on each request. If either is missing or invalid, return `400 { error: 'lat and lng are required' }`.
+
+The client handles the fallback:
+
+- Live device location available → send real coordinates, show "Near you"
+- Location unavailable → send Annandale, VA fallback (lat: 38.8304, lng: -77.1941), show "Annandale, VA"
+
+Both the feed and the map use the same fallback center.
+
+---
+
+## 9. Opening Hours Logic
+
+Derive from `places.opening_hours` (jsonb, Google format) + `places.timezone`. If `timezone` is null, default to `America/New_York`. This default is acceptable for MVP because the entire launch area is in Eastern Time.
+
+Derive:
+
+- `open_now`: boolean — is the place currently open
+- `closes_at`: string — e.g. "9:00 PM"
+- `closing_soon`: boolean — closes within 30 minutes
+- `open_now` filter chip: include place only if `open_now = true`
+
+---
+
+## 10. Google Places API
+
+Server-side only. Never called from the client or exposed to the browser.
+
+```
+GET https://places.googleapis.com/v1/places/{place_id}
+```
+
+Fields to request when enriching a new place:
+
+- `displayName` → `name`
+- `formattedAddress` → `address`
+- `location.latitude` → `lat`
+- `location.longitude` → `lng`
+- `primaryType` → map to `place_type` enum (cafe, library, bookstore)
+- `photos[0].name` → `google_photo_ref`
+- `regularOpeningHours` → `opening_hours`
+- `utcOffsetMinutes` → derive `timezone`
+- `goodForChildren`, `amenities.freeWifi` → `has_wifi`
+
+Photo serving:
+
+```
+GET https://places.googleapis.com/v1/{photo_name}/media?maxWidthPx=800&key=API_KEY
+```
+
+Serve via `/api/places/[id]/photo` — redirect or proxy. Never store the resulting URL in the database.
+
+---
+
+## 11. Storage — user-photos
+
+Bucket name: `user-photos`
+Path format: `user-photos/{place_id}/{user_id}-{timestamp}.jpg`
+
+Rules:
+
+- Public read — no signed URLs needed
+- Authenticated upload only — storage policy checks that `user_id` segment of the path matches `auth.uid()`
+- Users can delete only files where their `user_id` appears in the path
+- Upload happens after the rating row is inserted — never before
+- When a user re-rates a place: delete old `photo_path` from storage, then upload new photo, then update `ratings.photo_path`
+- Client-side compression before upload (use `browser-image-compression`) — max 1200px wide
+- Client-side validation: jpg or webp only, max 5MB (server-side enforcement is post-MVP)
+
+---
+
+## 12. File and Route Structure
+
+```
+middleware.ts                          session check, redirect unauthenticated
+app/
+  (auth)/
+    login/page.tsx                     Google sign-in screen
+    auth/callback/route.ts             OAuth callback, update profile name/avatar
+  (app)/
+    feed/page.tsx                      feed + map tabs
+    places/[id]/page.tsx               place detail, rating form, save button
+    places/new/page.tsx                add place flow (search then submit)
+    saved/page.tsx                     saved places list
+    profile/page.tsx                   profile, activity stats, log out
+api/
+  feed/route.ts                        GET feed
+  places/route.ts                      POST new place
+  places/search/route.ts               GET search
+  places/[id]/route.ts                 GET place detail
+  places/[id]/photo/route.ts           GET photo proxy
+  places/[id]/rate/route.ts            POST upsert rating
+  saved/route.ts                       POST save place
+  saved/[place_id]/route.ts            DELETE unsave place
+  user/preferences/route.ts            PATCH radius
+supabase/
+  migrations/                          all schema changes versioned here
+  seed.sql                             initial NoVA place data
+```
+
+---
+
+## 13. Migration Strategy
+
+All schema changes go in `/supabase/migrations/`. Never edit a migration after it has been pushed. Write a new migration to alter existing tables.
+
+```bash
+npx supabase init
+npx supabase login
+npx supabase link --project-ref <your-project-ref>
+
+npx supabase migration new <descriptive_name>
+# write SQL in the generated file
+npx supabase db push
+```
+
+The initial migration must include:
+
+- All extensions (cube, earthdistance)
+- All enums
+- All table definitions with constraints and foreign keys
+- All indexes
+- All RLS policies
+- The place_stats trigger
+- The profile creation trigger
+- The ratings_public view with correct grants
+
+Seed data goes in `/supabase/seed.sql`, not in migrations.
+
+---
+
+## 14. Rate Limits
+
+All checks live in route handlers. There is no alternate write path.
+
+| Action             | Limit                    | Response |
+| ------------------ | ------------------------ | -------- |
+| Place submissions  | 5 per user per UTC day   | 429      |
+| Rating submissions | 100 per user per UTC day | 429      |
+
+Check pattern:
+
+```typescript
+const count = await supabaseServiceRole
+  .from("ratings")
+  .select("id", { count: "exact", head: true })
+  .eq("user_id", userId)
+  .gte("created_at", startOfTodayUTC);
+
+if (count >= LIMIT) {
+  return NextResponse.json({ error: "..." }, { status: 429 });
+}
+```
+
+---
+
+## 15. Beta Launch Checklist
+
+Before inviting any testers:
+
+- [ ] Run all migrations against production Supabase project
+- [ ] Confirm `ratings_public` view has correct grants (authenticated only, not anon)
+- [ ] Confirm raw `ratings` table has SELECT revoked from authenticated role
+- [ ] Seed all NoVA places via `seed.sql`
+- [ ] Personally rate every seeded place (minimum 1 rating per place so match scores show from day one)
+- [ ] Confirm `place_stats` rows exist for every seeded place with correct counts
+- [ ] Confirm `has_wifi` populated correctly from Google Places API for seeded places
+- [ ] Confirm service role key is not present in any client bundle
+- [ ] Confirm Google Places API key is not present in any client bundle
+- [ ] Test location fallback with location permission denied (should show Annandale, VA)
+- [ ] Test rating form end-to-end including photo upload
+- [ ] Test that rating an inactive place returns 400
+- [ ] Test that saving an inactive place returns 400
+
+---
+
+## 16. What Is Explicitly Out of Scope for MVP
+
+Do not implement these. They are post-MVP.
+
+- Onboarding flow — no setup screen, radius defaults to 5 miles
+- Vibe, noise, outlet preferences stored in user_preferences — preferences are inferred from ratings only
+- Wifi as a rated metric — has_wifi is a place attribute set from Google API, not user-rated
+- Overall rating displayed publicly as a community score — it feeds the match score internally only
+- Bookstores filter chip — bookstore is a valid place_type but has no feed chip
+- Open late filter chip — replaced by Open now
+- Pills / feature tags on ratings
+- Visit history table
+- Multiple saved lists
+- Real-time subscriptions
+- Geo-fence on place submissions
+- Server-side photo size/format enforcement
+- Database-level inactive place enforcement (route handler only for MVP)
+- Manual place deduplication (fuzzy matching)
+- google_photo_attribution display
+- Account self-deletion flow
+- Incremental place_stats trigger updates
