@@ -13,7 +13,7 @@ module.exports = {
         accent: "#3E4F73",
         background: "#EFEBE0",
         surface: "#FCF9F4",
-        "surface-alt-border": "#D2D4C7",
+        "surface-alt": "#D2D4C7",
         "surface-chip": "#D8D3C6",
         "header-bg": "#4F5D3F",
         "header-selected-overlay": "rgba(255, 255, 255, 0.15)",

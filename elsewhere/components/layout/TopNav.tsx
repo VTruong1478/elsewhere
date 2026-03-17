@@ -10,7 +10,7 @@ export function TopNav() {
       <Link
         href="/profile"
         aria-label="Profile"
-        className="flex h-40 w-40 items-center justify-center rounded-full bg-surface-alt-border text-text"
+        className="flex h-40 w-40 items-center justify-center rounded-full bg-surface-alt text-text"
       >
         <CircleUserRound size={20} className="text-primary" />
       </Link>

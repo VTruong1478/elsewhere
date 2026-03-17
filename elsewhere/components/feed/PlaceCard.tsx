@@ -1,6 +1,8 @@
 "use client";
 
-import { Bookmark } from "lucide-react";
+import Link from "next/link";
+import { Bookmark, Check } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import type { FeedItem } from "@/types/feed";
 import { usePlaceStore } from "@/store/usePlaceStore";
 import { Button } from "@/components/ui/Button";
@@ -34,6 +36,15 @@ function getOpenStatus(
 
 export function PlaceCard({ place }: { place: FeedItem }) {
   const { setSelectedPlaceId } = usePlaceStore();
+  const ratedQuery = useQuery<string[]>({
+    queryKey: ["rated-places"],
+    // No network fetch needed; this query is purely client-side cache.
+    queryFn: async () => [],
+    staleTime: Infinity,
+    initialData: [],
+  });
+  const ratedPlaces = ratedQuery.data ?? [];
+  const isRated = ratedPlaces.includes(place.id);
   const matchPercent = place.match_score_percent ?? 0;
   const distanceNeighborhood =
     place.distance_mi != null && place.neighborhood
@@ -163,13 +174,28 @@ export function PlaceCard({ place }: { place: FeedItem }) {
             />
           )}
         </div>
-        <Button
-          variant="primary"
+        <Link
+          href={`/places/${place.id}/rate?name=${encodeURIComponent(
+            place.name,
+          )}`}
           onClick={(e) => e.stopPropagation()}
-          type="button"
+          className="inline-flex"
         >
-          Rate
-        </Button>
+          <Button
+            variant="primary"
+            type="button"
+            className={isRated ? "bg-status-high text-text-inverse" : ""}
+          >
+            {isRated ? (
+              <span className="flex items-center gap-8">
+                <Check size={18} aria-hidden />
+                <span>Rated</span>
+              </span>
+            ) : (
+              "Rate"
+            )}
+          </Button>
+        </Link>
       </div>
     </article>
   );
