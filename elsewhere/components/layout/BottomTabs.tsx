@@ -2,64 +2,53 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { MapPin, List } from "lucide-react";
+import { Home, Map, Bookmark, CircleUserRound } from "lucide-react";
+
+const tabs = [
+  { href: "/feed", label: "Feed", icon: Home },
+  { href: "/map", label: "Map", icon: Map },
+  { href: "/saved", label: "Saved", icon: Bookmark },
+  { href: "/profile", label: "Profile", icon: CircleUserRound },
+] as const;
 
 export function BottomTabs() {
   const pathname = usePathname();
-  const feedActive = pathname === "/feed";
-  const mapActive = pathname === "/map";
 
   return (
     <nav
-      className="flex shrink-0 items-center justify-around border-t border-surface-alt bg-surface safe-area-pb z-40"
+      className="fixed bottom-0 left-0 right-0 flex min-h-[56px] items-center justify-around border-t border-surface-alt bg-surface z-40 lg:hidden"
       role="tablist"
     >
-      <Link
-        href="/feed"
-        role="tab"
-        aria-selected={feedActive}
-        className={`flex min-h-[44px] min-w-[44px] flex-1 flex-col items-center justify-center gap-1 ${
-          feedActive ? "relative" : ""
-        }`}
-      >
-        {feedActive && (
-          <span
-            className="pointer-events-none absolute inset-0"
-            style={{ backgroundColor: "rgba(255, 255, 255, 0.15)" }}
-            aria-hidden
-          />
-        )}
-        <List size={20} className="relative text-text" aria-hidden />
-        <span className="relative text-ui-caption text-text">Feed</span>
-      </Link>
-      <Link
-        href="/map"
-        role="tab"
-        aria-selected={mapActive}
-        className={`flex min-h-[44px] min-w-[44px] flex-1 flex-col items-center justify-center gap-1 ${
-          mapActive ? "relative" : ""
-        }`}
-      >
-        {mapActive && (
-          <span
-            className="pointer-events-none absolute inset-0"
-            style={{ backgroundColor: "rgba(255, 255, 255, 0.15)" }}
-            aria-hidden
-          />
-        )}
-        <MapPin
-          size={20}
-          className={`relative ${mapActive ? "text-text" : "text-text-secondary"}`}
-          aria-hidden
-        />
-        <span
-          className={`relative text-ui-caption ${
-            mapActive ? "text-text" : "text-text-secondary"
-          }`}
-        >
-          Map
-        </span>
-      </Link>
+      {tabs.map(({ href, label, icon: Icon }) => {
+        const isActive = pathname === href;
+        return (
+          <Link
+            key={href}
+            href={href}
+            role="tab"
+            aria-selected={isActive}
+            className="relative flex min-h-[44px] min-w-[44px] flex-1 flex-col items-center justify-center gap-1"
+          >
+            {isActive && (
+              <span
+                className="pointer-events-none absolute inset-0"
+                style={{ backgroundColor: "rgba(255, 255, 255, 0.15)" }}
+                aria-hidden
+              />
+            )}
+            <Icon
+              size={20}
+              className={`relative ${isActive ? "text-primary" : "text-text-secondary"}`}
+              aria-hidden
+            />
+            <span
+              className={`relative text-ui-label-s ${isActive ? "text-primary" : "text-text-secondary"}`}
+            >
+              {label}
+            </span>
+          </Link>
+        );
+      })}
     </nav>
   );
 }

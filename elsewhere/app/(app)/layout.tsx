@@ -11,12 +11,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <div className="block md:hidden">
         <TopNav />
       </div>
-      <main className="flex min-h-0 flex-1 flex-col md:flex-row md:max-h-[calc(100vh-88px)]">
+      <main className="flex min-h-0 flex-1 flex-col pb-[56px] md:flex-row md:max-h-[calc(100vh-88px)] lg:pb-0">
         {children}
       </main>
-      <div className="block md:hidden">
-        <BottomTabs />
-      </div>
+      <BottomTabs />
     </div>
   );
 }
