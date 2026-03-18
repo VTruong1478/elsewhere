@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Bookmark, Check } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { FeedItem } from "@/types/feed";
@@ -14,6 +15,8 @@ import { StatusDot } from "@/components/ui/StatusDot";
 import { createClient } from "@/lib/supabase/client";
 
 type StatusKind = "open" | "closing-soon" | "closed";
+
+type SavedPlacesCacheRow = { place_id: string };
 
 function getOpenStatus(
   open_now: boolean,
@@ -38,8 +41,22 @@ function getOpenStatus(
 
 export function PlaceCard({ place }: { place: FeedItem }) {
   const { setSelectedPlaceId } = usePlaceStore();
+  const router = useRouter();
   const queryClient = useQueryClient();
   const supabase = useMemo(() => createClient(), []);
+
+  const [isMobileOrTablet, setIsMobileOrTablet] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia("(max-width: 1023px)").matches;
+  });
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(max-width: 1023px)");
+    const update = () => setIsMobileOrTablet(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
   const ratedQuery = useQuery<string[]>({
     queryKey: ["rated-places"],
     // No network fetch needed; this query is purely client-side cache.
@@ -52,6 +69,8 @@ export function PlaceCard({ place }: { place: FeedItem }) {
   const [isSaved, setIsSaved] = useState<boolean>(!!place.is_favorited);
 
   useEffect(() => {
+    // Sync server-provided favorited state into the optimistic UI.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsSaved(!!place.is_favorited);
   }, [place.is_favorited]);
 
@@ -71,9 +90,9 @@ export function PlaceCard({ place }: { place: FeedItem }) {
     },
     onMutate: async () => {
       setIsSaved(true);
-      queryClient.setQueryData<any[] | undefined>(
+      queryClient.setQueryData<SavedPlacesCacheRow[] | undefined>(
         ["saved-places"],
-        (prev) => prev ?? [],
+        (prev) => prev ?? ([] as SavedPlacesCacheRow[]),
       );
     },
     onError: () => {
@@ -98,7 +117,7 @@ export function PlaceCard({ place }: { place: FeedItem }) {
     },
     onMutate: async () => {
       setIsSaved(false);
-      queryClient.setQueryData<any[] | undefined>(
+      queryClient.setQueryData<SavedPlacesCacheRow[] | undefined>(
         ["saved-places"],
         (prev) =>
           Array.isArray(prev)
@@ -137,11 +156,15 @@ export function PlaceCard({ place }: { place: FeedItem }) {
       data-place-id={place.id}
       role="button"
       tabIndex={0}
-      onClick={() => setSelectedPlaceId(place.id)}
+      onClick={() => {
+        setSelectedPlaceId(place.id);
+        if (isMobileOrTablet) router.push(`/places/${place.id}`);
+      }}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
           setSelectedPlaceId(place.id);
+          if (isMobileOrTablet) router.push(`/places/${place.id}`);
         }
       }}
       className="relative cursor-pointer overflow-hidden rounded-radius-md border border-surface-alt bg-surface focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2"

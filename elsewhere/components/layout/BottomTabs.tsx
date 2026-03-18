@@ -13,6 +13,7 @@ const tabs = [
 
 export function BottomTabs() {
   const pathname = usePathname();
+  const isPlaceDetail = pathname?.startsWith("/places/") ?? false;
 
   return (
     <nav
@@ -20,7 +21,10 @@ export function BottomTabs() {
       role="tablist"
     >
       {tabs.map(({ href, label, icon: Icon }) => {
-        const isActive = pathname === href;
+        // When the place detail bottom sheet is open (places/[id]), keep the
+        // map tab visually selected (mobile/tablet only).
+        const isActive =
+          href === "/map" ? pathname === "/map" || isPlaceDetail : pathname === href;
         return (
           <Link
             key={href}

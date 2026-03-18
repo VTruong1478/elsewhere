@@ -3,6 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useState, Suspense } from "react";
+import { usePathname } from "next/navigation";
 import { SearchBar } from "@/components/feed/SearchBar";
 import { FilterChips } from "@/components/feed/FilterChips";
 import { PlaceCard } from "@/components/feed/PlaceCard";
@@ -146,6 +147,12 @@ function fetchFeed(params: {
 }
 
 function FeedContent() {
+  const pathname = usePathname();
+  // pathname may include a basePath (e.g. `/elsewhere/map`), so match last segment.
+  const lastPathSegment =
+    pathname?.split("/").filter(Boolean).pop() ?? undefined;
+  const isMapTabActive = lastPathSegment === "map";
+
   const searchParams = useSearchParams();
   const q = searchParams.get("q") ?? "";
   const filter = searchParams.get("filter") ?? "";
@@ -267,14 +274,16 @@ function FeedContent() {
         </div>
       </div>
       {/* Mobile: map strip below feed */}
-      <div className="block h-[280px] w-full flex-shrink-0 md:hidden">
-        <FeedMap
-          places={places}
-          selectedPlaceId={selectedPlaceId}
-          onSelectPlace={onSelectPlace}
-          center={coords ?? undefined}
-        />
-      </div>
+      {isMapTabActive && (
+        <div className="block h-[280px] w-full flex-shrink-0 lg:hidden">
+          <FeedMap
+            places={places}
+            selectedPlaceId={selectedPlaceId}
+            onSelectPlace={onSelectPlace}
+            center={coords ?? undefined}
+          />
+        </div>
+      )}
       {/* Desktop: map panel fills right column */}
       <MapPanel
         places={places}

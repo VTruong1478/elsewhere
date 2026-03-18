@@ -25,18 +25,21 @@ function useUserLocation(): LocationState {
   const [state, setState] = useState<LocationState>({ status: "loading" });
   useEffect(() => {
     if (!navigator.geolocation) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setState({ status: "unavailable" });
       return;
     }
     let cancelled = false;
     const timeoutId = window.setTimeout(() => {
       if (cancelled) return;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setState({ status: "denied" });
     }, LOCATION_TIMEOUT_MS);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         if (cancelled) return;
         window.clearTimeout(timeoutId);
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setState({
           status: "ready",
           lat: pos.coords.latitude,
@@ -46,6 +49,7 @@ function useUserLocation(): LocationState {
       () => {
         if (cancelled) return;
         window.clearTimeout(timeoutId);
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setState({ status: "denied" });
       },
       { timeout: LOCATION_TIMEOUT_MS, maximumAge: 0 },
@@ -131,6 +135,7 @@ function MapContent() {
       q,
       filter,
       usingFallbackCoords,
+      // eslint-disable-next-line react-hooks/refs
       radiusMilesRef.current,
     ],
     queryFn: () =>
@@ -198,15 +203,34 @@ function MapContent() {
   );
 
   return (
-    <div className="flex min-h-0 flex-1 w-full flex-col">
-      <div className="shrink-0 px-16 pt-16">
+    <div className="relative flex min-h-0 flex-1 w-full flex-col">
+      {/* On desktop: show the top header. */}
+      <div className="hidden shrink-0 px-16 pt-16 lg:block">
         <p className="text-heading-m text-text mb-8">{locationHeader}</p>
         <div className="mb-8">
           <SearchBar />
         </div>
         <FilterChips />
       </div>
-      <div className="relative min-h-0 flex-1">
+
+      {/* On mobile/tablet: make the map fill the entire viewport height. */}
+      <div className="lg:hidden fixed inset-0">
+        <FeedMap
+          places={places}
+          selectedPlaceId={selectedPlaceId}
+          onSelectPlace={onSelectPlace}
+          center={coords ?? FALLBACK_CENTER}
+          onZoomEnd={handleZoomEnd}
+        />
+        {selectedPlace && (
+          <div className="absolute bottom-16 left-16 right-16 z-30">
+            <MapPlacePreview place={selectedPlace} />
+          </div>
+        )}
+      </div>
+
+      {/* Desktop: keep the original layout. */}
+      <div className="relative min-h-0 flex-1 hidden lg:block">
         <FeedMap
           places={places}
           selectedPlaceId={selectedPlaceId}
