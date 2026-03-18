@@ -180,7 +180,8 @@ function FeedContent() {
         lng: coords!.lng,
         q,
         filter,
-        radius_miles: usingFallbackCoords ? FALLBACK_RADIUS_MILES : undefined,
+        // Debug/MVP behavior: always use the larger radius so desktop shows all seeded places.
+        radius_miles: FALLBACK_RADIUS_MILES,
       }),
     enabled: coords != null,
   });

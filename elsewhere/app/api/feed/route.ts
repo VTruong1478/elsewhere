@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { deriveOpeningState, hasOpenLate } from "@/lib/opening-hours";
 import type { FeedItem } from "@/types/feed";
-import type { NoiseLabel, TablesLabel, OutletsLabel } from "@/types/feed";
+import { computeMatchScoresByPlaceId } from "@/lib/matchScore";
 
 type PlaceStatsRow = {
   id: string;
@@ -19,6 +19,7 @@ type PlaceStatsRow = {
   vibe_photo_attribution: unknown;
   cost: string | null;
   rating_count: number | bigint;
+  avg_overall_rating: number | string | null;
   noise_silent: number | bigint;
   noise_quiet: number | bigint;
   noise_vibrant: number | bigint;
@@ -32,129 +33,6 @@ type PlaceStatsRow = {
   vibe_casual: number | bigint;
   vibe_social: number | bigint;
 };
-
-function n(v: number | bigint): number {
-  return typeof v === "bigint" ? Number(v) : v;
-}
-
-function dominantNoise(row: PlaceStatsRow): NoiseLabel | null {
-  const max = Math.max(
-    n(row.noise_silent),
-    n(row.noise_quiet),
-    n(row.noise_vibrant),
-  );
-  if (max === 0) return null;
-  if (n(row.noise_quiet) === max) return "Quiet";
-  if (n(row.noise_vibrant) === max) return "Vibrant";
-  return "Silent";
-}
-
-function dominantTables(row: PlaceStatsRow): TablesLabel | null {
-  const limited = n(row.tables_limited);
-  const mixed = n(row.tables_mixed);
-  const plentiful = n(row.tables_plentiful);
-
-  const max = Math.max(limited, mixed, plentiful);
-  if (max === 0) return null;
-
-  const matches = [
-    limited === max,
-    mixed === max,
-    plentiful === max,
-  ].filter(Boolean).length;
-
-  // tie defaults to mixed
-  if (matches > 1) return "mixed";
-  if (mixed === max) return "mixed";
-  if (limited === max) return "limited";
-  return "plentiful";
-}
-
-function dominantOutlets(row: PlaceStatsRow): OutletsLabel | null {
-  const scarce = n(row.outlets_scarce);
-  const some = n(row.outlets_some);
-  const ample = n(row.outlets_ample);
-
-  const max = Math.max(scarce, some, ample);
-  if (max === 0) return null;
-
-  const matches = [
-    scarce === max,
-    some === max,
-    ample === max,
-  ].filter(Boolean).length;
-
-  // tie defaults to some
-  if (matches > 1) return "some";
-  if (some === max) return "some";
-  if (scarce === max) return "scarce";
-  return "ample";
-}
-
-function dominantVibe(row: PlaceStatsRow): "Focused" | "Casual" | "Social" | null {
-  const focused = n(row.vibe_focused);
-  const casual = n(row.vibe_casual);
-  const social = n(row.vibe_social);
-  const max = Math.max(focused, casual, social);
-  if (max === 0) return null;
-
-  const matches = [
-    focused === max,
-    casual === max,
-    social === max,
-  ].filter(Boolean).length;
-
-  // If tied for highest, default to Casual.
-  if (matches > 1) return "Casual";
-  if (casual === max) return "Casual";
-  if (focused === max) return "Focused";
-  return "Social";
-}
-
-function computeMatchScore(
-  row: PlaceStatsRow,
-  distanceMeters: number,
-  prefs: {
-    radius_miles: number;
-    noise_preference: string | null;
-    needs_outlets: boolean;
-    needs_wifi: boolean;
-    hasPreferences: boolean;
-  },
-): { score: number; reasons: string[] } {
-  if (!prefs.hasPreferences) {
-    return { score: 50, reasons: [] };
-  }
-  const reasons: string[] = [];
-  let score = 50;
-  const radiusMeters = prefs.radius_miles * 1609.344;
-  if (distanceMeters <= radiusMeters) {
-    const distanceScore = Math.max(
-      0,
-      30 - (distanceMeters / radiusMeters) * 20,
-    );
-    score += distanceScore;
-    if (distanceMeters < radiusMeters * 0.5) reasons.push("Close to you");
-  }
-  const noise = dominantNoise(row);
-  if (
-    noise &&
-    prefs.noise_preference &&
-    noise.toLowerCase() === prefs.noise_preference
-  ) {
-    score += 15;
-    reasons.push(noise);
-  }
-  const outlets = dominantOutlets(row);
-  if (prefs.needs_outlets && outlets === "ample") {
-    score += 10;
-    reasons.push("Ample outlets");
-  }
-  const rc = n(row.rating_count);
-  const dampener = rc < 2 ? 0.6 : rc < 4 ? 0.8 : 1;
-  score = Math.round(Math.min(100, score * dampener));
-  return { score, reasons: reasons.slice(0, 3) };
-}
 
 function getTop2Pills(pillsArrays: string[][]): string[] {
   const count: Record<string, number> = {};
@@ -216,10 +94,6 @@ export async function GET(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   let radiusMiles = 25;
-  let noisePreference: string | null = null;
-  let needsOutlets = false;
-  let needsWifi = false;
-  let hasPreferences = false;
 
   if (radiusParam != null && radiusParam !== "") {
     const parsed = Number(radiusParam);
@@ -227,15 +101,11 @@ export async function GET(request: NextRequest) {
   } else if (user) {
     const { data: prefs } = await supabase
       .from("user_preferences")
-      .select("radius_miles, noise_preference, needs_outlets, needs_wifi")
+      .select("radius_miles")
       .eq("user_id", user.id)
       .single();
     if (prefs) {
       radiusMiles = Number(prefs.radius_miles) || 25;
-      noisePreference = prefs.noise_preference;
-      needsOutlets = prefs.needs_outlets ?? false;
-      needsWifi = prefs.needs_wifi ?? false;
-      hasPreferences = true;
     }
   }
 
@@ -283,13 +153,13 @@ export async function GET(request: NextRequest) {
     radiusMiles,
   );
   const placeIds = placeList.map((r: { id: string }) => r.id);
+  const serviceRoleClient = createServiceRoleClient();
 
   // Manually promoted vibe photos live in Supabase Storage (public bucket),
   // and we need to include vibe_photo_path in the feed response for anon + authed users.
   let vibePhotoPathByPlaceId: Record<string, string | null> = {};
   if (placeIds.length > 0) {
-    const serviceClient = createServiceRoleClient();
-    const { data: placeRows } = await serviceClient
+    const { data: placeRows } = await serviceRoleClient
       .from("places")
       .select("id, vibe_photo_path")
       .in("id", placeIds);
@@ -301,7 +171,7 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  let pillsByPlace: Record<string, string[]> = {};
+  const pillsByPlace: Record<string, string[]> = {};
   if (placeIds.length > 0) {
     const { data: ratings } = await supabase
       .from("ratings")
@@ -344,7 +214,6 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const radiusMeters = radiusMiles * 1609.344;
   function distanceMeters(row: { lat: number; lng: number }): number {
     const R = 6371000;
     const dLat = ((row.lat - lat) * Math.PI) / 180;
@@ -359,21 +228,20 @@ export async function GET(request: NextRequest) {
     return R * c;
   }
 
-  const prefsForScore = {
-    radius_miles: radiusMiles,
-    noise_preference: noisePreference,
-    needs_outlets: needsOutlets,
-    needs_wifi: needsWifi,
-    hasPreferences,
-  };
+  const { userHasRatings, resultsByPlaceId } =
+    await computeMatchScoresByPlaceId({
+      serviceRoleClient,
+      userId: user?.id ?? null,
+      places: placeList as PlaceStatsRow[],
+    });
 
-  const LOW_DATA_THRESHOLD = 1;
-
-  const items: (FeedItem & { _distanceMeters: number; _score: number })[] = (
-    rows ?? []
-  ).map((row: PlaceStatsRow) => {
+  const items: (FeedItem & {
+    _distanceMeters: number;
+    _matchScorePercent: number | null;
+    _ratingCount: number;
+  })[] = (rows ?? []).map((row: PlaceStatsRow) => {
     const dist = distanceMeters(row);
-    const { score, reasons } = computeMatchScore(row, dist, prefsForScore);
+
     const opening = deriveOpeningState(
       row.opening_hours as Parameters<typeof deriveOpeningState>[0],
       row.timezone,
@@ -387,8 +255,15 @@ export async function GET(request: NextRequest) {
           );
 
     const ratingCount = Number(row.rating_count ?? 0);
-    const lowData = ratingCount < LOW_DATA_THRESHOLD;
     const raw = row as Record<string, unknown>;
+    const match = resultsByPlaceId[row.id];
+
+    const dominant_noise = match?.dominant_noise ?? null;
+    const dominant_vibe = match?.dominant_vibe ?? null;
+    const dominant_tables = match?.dominant_tables ?? null;
+    const dominant_outlets = match?.dominant_outlets ?? null;
+    const match_score_percent = match?.match_score_percent ?? null;
+
     const googlePhotoRef =
       (row.google_photo_ref as string | null | undefined) ??
       (raw.google_photo_ref as string | null | undefined) ??
@@ -410,12 +285,16 @@ export async function GET(request: NextRequest) {
       lat: Number(row.lat),
       lng: Number(row.lng),
       place_type: row.place_type,
-      noise: lowData ? null : dominantNoise(row),
-      dominant_vibe: lowData ? null : dominantVibe(row),
-      tables: lowData ? null : dominantTables(row),
-      outlets: lowData ? null : dominantOutlets(row),
-      match_score_percent: score,
-      why_matched: reasons,
+      noise: dominant_noise,
+      dominant_noise,
+      vibe: dominant_vibe,
+      dominant_vibe,
+      tables: dominant_tables,
+      dominant_tables,
+      outlets: dominant_outlets,
+      dominant_outlets,
+      match_score_percent,
+      why_matched: [],
       open_now: opening.open_now,
       closes_at: opening.closes_at,
       closing_soon: opening.closing_soon,
@@ -437,14 +316,34 @@ export async function GET(request: NextRequest) {
       vibe_photo_attribution: vibePhotoAttribution,
       cost: row.cost ?? null,
       _distanceMeters: dist,
-      _score: score,
+      _matchScorePercent: match_score_percent,
+      _ratingCount: ratingCount,
     };
   });
 
-  items.sort((a, b) => b._score - a._score);
+  if (userHasRatings) {
+    // Section 7: sort match_score DESC, distance ASC, rating_count DESC
+    items.sort((a, b) => {
+      const scoreA = a._matchScorePercent ?? -1;
+      const scoreB = b._matchScorePercent ?? -1;
+      if (scoreA !== scoreB) return scoreB - scoreA;
+      if (a._distanceMeters !== b._distanceMeters)
+        return a._distanceMeters - b._distanceMeters;
+      return b._ratingCount - a._ratingCount;
+    });
+  } else {
+    // Section 7: if the user has no ratings, sort by distance only
+    items.sort((a, b) => a._distanceMeters - b._distanceMeters);
+  }
+
   const result = items
     .slice(0, 20)
-    .map(({ _distanceMeters: _d, _score: _s, ...item }): FeedItem => item);
+    .map(({ _distanceMeters, _matchScorePercent, _ratingCount, ...item }) => {
+      void _distanceMeters;
+      void _matchScorePercent;
+      void _ratingCount;
+      return item as FeedItem;
+    });
 
   console.log(
     '[feed] Just before returning response',

@@ -139,9 +139,8 @@ function MapContent() {
         lng: coords!.lng,
         q,
         filter,
-        radius_miles:
-          radiusMilesRef.current ??
-          (usingFallbackCoords ? FALLBACK_RADIUS_MILES : undefined),
+        // Debug/MVP behavior: always use the larger radius so map/feed stays consistent.
+        radius_miles: FALLBACK_RADIUS_MILES,
       }),
     enabled: coords != null,
   });

@@ -5,9 +5,9 @@
  * Hex values from tailwind.config.js theme.extend.colors.
  */
 const SVG_COLORS = {
-  'status-high': '#4F5D3F',   /* green */
-  'status-medium': '#C4943A', /* yellow */
-  'status-low': '#A85C3A',    /* orange/red */
+  "status-high": "#4F5D3F" /* green */,
+  "status-medium": "#C4943A" /* yellow */,
+  "status-low": "#A85C3A" /* orange/red */,
 } as const;
 
 interface MatchRingProps {
@@ -16,9 +16,9 @@ interface MatchRingProps {
 }
 
 function getRingColor(score: number): string {
-  if (score >= 80) return SVG_COLORS['status-high'];   /* 80–100: green */
-  if (score >= 60) return SVG_COLORS['status-medium']; /* 60–79: yellow */
-  return SVG_COLORS['status-low'];                      /* 0–59: orange/red */
+  if (score >= 80) return SVG_COLORS["status-high"]; /* 80–100: green */
+  if (score >= 60) return SVG_COLORS["status-medium"]; /* 60–79: yellow */
+  return SVG_COLORS["status-low"]; /* 0–59: orange/red */
 }
 
 const SIZE = 48;
@@ -35,9 +35,7 @@ export function MatchRing({ score }: MatchRingProps) {
   const color = getRingColor(clamped);
 
   return (
-    <div
-      className="relative flex h-[48px] w-[48px] items-center justify-center rounded-full bg-surface"
-    >
+    <div className="relative flex h-[48px] w-[48px] items-center justify-center rounded-full bg-surface">
       <svg
         width={SIZE}
         height={SIZE}

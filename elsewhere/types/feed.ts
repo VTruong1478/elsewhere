@@ -11,10 +11,14 @@ export interface FeedItem {
   lng: number;
   place_type: string;
   noise: NoiseLabel | null;
+  // Backend-plan naming (dominant labels derived from place_stats counts)
+  dominant_noise?: NoiseLabel | null;
   /** Dominant vibe label when available */
   vibe?: VibeLabel | null;
   /** Dominant vibe label computed from place_stats (respects "Not enough data") */
   dominant_vibe?: VibeLabel | null;
+  dominant_tables?: TablesLabel | null;
+  dominant_outlets?: OutletsLabel | null;
   tables: TablesLabel | null;
   outlets: OutletsLabel | null;
   match_score_percent: number | null;
