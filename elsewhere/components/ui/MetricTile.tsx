@@ -2,9 +2,9 @@ import {
   VolumeX,
   Volume1,
   Volume2,
-  Zap,
-  Plug,
+  BatteryLow,
   BatteryMedium,
+  BatteryCharging,
   Headphones,
   User,
   MessagesSquare,
@@ -15,7 +15,6 @@ type MetricType = "noise" | "vibes" | "tables" | "outlets";
 interface MetricTileProps {
   type: MetricType;
   value: string | null;
-  /** Optional class for icon/dots; default text-secondary per Figma */
   iconClassName?: string;
 }
 
@@ -34,16 +33,16 @@ const VIBE_LABELS: Record<string, string> = {
 };
 
 const TABLES_LABELS: Record<string, string> = {
-  Limited: "LIMITED",
-  Mixed: "MIXED",
-  Ideal: "IDEAL",
+  limited: "LIMITED",
+  mixed: "MIXED",
+  plentiful: "PLENTIFUL",
 };
 
-/** Display labels per mockup: None → SCARCE, Limited → SOME, Ample → AMPLE */
+/** Display labels per mockup: SCARCE → scarce, SOME → some, AMPLE → ample */
 const OUTLETS_LABELS: Record<string, string> = {
-  None: "SCARCE",
-  Limited: "SOME",
-  Ample: "AMPLE",
+  scarce: "SCARCE",
+  some: "SOME",
+  ample: "AMPLE",
 };
 
 const TYPE_OVERLINE: Record<MetricType, string> = {
@@ -117,7 +116,13 @@ function getTablesContent(
     return { middle: null, bottomText: LOW_DATA, lowData: true };
   }
   const filled =
-    value === "Limited" ? 1 : value === "Mixed" ? 3 : value === "Ideal" ? 5 : 0;
+    value === "limited"
+      ? 1
+      : value === "mixed"
+        ? 3
+        : value === "plentiful"
+          ? 5
+          : 0;
   const label = TABLES_LABELS[value] ?? value.toUpperCase();
   return {
     middle:
@@ -144,14 +149,13 @@ function getOutletsContent(
   if (value === null) {
     return { middle: null, bottomText: LOW_DATA, lowData: true };
   }
-  // Mockup: SCARCE = battery+lightning, SOME = plug, AMPLE = wider/double plug
   const Icon =
-    value === "None"
-      ? BatteryMedium
-      : value === "Limited"
-        ? Plug
-        : value === "Ample"
-          ? Zap
+    value === "scarce"
+      ? BatteryLow
+      : value === "some"
+        ? BatteryMedium
+        : value === "ample"
+          ? BatteryCharging
           : null;
   const label = OUTLETS_LABELS[value] ?? value.toUpperCase();
   return {

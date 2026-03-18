@@ -24,45 +24,14 @@ type PlaceStatsRow = {
   noise_vibrant: number | bigint;
   tables_limited: number | bigint;
   tables_mixed: number | bigint;
-  tables_ideal: number | bigint;
-  tables_none: number | bigint;
-  outlets_none: number | bigint;
-  outlets_limited: number | bigint;
+  tables_plentiful: number | bigint;
+  outlets_scarce: number | bigint;
+  outlets_some: number | bigint;
   outlets_ample: number | bigint;
   vibe_focused: number | bigint;
   vibe_casual: number | bigint;
   vibe_social: number | bigint;
-  place_noise_level: string | null;
-  place_tables_level: string | null;
-  place_outlets_level: string | null;
 };
-
-function placeNoiseToLabel(v: string | null): NoiseLabel | null {
-  if (!v) return null;
-  const s = v.toLowerCase();
-  if (s === "silent") return "Silent";
-  if (s === "quiet") return "Quiet";
-  if (s === "vibrant") return "Vibrant";
-  return null;
-}
-
-function placeTablesToLabel(v: string | null): TablesLabel | null {
-  if (!v) return null;
-  const s = v.toLowerCase();
-  if (s === "limited") return "Limited";
-  if (s === "mixed") return "Mixed";
-  if (s === "ideal") return "Ideal";
-  return null;
-}
-
-function placeOutletsToLabel(v: string | null): OutletsLabel | null {
-  if (!v) return null;
-  const s = v.toLowerCase();
-  if (s === "none") return "None";
-  if (s === "limited") return "Limited";
-  if (s === "ample") return "Ample";
-  return null;
-}
 
 function n(v: number | bigint): number {
   return typeof v === "bigint" ? Number(v) : v;
@@ -81,27 +50,45 @@ function dominantNoise(row: PlaceStatsRow): NoiseLabel | null {
 }
 
 function dominantTables(row: PlaceStatsRow): TablesLabel | null {
-  const max = Math.max(
-    n(row.tables_limited),
-    n(row.tables_mixed),
-    n(row.tables_ideal),
-  );
+  const limited = n(row.tables_limited);
+  const mixed = n(row.tables_mixed);
+  const plentiful = n(row.tables_plentiful);
+
+  const max = Math.max(limited, mixed, plentiful);
   if (max === 0) return null;
-  if (n(row.tables_ideal) === max) return "Ideal";
-  if (n(row.tables_mixed) === max) return "Mixed";
-  return "Limited";
+
+  const matches = [
+    limited === max,
+    mixed === max,
+    plentiful === max,
+  ].filter(Boolean).length;
+
+  // tie defaults to mixed
+  if (matches > 1) return "mixed";
+  if (mixed === max) return "mixed";
+  if (limited === max) return "limited";
+  return "plentiful";
 }
 
 function dominantOutlets(row: PlaceStatsRow): OutletsLabel | null {
-  const max = Math.max(
-    n(row.outlets_none),
-    n(row.outlets_limited),
-    n(row.outlets_ample),
-  );
+  const scarce = n(row.outlets_scarce);
+  const some = n(row.outlets_some);
+  const ample = n(row.outlets_ample);
+
+  const max = Math.max(scarce, some, ample);
   if (max === 0) return null;
-  if (n(row.outlets_ample) === max) return "Ample";
-  if (n(row.outlets_limited) === max) return "Limited";
-  return "None";
+
+  const matches = [
+    scarce === max,
+    some === max,
+    ample === max,
+  ].filter(Boolean).length;
+
+  // tie defaults to some
+  if (matches > 1) return "some";
+  if (some === max) return "some";
+  if (scarce === max) return "scarce";
+  return "ample";
 }
 
 function dominantVibe(row: PlaceStatsRow): "Focused" | "Casual" | "Social" | null {
@@ -159,7 +146,7 @@ function computeMatchScore(
     reasons.push(noise);
   }
   const outlets = dominantOutlets(row);
-  if (prefs.needs_outlets && outlets === "Ample") {
+  if (prefs.needs_outlets && outlets === "ample") {
     score += 10;
     reasons.push("Ample outlets");
   }
@@ -401,9 +388,6 @@ export async function GET(request: NextRequest) {
 
     const ratingCount = Number(row.rating_count ?? 0);
     const lowData = ratingCount < LOW_DATA_THRESHOLD;
-    const placeNoise = placeNoiseToLabel(row.place_noise_level ?? null);
-    const placeTables = placeTablesToLabel(row.place_tables_level ?? null);
-    const placeOutlets = placeOutletsToLabel(row.place_outlets_level ?? null);
     const raw = row as Record<string, unknown>;
     const googlePhotoRef =
       (row.google_photo_ref as string | null | undefined) ??
@@ -426,10 +410,10 @@ export async function GET(request: NextRequest) {
       lat: Number(row.lat),
       lng: Number(row.lng),
       place_type: row.place_type,
-      noise: placeNoise ?? (lowData ? null : dominantNoise(row)),
+      noise: lowData ? null : dominantNoise(row),
       dominant_vibe: lowData ? null : dominantVibe(row),
-      tables: placeTables ?? (lowData ? null : dominantTables(row)),
-      outlets: placeOutlets ?? (lowData ? null : dominantOutlets(row)),
+      tables: lowData ? null : dominantTables(row),
+      outlets: lowData ? null : dominantOutlets(row),
       match_score_percent: score,
       why_matched: reasons,
       open_now: opening.open_now,

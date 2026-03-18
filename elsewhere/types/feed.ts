@@ -1,7 +1,7 @@
 export type NoiseLabel = 'Silent' | 'Quiet' | 'Vibrant';
 export type VibeLabel = 'Focused' | 'Casual' | 'Social';
-export type TablesLabel = 'Limited' | 'Mixed' | 'Ideal';
-export type OutletsLabel = 'None' | 'Limited' | 'Ample';
+export type TablesLabel = 'limited' | 'mixed' | 'plentiful';
+export type OutletsLabel = 'scarce' | 'some' | 'ample';
 
 export interface FeedItem {
   id: string;
