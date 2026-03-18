@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { deriveOpeningState, hasOpenLate } from "@/lib/opening-hours";
 import type { FeedItem } from "@/types/feed";
 import type { NoiseLabel, TablesLabel, OutletsLabel } from "@/types/feed";
@@ -28,6 +29,9 @@ type PlaceStatsRow = {
   outlets_none: number | bigint;
   outlets_limited: number | bigint;
   outlets_ample: number | bigint;
+  vibe_focused: number | bigint;
+  vibe_casual: number | bigint;
+  vibe_social: number | bigint;
   place_noise_level: string | null;
   place_tables_level: string | null;
   place_outlets_level: string | null;
@@ -98,6 +102,26 @@ function dominantOutlets(row: PlaceStatsRow): OutletsLabel | null {
   if (n(row.outlets_ample) === max) return "Ample";
   if (n(row.outlets_limited) === max) return "Limited";
   return "None";
+}
+
+function dominantVibe(row: PlaceStatsRow): "Focused" | "Casual" | "Social" | null {
+  const focused = n(row.vibe_focused);
+  const casual = n(row.vibe_casual);
+  const social = n(row.vibe_social);
+  const max = Math.max(focused, casual, social);
+  if (max === 0) return null;
+
+  const matches = [
+    focused === max,
+    casual === max,
+    social === max,
+  ].filter(Boolean).length;
+
+  // If tied for highest, default to Casual.
+  if (matches > 1) return "Casual";
+  if (casual === max) return "Casual";
+  if (focused === max) return "Focused";
+  return "Social";
 }
 
 function computeMatchScore(
@@ -251,6 +275,24 @@ export async function GET(request: NextRequest) {
     radiusMiles,
   );
   const placeIds = placeList.map((r: { id: string }) => r.id);
+
+  // Manually promoted vibe photos live in Supabase Storage (public bucket),
+  // and we need to include vibe_photo_path in the feed response for anon + authed users.
+  let vibePhotoPathByPlaceId: Record<string, string | null> = {};
+  if (placeIds.length > 0) {
+    const serviceClient = createServiceRoleClient();
+    const { data: placeRows } = await serviceClient
+      .from("places")
+      .select("id, vibe_photo_path")
+      .in("id", placeIds);
+
+    if (placeRows) {
+      vibePhotoPathByPlaceId = Object.fromEntries(
+        placeRows.map((r) => [r.id as string, (r.vibe_photo_path as string | null) ?? null]),
+      );
+    }
+  }
+
   let pillsByPlace: Record<string, string[]> = {};
   if (placeIds.length > 0) {
     const { data: ratings } = await supabase
@@ -310,7 +352,7 @@ export async function GET(request: NextRequest) {
     hasPreferences,
   };
 
-  const LOW_DATA_THRESHOLD = 2;
+  const LOW_DATA_THRESHOLD = 1;
 
   const items: (FeedItem & { _distanceMeters: number; _score: number })[] = (
     rows ?? []
@@ -357,6 +399,7 @@ export async function GET(request: NextRequest) {
       lng: Number(row.lng),
       place_type: row.place_type,
       noise: placeNoise ?? (lowData ? null : dominantNoise(row)),
+      dominant_vibe: lowData ? null : dominantVibe(row),
       tables: placeTables ?? (lowData ? null : dominantTables(row)),
       outlets: placeOutlets ?? (lowData ? null : dominantOutlets(row)),
       match_score_percent: score,
@@ -374,6 +417,11 @@ export async function GET(request: NextRequest) {
         googlePhotoRef && String(googlePhotoRef).trim() ? googlePhotoRef : null,
       vibe_photo_ref:
         vibePhotoRef && String(vibePhotoRef).trim() ? vibePhotoRef : null,
+      vibe_photo_path:
+        vibePhotoPathByPlaceId[row.id] &&
+        String(vibePhotoPathByPlaceId[row.id]).trim()
+          ? (vibePhotoPathByPlaceId[row.id] as string)
+          : null,
       vibe_photo_attribution: vibePhotoAttribution,
       cost: row.cost ?? null,
       _distanceMeters: dist,

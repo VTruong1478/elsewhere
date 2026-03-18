@@ -13,6 +13,8 @@ export interface FeedItem {
   noise: NoiseLabel | null;
   /** Dominant vibe label when available */
   vibe?: VibeLabel | null;
+  /** Dominant vibe label computed from place_stats (respects "Not enough data") */
+  dominant_vibe?: VibeLabel | null;
   tables: TablesLabel | null;
   outlets: OutletsLabel | null;
   match_score_percent: number | null;
@@ -33,6 +35,8 @@ export interface FeedItem {
   google_photo_ref?: string | null;
   /** Admin-selected vibe photo ref (preferred over google_photo_ref when set) */
   vibe_photo_ref?: string | null;
+  /** Admin-selected vibe photo (manual user photo promo) storage path */
+  vibe_photo_path?: string | null;
   /** Attribution for vibe photo: { authorAttributions?: Array<{ displayName?, uri? }> } */
   vibe_photo_attribution?: unknown;
   /** Number of ratings (when available) */

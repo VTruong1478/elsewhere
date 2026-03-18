@@ -1,4 +1,3 @@
-SELECT version, name 
-FROM supabase_migrations.schema_migrations 
-ORDER BY version DESC 
-LIMIT 10;
+SELECT id, noise, vibe, tables, outlets, overall_rating
+FROM ratings
+WHERE place_id = (SELECT id FROM places WHERE name ILIKE '%breeze%');

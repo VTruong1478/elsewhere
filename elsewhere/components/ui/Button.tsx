@@ -11,7 +11,8 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantStyles: Record<ButtonVariant, string> = {
   primary: 'bg-primary text-text-inverse',
-  secondary: 'bg-surface-chip text-text',
+  secondary:
+    'border-2 border-primary bg-transparent text-primary shadow-none',
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(

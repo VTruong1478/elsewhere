@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Bookmark, Check } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { FeedItem } from "@/types/feed";
@@ -11,6 +11,7 @@ import { MatchRing } from "@/components/ui/MatchRing";
 import { MetricTile } from "@/components/ui/MetricTile";
 import { Pill } from "@/components/ui/Pill";
 import { StatusDot } from "@/components/ui/StatusDot";
+import { createClient } from "@/lib/supabase/client";
 
 type StatusKind = "open" | "closing-soon" | "closed";
 
@@ -38,6 +39,7 @@ function getOpenStatus(
 export function PlaceCard({ place }: { place: FeedItem }) {
   const { setSelectedPlaceId } = usePlaceStore();
   const queryClient = useQueryClient();
+  const supabase = useMemo(() => createClient(), []);
   const ratedQuery = useQuery<string[]>({
     queryKey: ["rated-places"],
     // No network fetch needed; this query is purely client-side cache.
@@ -154,11 +156,27 @@ export function PlaceCard({ place }: { place: FeedItem }) {
           />
         ) : (
           (() => {
-            const ref =
-              place.vibe_photo_ref?.trim() ?? place.google_photo_ref?.trim();
-            return ref ? (
+            const vibePath = place.vibe_photo_path?.trim();
+            if (vibePath) {
+              const objectPath = vibePath.startsWith("user-photos/")
+                ? vibePath.slice("user-photos/".length)
+                : vibePath;
+              const { data } = supabase.storage
+                .from("user-photos")
+                .getPublicUrl(objectPath);
+              return (
+                <img
+                  src={data.publicUrl}
+                  alt=""
+                  className="h-full w-full object-cover"
+                />
+              );
+            }
+
+            const googleRef = place.google_photo_ref?.trim();
+            return googleRef ? (
               <img
-                src={`/api/place-photo?ref=${encodeURIComponent(ref)}`}
+                src={`/api/places/${place.id}/photo`}
                 alt=""
                 className="h-full w-full object-cover"
               />
@@ -218,7 +236,7 @@ export function PlaceCard({ place }: { place: FeedItem }) {
       {/* Stats row: equal-width tiles, 8px gap, full width */}
       <div className="grid w-full grid-cols-4 gap-2 p-16">
         <MetricTile type="noise" value={place.noise} iconClassName="text-accent" />
-        <MetricTile type="vibes" value={place.vibe ?? null} />
+        <MetricTile type="vibes" value={place.dominant_vibe ?? null} iconClassName="text-accent" />
         <MetricTile type="tables" value={place.tables} />
         <MetricTile type="outlets" value={place.outlets} iconClassName="text-accent" />
       </div>
@@ -253,9 +271,8 @@ export function PlaceCard({ place }: { place: FeedItem }) {
           className="inline-flex"
         >
           <Button
-            variant="primary"
+            variant={isRated ? "secondary" : "primary"}
             type="button"
-            className={isRated ? "bg-status-high text-text-inverse" : ""}
           >
             {isRated ? (
               <span className="flex items-center gap-8">

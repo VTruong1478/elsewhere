@@ -166,7 +166,7 @@ function getOutletsContent(
 export function MetricTile({
   type,
   value,
-  iconClassName = "text-text-secondary",
+  iconClassName = "text-accent",
 }: MetricTileProps) {
   const content =
     type === "noise"
