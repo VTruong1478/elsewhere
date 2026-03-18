@@ -32,6 +32,15 @@ const MAX_ZOOM = 15;
 const MIN_ZOOM = 10;
 const USER_LOCATION_ZOOM = 14;
 
+// Marker geometry constants — must be fixed so Mapbox always measures the same bounding box.
+const CIRCLE_PX = 36;
+const POINTER_PX = 8;
+// Offset from outer's bottom edge to place the rotated square so its bottom tip sits exactly
+// at outer's bottom (= the coordinate). Derived: center of rotated square must be
+// POINTER_PX * (√2/2) above outer's bottom; with translate(−50%, +50%) the element needs
+// to start POINTER_PX * (√2/2) from the bottom.
+const POINTER_BOTTOM_OFFSET = (POINTER_PX * Math.SQRT2) / 2; // ≈ 5.66 px
+
 /** Mapbox uses [longitude, latitude] (GeoJSON order). Never pass [lat, lng]. */
 function toLngLat(place: { lng: number; lat: number }): [number, number] {
   return [place.lng, place.lat];
@@ -63,8 +72,18 @@ export interface MapboxMapProps {
 }
 
 /**
- * Creates the marker DOM element for Mapbox. The OUTER element has no transform/transition
- * so Mapbox can position it without lag. Scale and transition are on an INNER wrapper only.
+ * Creates the marker DOM element for Mapbox.
+ *
+ * Anchor stability contract:
+ *   - `outer` has a FIXED pixel height (CIRCLE_PX) and overflow:visible.
+ *     Mapbox measures outer's bounding box to resolve anchor:'bottom'.
+ *     Because the height never changes, the anchor point never drifts.
+ *   - Visual scale (selected / hovered) is applied via CSS transform:scale on
+ *     the circle only. CSS transforms do not affect layout measurements, so
+ *     outer's bounding box stays constant regardless of interaction state.
+ *   - The pointer is absolutely positioned so its bottom tip lands exactly at
+ *     outer's bottom edge (= the map coordinate). It overflows below outer via
+ *     overflow:visible and therefore does NOT contribute to the bounding box.
  */
 function createMarkerElement(
   place: FeedItem,
@@ -83,64 +102,72 @@ function createMarkerElement(
   const scale = selected ? 1.2 : hovered ? 1.1 : 1;
   const ring = selected ? '0 0 0 3px rgba(255,255,255,0.9)' : 'none';
 
-  // Outer: no transform, no transition — Mapbox positions this. Do not add position/transform here.
+  // Outer: FIXED size — Mapbox measures this element for anchor:'bottom'.
+  // overflow:visible lets the pointer hang below without expanding the bounding box.
+  // No padding, no transition, no CSS transform here.
   const outer = document.createElement('div');
   outer.className = 'mapbox-marker-outer';
   outer.style.cssText = `
     position: relative;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding-bottom: 4px;
+    height: ${CIRCLE_PX}px;
+    width: ${CIRCLE_PX}px;
+    overflow: visible;
     cursor: pointer;
     filter: drop-shadow(0 2px 4px rgba(0,0,0,0.25));
   `;
   outer.setAttribute('role', 'img');
   outer.setAttribute('aria-label', `${label} match`);
 
-  // Inner: only this layer has scale/transition so Mapbox positioning is never affected
-  const inner = document.createElement('div');
-  inner.className = 'mapbox-marker-inner';
-  inner.style.cssText = `
+  // Circle: fixed layout size, centered in outer.
+  // Scale is CSS transform only — never changes the layout box.
+  const circle = document.createElement('div');
+  circle.className = 'mapbox-marker-circle';
+  circle.style.cssText = `
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(${scale});
+    height: ${CIRCLE_PX}px;
+    width: ${CIRCLE_PX}px;
     display: flex;
-    flex-direction: column;
     align-items: center;
-    transition: transform 0.15s ease-out;
-    transform-origin: bottom center;
-    transform: scale(${scale});
+    justify-content: center;
+    border-radius: 9999px;
+    color: white;
+    background-color: ${color};
+    box-shadow: ${ring};
+    border: 2px solid rgba(255,255,255,0.9);
+    box-sizing: border-box;
+    font-size: 0.75rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    transition: transform 0.15s ease-out, box-shadow 0.15s ease-out;
+  `;
+  circle.textContent = label;
+
+  // Pointer: fixed-size rotated square. Positioned so its bottom tip falls exactly at
+  // outer's bottom edge (the coordinate). Math: after translate(−50%, +50%) the center
+  // of the square sits at POINTER_BOTTOM_OFFSET above outer's bottom; the rotated square's
+  // bottom tip is then center + POINTER_PX*(√2/2) downward = outer's bottom edge.
+  // overflow:visible on outer means this element does not affect the bounding box.
+  const pointer = document.createElement('div');
+  pointer.className = 'mapbox-marker-pointer';
+  pointer.style.cssText = `
+    position: absolute;
+    bottom: ${POINTER_BOTTOM_OFFSET.toFixed(2)}px;
+    left: 50%;
+    width: ${POINTER_PX}px;
+    height: ${POINTER_PX}px;
+    transform: translate(-50%, 50%) rotate(45deg);
+    background-color: ${color};
+    box-sizing: border-box;
+    border-bottom: 1px solid rgba(255,255,255,0.9);
+    border-right: 1px solid rgba(255,255,255,0.9);
+    pointer-events: none;
   `;
 
-  inner.innerHTML = `
-    <div style="
-      display: flex;
-      height: 36px;
-      width: 36px;
-      flex-shrink: 0;
-      align-items: center;
-      justify-content: center;
-      border-radius: 9999px;
-      color: white;
-      background-color: ${color};
-      box-shadow: ${ring};
-      border: 2px solid rgba(255,255,255,0.9);
-      font-size: 0.75rem;
-      font-weight: 700;
-      font-variant-numeric: tabular-nums;
-    ">${label}</div>
-    <div style="
-      position: absolute;
-      bottom: 0;
-      left: 50%;
-      width: 8px;
-      height: 8px;
-      transform: translate(-50%, 50%) rotate(45deg);
-      background-color: ${color};
-      border-bottom: 1px solid rgba(255,255,255,0.9);
-      border-right: 1px solid rgba(255,255,255,0.9);
-    "></div>
-  `;
-
-  outer.appendChild(inner);
+  outer.appendChild(circle);
+  outer.appendChild(pointer);
 
   outer.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -152,7 +179,10 @@ function createMarkerElement(
   return outer;
 }
 
-/** Update only the inner scalable layer and content; never touch outer position. */
+/**
+ * Update only the circle's visual state (scale, color, label) and the pointer's color.
+ * Never mutate outer's layout properties — its bounding box must stay constant.
+ */
 function updateMarkerElement(
   el: HTMLElement,
   place: FeedItem,
@@ -168,18 +198,19 @@ function updateMarkerElement(
   const scale = selected ? 1.2 : hovered ? 1.1 : 1;
   const ring = selected ? '0 0 0 3px rgba(255,255,255,0.9)' : 'none';
 
-  const inner = el.querySelector('.mapbox-marker-inner') as HTMLElement | null;
-  if (!inner) return;
-  const circle = inner.firstElementChild as HTMLElement | null;
-  const pointer = inner.lastElementChild as HTMLElement | null;
+  const circle = el.querySelector('.mapbox-marker-circle') as HTMLElement | null;
+  const pointer = el.querySelector('.mapbox-marker-pointer') as HTMLElement | null;
 
-  inner.style.transform = `scale(${scale})`;
   if (circle) {
+    // Scale via CSS transform — does not affect outer's measured bounding box.
+    circle.style.transform = `translate(-50%, -50%) scale(${scale})`;
     circle.style.backgroundColor = color;
     circle.style.boxShadow = ring;
     circle.textContent = label;
   }
-  if (pointer) pointer.style.backgroundColor = color;
+  if (pointer) {
+    pointer.style.backgroundColor = color;
+  }
 }
 
 export function MapboxMap({
@@ -286,9 +317,10 @@ export function MapboxMap({
       style: styleUrl,
       center: toLngLat(center),
       zoom,
+      attributionControl: false, // suppress the default; we add compact:true manually below
     });
 
-    map.addControl(new mapboxgl.AttributionControl(), 'bottom-right');
+    map.addControl(new mapboxgl.AttributionControl({ compact: true }), 'bottom-right');
     mapRef.current = map;
     map.once('load', () => setMapReady(true));
     const handleZoomEnd = () => {
@@ -326,7 +358,7 @@ export function MapboxMap({
     markersRef.current.forEach((m) => m.remove());
     markersRef.current = [];
 
-    list.forEach((place) => {
+    list.forEach((place, index) => {
       const lngLat = toLngLat(place);
       if (__DEV__) {
         console.log('[MapboxMap] marker', {
@@ -352,6 +384,11 @@ export function MapboxMap({
         .setLngLat(lngLat)
         .addTo(map);
       markersRef.current.push(marker);
+
+      // Temp debug: verify marker geo coords order at runtime
+      if (index === 0) {
+        console.log('[map marker]', place.name, [place.lng, place.lat]);
+      }
     });
 
     if (!initialFitDoneRef.current && list.length > 0) {
