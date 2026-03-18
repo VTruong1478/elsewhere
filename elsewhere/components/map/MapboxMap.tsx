@@ -12,16 +12,18 @@ const ATLANTA_CENTER: [number, number] = [-84.388, 33.749];
 /** Default Mapbox style when NEXT_PUBLIC_MAPBOX_STYLE_URL is not set. Light, minimal POIs. */
 const DEFAULT_STYLE = 'mapbox://styles/mapbox/light-v11';
 
-/** Same tier colors as MatchRing (tailwind theme: status-high, status-medium, status-low) */
+/** Pin colors: 75%+ forest green, 50–74% amber, <50% brown/red, null grey */
 const TIER_COLORS = {
   high: '#4F5D3F',
   medium: '#C4943A',
   low: '#A85C3A',
+  none: '#9B9A91',
 } as const;
 
-function getTierColor(score: number): string {
-  if (score >= 80) return TIER_COLORS.high;
-  if (score >= 60) return TIER_COLORS.medium;
+function getTierColor(score: number | null): string {
+  if (score == null) return TIER_COLORS.none;
+  if (score >= 75) return TIER_COLORS.high;
+  if (score >= 50) return TIER_COLORS.medium;
   return TIER_COLORS.low;
 }
 
@@ -56,6 +58,8 @@ export interface MapboxMapProps {
   onSelectPlace: (id: string) => void;
   center?: { lat: number; lng: number };
   zoom?: number;
+  /** Called when zoom ends (e.g. pinch). Used to sync radius with user preferences. */
+  onZoomEnd?: (zoom: number) => void;
 }
 
 /**
@@ -70,9 +74,12 @@ function createMarkerElement(
   onMouseEnter: () => void,
   onMouseLeave: () => void
 ): HTMLDivElement {
-  const score = place.match_score_percent ?? 0;
+  const score = place.match_score_percent;
   const color = getTierColor(score);
-  const percent = Math.round(Math.min(100, Math.max(0, score)));
+  const label =
+    score == null || Number.isNaN(score)
+      ? '--'
+      : `${Math.round(Math.min(100, Math.max(0, score)))}%`;
   const scale = selected ? 1.2 : hovered ? 1.1 : 1;
   const ring = selected ? '0 0 0 3px rgba(255,255,255,0.9)' : 'none';
 
@@ -89,7 +96,7 @@ function createMarkerElement(
     filter: drop-shadow(0 2px 4px rgba(0,0,0,0.25));
   `;
   outer.setAttribute('role', 'img');
-  outer.setAttribute('aria-label', `${percent}% match`);
+  outer.setAttribute('aria-label', `${label} match`);
 
   // Inner: only this layer has scale/transition so Mapbox positioning is never affected
   const inner = document.createElement('div');
@@ -119,7 +126,7 @@ function createMarkerElement(
       font-size: 0.75rem;
       font-weight: 700;
       font-variant-numeric: tabular-nums;
-    ">${percent}%</div>
+    ">${label}</div>
     <div style="
       position: absolute;
       bottom: 0;
@@ -152,9 +159,12 @@ function updateMarkerElement(
   selected: boolean,
   hovered: boolean
 ): void {
-  const score = place.match_score_percent ?? 0;
+  const score = place.match_score_percent;
   const color = getTierColor(score);
-  const percent = Math.round(Math.min(100, Math.max(0, score)));
+  const label =
+    score == null || Number.isNaN(score)
+      ? '--'
+      : `${Math.round(Math.min(100, Math.max(0, score)))}%`;
   const scale = selected ? 1.2 : hovered ? 1.1 : 1;
   const ring = selected ? '0 0 0 3px rgba(255,255,255,0.9)' : 'none';
 
@@ -167,7 +177,7 @@ function updateMarkerElement(
   if (circle) {
     circle.style.backgroundColor = color;
     circle.style.boxShadow = ring;
-    circle.textContent = `${percent}%`;
+    circle.textContent = label;
   }
   if (pointer) pointer.style.backgroundColor = color;
 }
@@ -178,6 +188,7 @@ export function MapboxMap({
   onSelectPlace,
   center = { lat: ATLANTA_CENTER[1], lng: ATLANTA_CENTER[0] },
   zoom = 12,
+  onZoomEnd,
 }: MapboxMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -189,6 +200,8 @@ export function MapboxMap({
   } | null>(null);
   const [isLocating, setIsLocating] = useState(false);
   const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
+  const onZoomEndRef = useRef(onZoomEnd);
+  onZoomEndRef.current = onZoomEnd;
   const { hoveredPlaceId, setHoveredPlaceId } = usePlaceStore();
 
   const validPlaces = useMemo(() => {
@@ -278,6 +291,11 @@ export function MapboxMap({
     map.addControl(new mapboxgl.AttributionControl(), 'bottom-right');
     mapRef.current = map;
     map.once('load', () => setMapReady(true));
+    const handleZoomEnd = () => {
+      const z = map.getZoom();
+      if (z != null && typeof onZoomEnd === 'function') onZoomEnd(z);
+    };
+    map.on('zoomend', handleZoomEnd);
 
     const container = containerRef.current;
     const resizeObserver =
@@ -288,6 +306,7 @@ export function MapboxMap({
     if (container) resizeObserver?.observe(container);
 
     return () => {
+      map.off('zoomend', handleZoomEnd);
       resizeObserver?.disconnect();
       setMapReady(false);
       markersRef.current.forEach((m) => m.remove());

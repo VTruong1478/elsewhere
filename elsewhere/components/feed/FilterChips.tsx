@@ -1,13 +1,16 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { FEED_FILTER_OPTIONS, type FeedFilter } from "@/types/feed";
 import { Pill } from "@/components/ui/Pill";
 
 export function FilterChips() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const pathname = usePathname();
   const current = (searchParams.get("filter") ?? "") as FeedFilter;
+
+  const basePath = pathname?.startsWith("/map") ? "/map" : "/feed";
 
   function selectFilter(value: FeedFilter) {
     const next = new URLSearchParams(searchParams.toString());
@@ -16,7 +19,7 @@ export function FilterChips() {
     } else {
       next.delete("filter");
     }
-    router.push(`/feed?${next.toString()}`);
+    router.push(`${basePath}?${next.toString()}`);
   }
 
   return (

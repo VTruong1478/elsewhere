@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -11,6 +11,7 @@ import {
   Table as TableIcon,
   Star,
   StarHalf,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Pill } from "@/components/ui/Pill";
@@ -61,6 +62,24 @@ function getStarFill(overall: number, index: number): "full" | "half" | "empty" 
   return "empty";
 }
 
+const STAR_GAP_PX = 4; // gap-4 in this project's Tailwind (spacing 4 = 4px)
+
+function updateRatingFromPosition(
+  clientX: number,
+  rect: DOMRect,
+  setRating: (v: number) => void,
+) {
+  const relX = clientX - rect.left;
+  if (relX < 0 || relX > rect.width) return;
+  // Account for gaps: 5 stars + 4 gaps. Each star width = (total - 4*gap) / 5
+  const starWidth = (rect.width - 4 * STAR_GAP_PX) / 5;
+  const segment = starWidth + STAR_GAP_PX; // one star + its right gap
+  const starIndex = Math.min(4, Math.max(0, Math.floor(relX / segment)));
+  const posInStar = Math.max(0, Math.min(1, (relX - starIndex * segment) / starWidth));
+  const isLeftHalf = posInStar < 0.55; // Slightly favor half-star to make it easier to select
+  setRating(isLeftHalf ? starIndex + 0.5 : starIndex + 1);
+}
+
 export function RatingForm({
   placeId,
   placeName,
@@ -77,9 +96,43 @@ export function RatingForm({
   const [outlets, setOutlets] = useState<OutletsValue | null>(null);
   const [overallRating, setOverallRating] = useState<number | null>(null);
   const [notes, setNotes] = useState("");
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const mutation = useMutation({
-    mutationFn: (payload: RatingPayload) => submitRating(placeId, payload),
+    mutationFn: async ({
+      payload,
+      photo,
+    }: {
+      payload: RatingPayload;
+      photo: File | null;
+    }) => {
+      await submitRating(placeId, payload);
+      if (photo) {
+        const formData = new FormData();
+        formData.append("photo", photo);
+        const uploadRes = await fetch(
+          `/api/places/${placeId}/upload-photo`,
+          { method: "POST", body: formData },
+        );
+        if (!uploadRes.ok) {
+          const json = await uploadRes.json().catch(() => ({}));
+          throw new Error(
+            (json as { error?: string }).error ?? "Photo upload failed",
+          );
+        }
+        const { path } = (await uploadRes.json()) as { path: string };
+        const patchRes = await fetch(`/api/places/${placeId}/rate`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ photo_path: path }),
+        });
+        if (!patchRes.ok) {
+          throw new Error("Failed to save photo to rating");
+        }
+      }
+    },
     onSuccess: () => {
       queryClient.setQueryData<string[] | undefined>(
         ["rated-places"],
@@ -100,6 +153,27 @@ export function RatingForm({
     outlets != null &&
     overallRating != null;
 
+  function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!["image/jpeg", "image/jpg", "image/webp"].includes(file.type)) {
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        return;
+      }
+      setPhotoFile(file);
+      setPhotoPreview(URL.createObjectURL(file));
+    }
+    e.target.value = "";
+  }
+
+  function clearPhoto() {
+    setPhotoFile(null);
+    if (photoPreview) URL.revokeObjectURL(photoPreview);
+    setPhotoPreview(null);
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!isComplete || mutation.isPending || overallRating == null) return;
@@ -114,7 +188,7 @@ export function RatingForm({
       photo_path: null,
     };
 
-    mutation.mutate(payload);
+    mutation.mutate({ payload, photo: photoFile });
   }
 
   function renderOptionRow<T extends string>({
@@ -174,25 +248,51 @@ export function RatingForm({
       onSubmit={handleSubmit}
       className="space-y-24 rounded-radius-md bg-surface p-16"
     >
-      {/* Photo upload area (UI only for now) */}
+      {/* Photo upload */}
       <section className="space-y-8 rounded-radius-md bg-surface-alt p-16">
         <div className="flex items-center gap-8">
-          <div className="flex h-32 w-32 items-center justify-center rounded-full bg-surface">
+          <div className="flex h-32 w-32 shrink-0 items-center justify-center rounded-full bg-surface">
             <Camera className="text-text-secondary" size={20} aria-hidden />
           </div>
           <div>
             <p className="text-ui-label-l text-text">Show us the vibe</p>
             <p className="text-body-s text-text-secondary">
-              Upload a photo of the seating or workspace.
+              Upload a photo of the seating or workspace (JPEG or WebP, max 5MB).
             </p>
           </div>
         </div>
-        <button
-          type="button"
-          className="mt-8 flex h-[120px] w-full items-center justify-center rounded-radius-md border border-dashed border-surface-alt bg-surface text-body-m text-text-secondary"
-        >
-          Tap to add a photo
-        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/jpeg,image/jpg,image/webp"
+          className="hidden"
+          onChange={handlePhotoChange}
+        />
+        {photoPreview ? (
+          <div className="relative">
+            <img
+              src={photoPreview}
+              alt="Preview"
+              className="h-[160px] w-full rounded-radius-md object-cover"
+            />
+            <button
+              type="button"
+              onClick={clearPhoto}
+              className="absolute right-8 top-8 flex h-24 w-24 items-center justify-center rounded-full bg-surface/90 text-text"
+              aria-label="Remove photo"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="mt-8 flex h-[120px] w-full items-center justify-center rounded-radius-md border border-dashed border-surface-alt bg-surface text-body-m text-text-secondary"
+          >
+            Tap to add a photo
+          </button>
+        )}
       </section>
 
       {renderOptionRow<NoiseValue>({
@@ -231,61 +331,49 @@ export function RatingForm({
         onChange: setOutlets,
       })}
 
-      {/* Overall rating */}
+      {/* Overall rating — 5 stars with half-star support (hover/drag to select) */}
       <section className="space-y-8">
         <p className="text-ui-label-l text-text">
           Overall rating <span className="text-status-low">*</span>
         </p>
-        <div className="flex items-center gap-8">
+        <div
+          className="flex items-center gap-4"
+          role="slider"
+          aria-label="Overall rating, drag to select half stars"
+          aria-valuemin={0.5}
+          aria-valuemax={5}
+          aria-valuenow={overallRating ?? 0}
+          onPointerMove={(e) => {
+            // Only update when clicking/dragging, not on hover. e.buttons is 0 for touch, so also check pointer capture.
+            if (e.buttons === 0 && !e.currentTarget.hasPointerCapture(e.pointerId)) return;
+            const rect = e.currentTarget.getBoundingClientRect();
+            updateRatingFromPosition(e.clientX, rect, setOverallRating);
+          }}
+          onPointerDown={(e) => {
+            e.currentTarget.setPointerCapture(e.pointerId);
+            const rect = e.currentTarget.getBoundingClientRect();
+            updateRatingFromPosition(e.clientX, rect, setOverallRating);
+          }}
+          onPointerUp={(e) => {
+            e.currentTarget.releasePointerCapture(e.pointerId);
+          }}
+        >
           {[0, 1, 2, 3, 4].map((i) => {
             const fill = getStarFill(overallRating ?? 0, i);
-            const baseValue = i + 1;
-
             return (
-              <div key={i} className="flex items-center">
-                {/* half-star (left) */}
-                <button
-                  type="button"
-                  onClick={() => setOverallRating(baseValue - 0.5)}
-                  className="flex h-32 w-16 items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-                  aria-label={`${baseValue - 0.5} stars`}
-                >
-                  {fill === "half" || (overallRating ?? 0) < baseValue ? (
-                    <StarHalf
-                      size={24}
-                      className={
-                        (overallRating ?? 0) >= baseValue - 0.5
-                          ? "text-accent"
-                          : "text-surface-alt"
-                      }
-                    />
+              <div
+                key={i}
+                className="relative flex h-28 flex-1 shrink-0 cursor-pointer"
+              >
+                <span className="pointer-events-none flex h-full w-full items-center justify-center">
+                  {fill === "full" ? (
+                    <Star size={28} className="text-accent" />
+                  ) : fill === "half" ? (
+                    <StarHalf size={28} className="text-accent" />
                   ) : (
-                    <Star
-                      size={24}
-                      className={
-                        (overallRating ?? 0) >= baseValue - 0.5
-                          ? "text-accent"
-                          : "text-surface-alt"
-                      }
-                    />
+                    <Star size={28} className="text-surface-alt" />
                   )}
-                </button>
-                {/* full-star (right) */}
-                <button
-                  type="button"
-                  onClick={() => setOverallRating(baseValue)}
-                  className="flex h-32 w-16 items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-                  aria-label={`${baseValue} stars`}
-                >
-                  <Star
-                    size={24}
-                    className={
-                      (overallRating ?? 0) >= baseValue
-                        ? "text-accent"
-                        : "text-surface-alt"
-                    }
-                  />
-                </button>
+                </span>
               </div>
             );
           })}

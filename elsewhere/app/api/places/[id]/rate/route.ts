@@ -193,3 +193,64 @@ export async function POST(
   // 8. Return the upserted rating
   return NextResponse.json({ data: upserted, error: null });
 }
+
+/**
+ * PATCH /api/places/[id]/rate
+ * Body: { photo_path: string }
+ * Updates photo_path on the user's rating for this place.
+ */
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id: placeId } = await params;
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json(
+      { error: "Authentication required" },
+      { status: 401 },
+    );
+  }
+
+  let body: { photo_path?: string };
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json(
+      { error: "Invalid JSON body" },
+      { status: 400 },
+    );
+  }
+
+  const photo_path = body.photo_path ?? null;
+  if (photo_path != null && photo_path !== "" && !photo_path.includes(user.id)) {
+    return NextResponse.json(
+      { error: "photo_path must contain your user id" },
+      { status: 400 },
+    );
+  }
+
+  const { error } = await supabase
+    .from("ratings")
+    .update({
+      photo_path: photo_path && photo_path.includes(user.id) ? photo_path : null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("place_id", placeId)
+    .eq("user_id", user.id);
+
+  if (error) {
+    console.error("[rate] PATCH error:", error);
+    return NextResponse.json(
+      { error: error.message ?? "Failed to update rating" },
+      { status: 500 },
+    );
+  }
+
+  return NextResponse.json({ ok: true });
+}

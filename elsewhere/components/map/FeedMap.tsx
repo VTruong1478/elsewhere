@@ -18,6 +18,8 @@ export interface FeedMapProps {
   onSelectPlace: (id: string) => void;
   center?: { lat: number; lng: number };
   zoom?: number;
+  /** Called when zoom ends (e.g. pinch). Used to sync radius with user preferences. */
+  onZoomEnd?: (zoom: number) => void;
 }
 
 export function FeedMap(props: FeedMapProps) {

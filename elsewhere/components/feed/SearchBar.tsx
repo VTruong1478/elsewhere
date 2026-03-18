@@ -1,14 +1,17 @@
 "use client";
 
 import { Search } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useCallback, useState } from "react";
 import styles from "./SearchBar.module.css";
 
 export function SearchBar() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const pathname = usePathname();
   const [value, setValue] = useState(searchParams.get("q") ?? "");
+
+  const basePath = pathname?.startsWith("/map") ? "/map" : "/feed";
 
   const updateQuery = useCallback(
     (q: string) => {
@@ -18,9 +21,9 @@ export function SearchBar() {
       } else {
         next.delete("q");
       }
-      router.push(`/feed?${next.toString()}`);
+      router.push(`${basePath}?${next.toString()}`);
     },
-    [router, searchParams],
+    [router, searchParams, basePath],
   );
 
   return (
