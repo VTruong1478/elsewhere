@@ -17,6 +17,8 @@ import type { FeedItem } from "@/types/feed";
 const FALLBACK_CENTER = { lat: 33.749, lng: -84.388 };
 // Larger radius when using fallback so all seeded Atlanta-area places (can be 10+ mi apart) show
 const FALLBACK_RADIUS_MILES = 25;
+const COORDS_CACHE_KEY = "elsewhere:lastCoords";
+const MEANINGFUL_DISTANCE_METERS = 200; // If moved less than this, don't refetch.
 
 type LocationState =
   | { status: "loading" }
@@ -24,24 +26,78 @@ type LocationState =
   | { status: "denied" }
   | { status: "ready"; lat: number; lng: number };
 
-const LOCATION_TIMEOUT_MS = 10_000;
+const LOCATION_TIMEOUT_MS = 5_000;
+
+function distanceMeters(
+  a: { lat: number; lng: number },
+  b: { lat: number; lng: number },
+): number {
+  const R = 6371000; // Earth radius in meters
+  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+  const lat1 = (a.lat * Math.PI) / 180;
+  const lat2 = (b.lat * Math.PI) / 180;
+  const sinDLat = Math.sin(dLat / 2);
+  const sinDLng = Math.sin(dLng / 2);
+  const h =
+    sinDLat * sinDLat + Math.cos(lat1) * Math.cos(lat2) * sinDLng * sinDLng;
+  return 2 * R * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+}
 
 function useUserLocation(): LocationState {
-  const [state, setState] = useState<LocationState>({ status: "loading" });
+  function readCachedCoords(): { lat: number; lng: number } | null {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = window.sessionStorage.getItem(COORDS_CACHE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as { lat?: unknown; lng?: unknown };
+      const lat = typeof parsed?.lat === "number" ? parsed.lat : NaN;
+      const lng = typeof parsed?.lng === "number" ? parsed.lng : NaN;
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+      return { lat, lng };
+    } catch {
+      return null;
+    }
+  }
+
+  const cachedCoords = readCachedCoords();
+  const [state, setState] = useState<LocationState>(() =>
+    cachedCoords
+      ? { status: "ready", lat: cachedCoords.lat, lng: cachedCoords.lng }
+      : { status: "loading" },
+  );
+
   useEffect(() => {
     if (!navigator.geolocation) {
-      setState({ status: "unavailable" });
+      if (!cachedCoords) setState({ status: "unavailable" });
       return;
     }
     let cancelled = false;
     const timeoutId = window.setTimeout(() => {
       if (cancelled) return;
-      setState({ status: "denied" });
+      if (!cachedCoords) setState({ status: "denied" });
     }, LOCATION_TIMEOUT_MS);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         if (cancelled) return;
         window.clearTimeout(timeoutId);
+        const fresh = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        try {
+          window.sessionStorage.setItem(
+            COORDS_CACHE_KEY,
+            JSON.stringify({ lat: fresh.lat, lng: fresh.lng }),
+          );
+        } catch {
+          // Ignore cache write failures
+        }
+        if (cachedCoords) {
+          const movedMeters = distanceMeters(cachedCoords, fresh);
+          // Only update coords (and refetch feed) if the user moved meaningfully.
+          if (movedMeters >= MEANINGFUL_DISTANCE_METERS) {
+            setState({ status: "ready", lat: fresh.lat, lng: fresh.lng });
+          }
+          return;
+        }
         setState({
           status: "ready",
           lat: pos.coords.latitude,
@@ -51,7 +107,7 @@ function useUserLocation(): LocationState {
       () => {
         if (cancelled) return;
         window.clearTimeout(timeoutId);
-        setState({ status: "denied" });
+        if (!cachedCoords) setState({ status: "denied" });
       },
       { timeout: LOCATION_TIMEOUT_MS, maximumAge: 0 },
     );
@@ -59,7 +115,7 @@ function useUserLocation(): LocationState {
       cancelled = true;
       window.clearTimeout(timeoutId);
     };
-  }, []);
+  }, [cachedCoords]);
   return state;
 }
 

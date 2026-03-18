@@ -183,6 +183,9 @@ function getTop2Pills(pillsArrays: string[][]): string[] {
 }
 
 export async function GET(request: NextRequest) {
+  const startTime = Date.now();
+  console.log('[feed] Start of GET handler', Date.now() - startTime, 'ms');
+
   const { searchParams } = new URL(request.url);
   const latParam = searchParams.get("lat");
   const lngParam = searchParams.get("lng");
@@ -202,6 +205,12 @@ export async function GET(request: NextRequest) {
       lng = devLng;
     }
   }
+
+  console.log(
+    '[feed] After reading dev location override',
+    Date.now() - startTime,
+    'ms',
+  );
 
   if (Number.isNaN(lat) || Number.isNaN(lng)) {
     return NextResponse.json(
@@ -243,6 +252,12 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  console.log(
+    '[feed] After loading user preferences',
+    Date.now() - startTime,
+    'ms',
+  );
+
   const { data: rows, error: rpcError } = await supabase.rpc(
     "get_feed_places",
     {
@@ -252,6 +267,12 @@ export async function GET(request: NextRequest) {
       search_q: q || null,
       filter_chip: filter || null,
     },
+  );
+
+  console.log(
+    '[feed] After get_feed_places RPC returns',
+    Date.now() - startTime,
+    'ms',
   );
 
   if (rpcError) {
@@ -300,6 +321,13 @@ export async function GET(request: NextRequest) {
       .select("place_id, pills, updated_at")
       .in("place_id", placeIds)
       .order("updated_at", { ascending: false });
+
+    console.log(
+      '[feed] After loading user ratings for implied preferences',
+      Date.now() - startTime,
+      'ms',
+    );
+
     const byPlace: Record<string, { pills: string[] }[]> = {};
     for (const row of ratings ?? []) {
       const id = row.place_id;
@@ -433,6 +461,12 @@ export async function GET(request: NextRequest) {
   const result = items
     .slice(0, 20)
     .map(({ _distanceMeters: _d, _score: _s, ...item }): FeedItem => item);
+
+  console.log(
+    '[feed] Just before returning response',
+    Date.now() - startTime,
+    'ms',
+  );
 
   return NextResponse.json({ data: result, error: null });
 }

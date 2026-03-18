@@ -152,6 +152,7 @@ export function PlaceCard({ place }: { place: FeedItem }) {
           <img
             src={place.image_url}
             alt=""
+            loading="lazy"
             className="h-full w-full object-cover"
           />
         ) : (
@@ -168,6 +169,7 @@ export function PlaceCard({ place }: { place: FeedItem }) {
                 <img
                   src={data.publicUrl}
                   alt=""
+                  loading="lazy"
                   className="h-full w-full object-cover"
                 />
               );
@@ -178,6 +180,7 @@ export function PlaceCard({ place }: { place: FeedItem }) {
               <img
                 src={`/api/places/${place.id}/photo`}
                 alt=""
+                loading="lazy"
                 className="h-full w-full object-cover"
               />
             ) : (
