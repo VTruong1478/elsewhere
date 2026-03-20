@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Share2, Navigation } from 'lucide-react';
 import type { FeedItem } from '@/types/feed';
-import { MapboxMap } from '@/components/map/MapboxMap';
+import { FeedMap } from '@/components/map/FeedMap';
 import { StatusDot } from '@/components/ui/StatusDot';
 import { MetricTile } from '@/components/ui/MetricTile';
 import { Button } from '@/components/ui/Button';
@@ -344,7 +344,7 @@ export function PlaceDetailMobile({ placeId, initialCenter }: PlaceDetailMobileP
     return (
       <div className="fixed inset-0">
         <div className="absolute inset-0">
-          <MapboxMap
+          <FeedMap
             places={[] as FeedItem[]}
             selectedPlaceId={selectedPlaceId}
             onSelectPlace={setSelectedPlaceId}
@@ -362,7 +362,7 @@ export function PlaceDetailMobile({ placeId, initialCenter }: PlaceDetailMobileP
   return (
     <div className="fixed inset-0 overflow-hidden">
       <div className="absolute inset-0">
-        <MapboxMap
+        <FeedMap
           places={[] as FeedItem[]}
           selectedPlaceId={selectedPlaceId}
           onSelectPlace={setSelectedPlaceId}
