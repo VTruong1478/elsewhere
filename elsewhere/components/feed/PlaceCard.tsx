@@ -16,8 +16,6 @@ import { createClient } from "@/lib/supabase/client";
 
 type StatusKind = "open" | "closing-soon" | "closed";
 
-type SavedPlacesCacheRow = { place_id: string };
-
 function getOpenStatus(
   open_now: boolean,
   closes_at: string | null,
@@ -90,9 +88,13 @@ export function PlaceCard({ place }: { place: FeedItem }) {
     },
     onMutate: async () => {
       setIsSaved(true);
-      queryClient.setQueryData<SavedPlacesCacheRow[] | undefined>(
+      queryClient.setQueryData<FeedItem[] | undefined>(
         ["saved-places"],
-        (prev) => prev ?? ([] as SavedPlacesCacheRow[]),
+        (prev) => {
+          if (!Array.isArray(prev)) return prev;
+          if (prev.some((p) => p.id === place.id)) return prev;
+          return [{ ...place, is_favorited: true }, ...prev];
+        },
       );
     },
     onError: () => {
@@ -117,12 +119,10 @@ export function PlaceCard({ place }: { place: FeedItem }) {
     },
     onMutate: async () => {
       setIsSaved(false);
-      queryClient.setQueryData<SavedPlacesCacheRow[] | undefined>(
+      queryClient.setQueryData<FeedItem[] | undefined>(
         ["saved-places"],
         (prev) =>
-          Array.isArray(prev)
-            ? prev.filter((row) => row.place_id !== place.id)
-            : prev,
+          Array.isArray(prev) ? prev.filter((p) => p.id !== place.id) : prev,
       );
     },
     onError: () => {
@@ -214,8 +214,8 @@ export function PlaceCard({ place }: { place: FeedItem }) {
 
         <div className="overlay-gradient rounded-t-radius-md" aria-hidden />
 
-        {/* Content layer: pills, title, rating badge */}
-        <div className="absolute inset-0 flex flex-col">
+        {/* Content layer: pills, title, rating badge, save (bottom-right of hero) */}
+        <div className="absolute inset-0 z-0 flex flex-col">
           <div className="absolute left-16 top-16 flex gap-8">
             <Pill variant="placeType">
               {place.place_type
@@ -229,14 +229,15 @@ export function PlaceCard({ place }: { place: FeedItem }) {
             <MatchRing score={matchPercent} />
           </div>
 
-          <div className="absolute bottom-12 left-12 right-12 flex flex-col">
+          <div className="absolute bottom-12 left-12 right-12 flex flex-col pr-[48px]">
             <h2 className="text-heading-m text-text-inverse">{place.name}</h2>
             <p className="text-body-s text-text-inverse">
               {distanceNeighborhood}
             </p>
           </div>
 
-          <button
+          <Button
+            variant="secondaryIcon"
             type="button"
             onClick={(e) => {
               e.stopPropagation();
@@ -246,33 +247,52 @@ export function PlaceCard({ place }: { place: FeedItem }) {
                 saveMutation.mutate();
               }
             }}
-            className="absolute bottom-12 right-12 flex h-[32px] w-[32px] items-center justify-center rounded-full bg-text-inverse text-text shadow-map focus:outline-none focus:ring-2 focus:ring-accent"
-            aria-label={isSaved ? "Unsave place" : "Save place"}
+            className="absolute bottom-12 right-12 z-10 shadow-map"
+            disabled={saveMutation.isPending || unsaveMutation.isPending}
+            aria-label={
+              isSaved
+                ? `Remove ${place.name} from saved places`
+                : `Save ${place.name}`
+            }
+            aria-pressed={isSaved}
           >
             <Bookmark
               size={18}
+              aria-hidden
               fill={isSaved ? "currentColor" : "none"}
               stroke="currentColor"
               strokeWidth={2}
             />
-          </button>
+          </Button>
         </div>
       </div>
 
       {/* Stats row: equal-width tiles, 8px gap, full width */}
       <div className="grid w-full grid-cols-4 gap-2 p-16">
-        <MetricTile type="noise" value={place.noise} iconClassName="text-accent" />
-        <MetricTile type="vibes" value={place.dominant_vibe ?? null} iconClassName="text-accent" />
+        <MetricTile
+          type="noise"
+          value={place.noise}
+          iconClassName="text-accent"
+        />
+        <MetricTile
+          type="vibes"
+          value={place.dominant_vibe ?? null}
+          iconClassName="text-accent"
+        />
         <MetricTile type="tables" value={place.tables} />
-        <MetricTile type="outlets" value={place.outlets} iconClassName="text-accent" />
+        <MetricTile
+          type="outlets"
+          value={place.outlets}
+          iconClassName="text-accent"
+        />
       </div>
 
       {/* Amenity tags row */}
       {place.pills.length > 0 && (
         <div className="overflow-x-auto px-12 pb-8">
           <div className="flex gap-8">
-            {place.pills.map((pill) => (
-              <Pill key={pill}>{pill}</Pill>
+            {place.pills.map((pill, pillIndex) => (
+              <Pill key={`${pill}-${pillIndex}`}>{pill}</Pill>
             ))}
           </div>
         </div>
@@ -296,10 +316,7 @@ export function PlaceCard({ place }: { place: FeedItem }) {
           onClick={(e) => e.stopPropagation()}
           className="inline-flex"
         >
-          <Button
-            variant={isRated ? "secondary" : "primary"}
-            type="button"
-          >
+          <Button variant={isRated ? "secondary" : "primary"} type="button">
             {isRated ? (
               <span className="flex items-center gap-8">
                 <Check size={18} aria-hidden />

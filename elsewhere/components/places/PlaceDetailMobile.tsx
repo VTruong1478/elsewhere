@@ -2,13 +2,11 @@
 
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import Link from 'next/link';
-import { Share2, Navigation } from 'lucide-react';
 import type { FeedItem } from '@/types/feed';
 import { FeedMap } from '@/components/map/FeedMap';
 import { StatusDot } from '@/components/ui/StatusDot';
 import { MetricTile } from '@/components/ui/MetricTile';
-import { Button } from '@/components/ui/Button';
+import { PlaceDetailCta } from '@/components/places/PlaceDetailCta';
 import { deriveOpeningState, hasOpenLate } from '@/lib/opening-hours';
 import { createClient } from '@/lib/supabase/client';
 import { usePlaceStore } from '@/store/usePlaceStore';
@@ -140,8 +138,39 @@ function timeAgo(iso: string): string {
   return `${diffDays}d ago`;
 }
 
+/** Single place on the map: markers only render from `places`; match % from avg rating when available */
+function feedItemForDetailMap(
+  placeId: string,
+  coords: { lat: number; lng: number },
+  row: PlaceDetailResponse['place'] | null,
+  avgOverall: number | null,
+): FeedItem {
+  const match =
+    avgOverall != null && !Number.isNaN(avgOverall)
+      ? Math.round(Math.min(5, Math.max(0, avgOverall)) * 20)
+      : null;
+  return {
+    id: placeId,
+    name: row?.name ?? '—',
+    address: row?.address ?? '',
+    lat: coords.lat,
+    lng: coords.lng,
+    place_type: row?.place_type ?? '',
+    noise: null,
+    tables: null,
+    outlets: null,
+    match_score_percent: match,
+    why_matched: [],
+    open_now: false,
+    closes_at: null,
+    closing_soon: false,
+    open_late: false,
+    pills: [],
+  };
+}
+
 export function PlaceDetailMobile({ placeId, initialCenter }: PlaceDetailMobileProps) {
-  const { selectedPlaceId, setSelectedPlaceId } = usePlaceStore();
+  const { setSelectedPlaceId } = usePlaceStore();
   const supabase = useMemo(() => createClient(), []);
 
   const [detail, setDetail] = useState<PlaceDetailResponse | null>(null);
@@ -152,6 +181,7 @@ export function PlaceDetailMobile({ placeId, initialCenter }: PlaceDetailMobileP
     let cancelled = false;
     async function run() {
       setLoading(true);
+      setDetail(null);
       try {
         const res = await fetch(`/api/places/${placeId}`);
         const body = (await res.json()) as { data?: PlaceDetailResponse; error?: unknown };
@@ -169,6 +199,11 @@ export function PlaceDetailMobile({ placeId, initialCenter }: PlaceDetailMobileP
       cancelled = true;
     };
   }, [placeId]);
+
+  useEffect(() => {
+    setSelectedPlaceId(placeId);
+    return () => setSelectedPlaceId(null);
+  }, [placeId, setSelectedPlaceId]);
 
   // Build photo URLs (from storage paths where available, otherwise omit).
   useEffect(() => {
@@ -226,7 +261,6 @@ export function PlaceDetailMobile({ placeId, initialCenter }: PlaceDetailMobileP
     return () => window.removeEventListener('resize', recalc);
   }, []);
 
-  const [snapIndex, setSnapIndex] = useState<0 | 1 | 2>(0); // 0=full, 1=mid, 2=peek
   const [translateY, setTranslateY] = useState(0);
   const isDraggingRef = useRef(false);
   const dragStartYRef = useRef(0);
@@ -234,10 +268,9 @@ export function PlaceDetailMobile({ placeId, initialCenter }: PlaceDetailMobileP
   const pointerIdRef = useRef<number | null>(null);
 
   useEffect(() => {
-    // Default to Full when layout is ready
+    // Default to peek (lowest snap): maximum map visible; user drags up for more detail
     if (!heights) return;
-    setSnapIndex(0);
-    setTranslateY(0);
+    setTranslateY(heights.peekTy);
   }, [heights]);
 
   function clampTy(ty: number): number {
@@ -261,7 +294,6 @@ export function PlaceDetailMobile({ placeId, initialCenter }: PlaceDetailMobileP
 
   function snapTo(idx: 0 | 1 | 2) {
     if (!heights) return;
-    setSnapIndex(idx);
     const ty = idx === 0 ? 0 : idx === 1 ? heights.midTy : heights.peekTy;
     setTranslateY(ty);
   }
@@ -274,7 +306,6 @@ export function PlaceDetailMobile({ placeId, initialCenter }: PlaceDetailMobileP
     isDraggingRef.current = true;
     dragStartYRef.current = e.clientY;
     dragStartTyRef.current = translateY;
-    setSnapIndex(pickSnap(translateY));
 
     (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
   }
@@ -336,8 +367,22 @@ export function PlaceDetailMobile({ placeId, initialCenter }: PlaceDetailMobileP
   const dominantTables = stats ? dominantTablesFromCounts(stats) : null;
   const dominantOutlets = stats ? dominantOutletsFromCounts(stats) : null;
 
-  const showPhotosAndMetrics = snapIndex !== 2;
-  const showNotesAndCTAs = snapIndex === 0;
+  const coords =
+    place && isFinite(place.lat) && isFinite(place.lng)
+      ? { lat: place.lat, lng: place.lng }
+      : initialCenter;
+  const avgOverall =
+    stats?.avg_overall_rating == null
+      ? null
+      : typeof stats.avg_overall_rating === 'number'
+        ? stats.avg_overall_rating
+        : Number(stats.avg_overall_rating);
+  const mapPlaces = useMemo(
+    () => [feedItemForDetailMap(placeId, coords, place ?? null, avgOverall)],
+    [placeId, coords.lat, coords.lng, place, avgOverall],
+  );
+
+  const mapCenterOffsetPx = heights ? Math.round(heights.peek * 0.38) : 100;
 
   if (loading) {
     // Keep map visible while loading: show a minimal fixed panel.
@@ -345,11 +390,12 @@ export function PlaceDetailMobile({ placeId, initialCenter }: PlaceDetailMobileP
       <div className="fixed inset-0">
         <div className="absolute inset-0">
           <FeedMap
-            places={[] as FeedItem[]}
-            selectedPlaceId={selectedPlaceId}
+            places={[feedItemForDetailMap(placeId, initialCenter, null, null)]}
+            selectedPlaceId={placeId}
             onSelectPlace={setSelectedPlaceId}
             center={initialCenter}
-            zoom={14}
+            zoom={15}
+            centerVerticalOffsetPx={mapCenterOffsetPx}
           />
         </div>
         <div className="pointer-events-none fixed bottom-0 left-0 right-0 z-30 rounded-t-radius-md bg-surface shadow-map">
@@ -363,11 +409,12 @@ export function PlaceDetailMobile({ placeId, initialCenter }: PlaceDetailMobileP
     <div className="fixed inset-0 overflow-hidden">
       <div className="absolute inset-0">
         <FeedMap
-          places={[] as FeedItem[]}
-          selectedPlaceId={selectedPlaceId}
+          places={mapPlaces}
+          selectedPlaceId={placeId}
           onSelectPlace={setSelectedPlaceId}
-          center={initialCenter}
-          zoom={14}
+          center={coords}
+          zoom={15}
+          centerVerticalOffsetPx={mapCenterOffsetPx}
         />
       </div>
 
@@ -381,13 +428,12 @@ export function PlaceDetailMobile({ placeId, initialCenter }: PlaceDetailMobileP
           height: heights?.full ?? 'auto',
           transform: `translateY(${translateY}px)`,
           transition: isDraggingRef.current ? 'none' : 'transform 260ms ease-out',
-          touchAction: 'none',
         }}
       >
         <div className="flex h-full flex-col">
           {/* Drag handle */}
           <div
-            className="flex w-full justify-center pt-12 pb-8"
+            className="flex w-full shrink-0 justify-center pt-12 pb-8"
             aria-hidden={false}
           >
             <div
@@ -403,139 +449,97 @@ export function PlaceDetailMobile({ placeId, initialCenter }: PlaceDetailMobileP
             />
           </div>
 
-          {/* Content */}
+          {/* Header + scroll (padding bottom reserves space for viewport-fixed CTAs) */}
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-16">
-            <div className="flex-0">
+            <header className="shrink-0">
               <h2 className="font-lora text-heading-l text-text">{place?.name ?? '—'}</h2>
-            </div>
-
-            <div className="mt-4 flex-0">
-              {stats && status && (
-                <StatusDot status={status.status} label={status.label} subLabel={status.subLabel} />
-              )}
-            </div>
-
-            {showPhotosAndMetrics && (
-              <>
-                {/* Photo strip */}
-                {photoUrls.length > 0 && (
-                  <div className="mt-12">
-                    <div className="flex gap-8 overflow-x-auto scrollbar-hide pb-8">
-                      {photoUrls.map((src, idx) => (
-                        <img
-                          key={`${src}-${idx}`}
-                          src={src}
-                          alt=""
-                          className="h-[96px] w-[128px] shrink-0 rounded-radius-md object-cover"
-                          loading="lazy"
-                        />
-                      ))}
-                    </div>
-                  </div>
+              <div className="mt-4">
+                {stats && status && (
+                  <StatusDot status={status.status} label={status.label} subLabel={status.subLabel} />
                 )}
+              </div>
+            </header>
 
-                {/* Metric tiles row */}
-                <div className="mt-12">
-                  <div className="grid grid-cols-4 gap-2">
-                    <MetricTile type="noise" value={dominantNoise} />
-                    <MetricTile type="vibes" value={dominantVibe} />
-                    <MetricTile type="tables" value={dominantTables} />
-                    <MetricTile type="outlets" value={dominantOutlets} />
+            <div
+              className="mt-8 min-h-0 flex-1 overflow-y-auto overscroll-y-contain scrollbar-hide [-webkit-overflow-scrolling:touch] pb-[240px]"
+            >
+              {photoUrls.length > 0 && (
+                <div className="pb-12">
+                  <div className="flex gap-8 overflow-x-auto scrollbar-hide pb-8">
+                    {photoUrls.map((src, idx) => (
+                      <img
+                        key={`${src}-${idx}`}
+                        src={src}
+                        alt=""
+                        className="h-[96px] w-[128px] shrink-0 rounded-radius-md object-cover"
+                        loading="lazy"
+                      />
+                    ))}
                   </div>
                 </div>
-              </>
-            )}
+              )}
 
-            {/* Full content */}
-            {showNotesAndCTAs && (
-              <>
-                {/* Notes & Tips */}
-                <div className="mt-12 min-h-0 flex-1 overflow-hidden">
-                  <div className="text-body-m text-text font-bold">Notes &amp; Tips</div>
-                  <div className="mt-8 h-full overflow-y-auto scrollbar-hide pr-4">
-                    {detail?.notes?.length ? (
-                      <div className="space-y-12">
-                        {detail.notes.map((note) => (
-                          <div key={note.id} className="flex gap-8">
-                            <div className="flex h-32 w-32 shrink-0 items-center justify-center rounded-radius-md bg-surface-alt border border-surface-alt">
-                              <span className="text-ui-label-s font-bold text-text-secondary">
-                                {note.user_initial}
-                              </span>
-                            </div>
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-8">
-                                <span className="text-body-s text-text-tertiary">
-                                  {timeAgo(note.created_at)}
-                                </span>
-                              </div>
-                              <div className="mt-4 text-body-m text-text">
-                                &ldquo;{note.notes}&rdquo;
-                              </div>
-                            </div>
+              <div className="grid grid-cols-4 gap-2 pb-12">
+                <MetricTile type="noise" value={dominantNoise} />
+                <MetricTile type="vibes" value={dominantVibe} />
+                <MetricTile type="tables" value={dominantTables} />
+                <MetricTile type="outlets" value={dominantOutlets} />
+              </div>
+
+              <div className="pb-8">
+                <div className="text-body-m text-text font-bold">Notes &amp; Tips</div>
+                {detail?.notes?.length ? (
+                  <div className="mt-8 space-y-12 pr-4">
+                    {detail.notes.map((note) => (
+                      <div key={note.id} className="flex gap-8">
+                        <div className="flex h-32 w-32 shrink-0 items-center justify-center rounded-radius-md border border-surface-alt bg-surface-alt">
+                          <span className="text-ui-label-s font-bold text-text-secondary">
+                            {note.user_initial}
+                          </span>
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-8">
+                            <span className="text-body-s text-text-tertiary">
+                              {timeAgo(note.created_at)}
+                            </span>
                           </div>
-                        ))}
+                          <div className="mt-4 text-body-m text-text">
+                            &ldquo;{note.notes}&rdquo;
+                          </div>
+                        </div>
                       </div>
-                    ) : (
-                      <div className="text-body-s text-text-tertiary">
-                        No notes yet.
-                      </div>
-                    )}
+                    ))}
                   </div>
-                </div>
-
-                {/* CTA buttons */}
-                <div className="flex-none pt-12 pb-16">
-                  <Link
-                    href={`/places/${placeId}/rate?name=${encodeURIComponent(place?.name ?? '')}`}
-                    className="block"
-                  >
-                    <Button className="w-full">Rate this Place</Button>
-                  </Link>
-
-                  <div className="mt-12 flex gap-8">
-                    <Button
-                      variant="secondary"
-                      className="w-full"
-                      onClick={async () => {
-                        const url = `${window.location.origin}/places/${placeId}`;
-                        if (navigator.share) {
-                          try {
-                            await navigator.share({ url, title: place?.name ?? '' });
-                          } catch {
-                            // ignore
-                          }
-                        } else {
-                          await navigator.clipboard.writeText(url);
-                        }
-                      }}
-                    >
-                      <span className="inline-flex items-center gap-8">
-                        <Share2 size={18} aria-hidden />
-                        Share
-                      </span>
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      className="w-full"
-                      onClick={() => {
-                        const lat = place?.lat ?? initialCenter.lat;
-                        const lng = place?.lng ?? initialCenter.lng;
-                        const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
-                        window.open(url, '_blank', 'noopener,noreferrer');
-                      }}
-                    >
-                      <span className="inline-flex items-center gap-8">
-                        <Navigation size={18} aria-hidden />
-                        Directions
-                      </span>
-                    </Button>
-                  </div>
-                </div>
-              </>
-            )}
+                ) : (
+                  <div className="mt-8 text-body-s text-text-tertiary">No notes yet.</div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>
+
+      <PlaceDetailCta
+        rateHref={`/places/${placeId}/rate?name=${encodeURIComponent(place?.name ?? '')}`}
+        onShare={async () => {
+          const url = `${window.location.origin}/places/${placeId}`;
+          if (navigator.share) {
+            try {
+              await navigator.share({ url, title: place?.name ?? '' });
+            } catch {
+              // ignore
+            }
+          } else {
+            await navigator.clipboard.writeText(url);
+          }
+        }}
+        onDirections={() => {
+          const lat = place?.lat ?? initialCenter.lat;
+          const lng = place?.lng ?? initialCenter.lng;
+          const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+          window.open(url, '_blank', 'noopener,noreferrer');
+        }}
+      />
     </div>
   );
 }

@@ -213,8 +213,8 @@ function FeedContent() {
   const showResults = coords != null && query.isSuccess;
 
   return (
-    <div className="flex min-h-0 w-full flex-1 flex-col md:flex-row">
-      <div className="scrollbar-hide flex min-h-0 w-full flex-col overflow-y-auto md:max-w-md md:flex-shrink-0">
+    <div className="flex min-h-0 w-full flex-1 flex-col md:grid md:grid-cols-[5fr_8fr] md:overflow-hidden">
+      <div className="scrollbar-hide flex min-h-0 w-full flex-col overflow-y-auto md:min-h-0">
         <div className="shrink-0 pt-16">
           <div className="px-16">
             <SearchBar />
@@ -273,33 +273,34 @@ function FeedContent() {
           )}
         </div>
       </div>
-      {/* Mobile: map strip below feed */}
-      {isMapTabActive && (
-        <div className="block h-[280px] w-full flex-shrink-0 lg:hidden">
-          <FeedMap
-            places={places}
-            selectedPlaceId={selectedPlaceId}
-            onSelectPlace={onSelectPlace}
-            center={coords ?? undefined}
-          />
-        </div>
-      )}
-      {/* Desktop: map panel fills right column */}
-      <MapPanel
-        places={places}
-        selectedPlaceId={selectedPlaceId}
-        onSelectPlace={onSelectPlace}
-        center={coords ?? undefined}
-      />
+      {/* Right column: mobile map strip when Map tab; desktop map (5/8 grid, 8fr) */}
+      <div className="flex min-h-0 flex-col md:h-full md:min-h-0">
+        {isMapTabActive && (
+          <div className="h-[280px] w-full shrink-0 md:hidden">
+            <FeedMap
+              places={places}
+              selectedPlaceId={selectedPlaceId}
+              onSelectPlace={onSelectPlace}
+              center={coords ?? undefined}
+            />
+          </div>
+        )}
+        <MapPanel
+          places={places}
+          selectedPlaceId={selectedPlaceId}
+          onSelectPlace={onSelectPlace}
+          center={coords ?? undefined}
+        />
+      </div>
     </div>
   );
 }
 
 function FeedPageFallback() {
   return (
-    <>
-      <div className="flex min-h-0 w-full flex-col overflow-hidden md:max-w-md md:flex-shrink-0 md:overflow-y-auto">
-        <div className="shrink-0 space-y-4 p-4 ">
+    <div className="flex min-h-0 w-full flex-1 flex-col md:grid md:grid-cols-[5fr_8fr] md:overflow-hidden">
+      <div className="flex min-h-0 w-full flex-col overflow-hidden md:min-h-0 md:overflow-y-auto">
+        <div className="shrink-0 space-y-4 p-4">
           <div className="h-12 rounded-radius-sm bg-surface-alt animate-pulse" />
           <div className="flex gap-2">
             {[1, 2, 3, 4].map((i) => (
@@ -316,8 +317,8 @@ function FeedPageFallback() {
           ))}
         </div>
       </div>
-      <div className="hidden h-full min-h-0 flex-1 md:block bg-surface-alt" />
-    </>
+      <div className="hidden min-h-0 md:block md:h-full bg-surface-alt animate-pulse" />
+    </div>
   );
 }
 

@@ -11,8 +11,8 @@ interface MapPanelProps {
 }
 
 /**
- * Map panel for the desktop feed layout. Fills the right column, sticky,
- * no scrollbars. Height = viewport minus header so only the left feed scrolls.
+ * Map panel for the desktop feed / saved layout (8fr column in `grid-cols-[5fr_8fr]`).
+ * Hidden below `md`; fills the right column height so only the list scrolls.
  */
 export function MapPanel({
   places,
@@ -21,8 +21,8 @@ export function MapPanel({
   center,
 }: MapPanelProps) {
   return (
-    <div className="relative hidden min-h-0 min-w-[320px] flex-1 md:block">
-      <div className="h-full w-full overflow-hidden">
+    <div className="relative hidden min-h-0 w-full md:block md:h-full">
+      <div className="h-full w-full min-h-0 overflow-hidden">
         <FeedMap
           places={places}
           selectedPlaceId={selectedPlaceId}

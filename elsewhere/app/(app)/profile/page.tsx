@@ -37,7 +37,8 @@ async function getProfileData() {
       .select("id", { count: "exact", head: true })
       .eq("user_id", user.id)
       .not("photo_path", "is", null),
-    serviceClient
+    // Same table + RLS as /api/saved and the Saved page so the count matches what you can load.
+    supabase
       .from("saved")
       .select("place_id", { count: "exact", head: true })
       .eq("user_id", user.id),

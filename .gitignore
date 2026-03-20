@@ -2,3 +2,6 @@
 .env
 .env.local
 .env*.local
+
+# Separate repo — do not track as submodule/gitlink
+elsewhere-landing/

@@ -49,6 +49,11 @@ export interface FeedMapProps {
   zoom?: number;
   /** Called when the map camera settles after zoom (for radius / prefs sync). */
   onZoomEnd?: (zoom: number) => void;
+  /**
+   * After centering on a single place (or flying to selection), pan the map by this many
+   * pixels downward so the marker sits higher in the viewport (e.g. above a bottom sheet).
+   */
+  centerVerticalOffsetPx?: number;
 }
 
 const PADDING_PX = 48;
@@ -57,16 +62,44 @@ const MIN_ZOOM = 10;
 const SELECTED_MIN_ZOOM = 14;
 const USER_LOCATION_ZOOM = 14;
 
-function MapFitBounds({ places }: { places: FeedItem[] }) {
+function placesBoundsKey(places: FeedItem[]): string {
+  const valid = places.filter((p) => isValidCoord(p.lat, p.lng));
+  if (valid.length === 0) return "";
+  return JSON.stringify(
+    [...valid]
+      .sort((a, b) => a.id.localeCompare(b.id))
+      .map((p) => ({ id: p.id, lat: p.lat, lng: p.lng })),
+  );
+}
+
+function MapFitBounds({
+  places,
+  centerVerticalOffsetPx = 0,
+}: {
+  places: FeedItem[];
+  centerVerticalOffsetPx?: number;
+}) {
   const map = useMap();
+  const lastBoundsKeyRef = useRef("");
 
   useEffect(() => {
-    if (!map || places.length === 0) return;
+    if (!map) return;
+    const key = `${placesBoundsKey(places)}\u0000${centerVerticalOffsetPx}`;
+    if (key === lastBoundsKeyRef.current) return;
+    lastBoundsKeyRef.current = key;
+
     const valid = places.filter((p) => isValidCoord(p.lat, p.lng));
     if (valid.length === 0) return;
+
     if (valid.length === 1) {
       map.setCenter({ lat: valid[0].lat, lng: valid[0].lng });
       map.setZoom(MAX_ZOOM);
+      if (centerVerticalOffsetPx) {
+        const listener = google.maps.event.addListenerOnce(map, "idle", () => {
+          map.panBy(0, centerVerticalOffsetPx);
+        });
+        return () => google.maps.event.removeListener(listener);
+      }
       return;
     }
     const bounds = new google.maps.LatLngBounds();
@@ -84,7 +117,7 @@ function MapFitBounds({ places }: { places: FeedItem[] }) {
       google.maps.event.removeListener(listener);
     });
     return () => google.maps.event.removeListener(listener);
-  }, [map, places]);
+  }, [map, places, centerVerticalOffsetPx]);
 
   return null;
 }
@@ -92,20 +125,35 @@ function MapFitBounds({ places }: { places: FeedItem[] }) {
 function MapFlyToSelected({
   places,
   selectedPlaceId,
+  centerVerticalOffsetPx = 0,
 }: {
   places: FeedItem[];
   selectedPlaceId: string | null;
+  centerVerticalOffsetPx?: number;
 }) {
   const map = useMap();
+  const lastFlyKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!map || !selectedPlaceId) return;
+    if (!map || !selectedPlaceId) {
+      lastFlyKeyRef.current = null;
+      return;
+    }
     const place = places.find((p) => p.id === selectedPlaceId);
     if (!place || !isValidCoord(place.lat, place.lng)) return;
+    const flyKey = `${selectedPlaceId}\u0000${place.lat}\u0000${place.lng}\u0000${centerVerticalOffsetPx}`;
+    if (flyKey === lastFlyKeyRef.current) return;
+    lastFlyKeyRef.current = flyKey;
+
     map.panTo({ lat: place.lat, lng: place.lng });
     const z = map.getZoom() ?? SELECTED_MIN_ZOOM;
     if (z < SELECTED_MIN_ZOOM) map.setZoom(SELECTED_MIN_ZOOM);
-  }, [map, places, selectedPlaceId]);
+    if (centerVerticalOffsetPx) {
+      google.maps.event.addListenerOnce(map, "idle", () => {
+        map.panBy(0, centerVerticalOffsetPx);
+      });
+    }
+  }, [map, places, selectedPlaceId, centerVerticalOffsetPx]);
 
   return null;
 }
@@ -279,6 +327,7 @@ function FeedMapInner({
   center = ATLANTA_CENTER,
   zoom = 12,
   onZoomEnd,
+  centerVerticalOffsetPx = 0,
 }: FeedMapProps) {
   const { hoveredPlaceId, setHoveredPlaceId } = usePlaceStore();
   const mapId = process.env.NEXT_PUBLIC_GOOGLE_MAP_ID ?? "DEMO_MAP_ID";
@@ -295,10 +344,14 @@ function FeedMapInner({
         className="h-full w-full"
         gestureHandling="greedy"
       >
-        <MapFitBounds places={validPlaces} />
+        <MapFitBounds
+          places={validPlaces}
+          centerVerticalOffsetPx={centerVerticalOffsetPx}
+        />
         <MapFlyToSelected
           places={validPlaces}
           selectedPlaceId={selectedPlaceId}
+          centerVerticalOffsetPx={centerVerticalOffsetPx}
         />
         <MapZoomEndListener onZoomEnd={onZoomEnd} />
         <MapLocateControl />

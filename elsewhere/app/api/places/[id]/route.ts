@@ -146,13 +146,13 @@ export async function GET(
     // 2) Whether the user saved it
     let is_saved = false;
     if (user) {
-      const { data: fav } = await supabase
-        .from("favorites")
+      const { data: row } = await supabase
+        .from("saved")
         .select("place_id")
         .eq("user_id", user.id)
         .eq("place_id", placeId)
         .maybeSingle();
-      is_saved = !!fav;
+      is_saved = !!row;
     }
 
     // 3) Notes (notes != null) from ratings_public when available, otherwise fall back to raw ratings.
