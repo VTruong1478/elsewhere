@@ -9,7 +9,7 @@ export function TopNav() {
   const isProfile = pathname === "/profile";
 
   return (
-    <header className="z-40 flex h-[72px] w-full shrink-0 items-center justify-between bg-background px-16 md:h-[88px]">
+    <header className="z-40 flex h-[72px] w-full shrink-0 items-center justify-between bg-background px-16">
       <Link href="/feed" className="font-lora text-heading-l text-text">
         elsewhere
       </Link>
@@ -17,7 +17,9 @@ export function TopNav() {
         href="/profile"
         aria-label="Profile"
         className={`flex h-40 w-40 items-center justify-center rounded-full ${
-          isProfile ? "bg-primary text-text-inverse" : "bg-surface-alt text-text"
+          isProfile
+            ? "bg-primary text-text-inverse"
+            : "bg-surface-alt text-text"
         }`}
       >
         <CircleUserRound
