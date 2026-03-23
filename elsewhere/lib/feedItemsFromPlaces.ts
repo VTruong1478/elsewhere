@@ -262,6 +262,18 @@ export async function buildFeedItemsFromPlaces(
     },
   );
 
+  if (filterChip === "quiet") {
+    result = result.filter(
+      (item) => item.dominant_noise === "Silent" || item.dominant_noise === "Quiet",
+    );
+  }
+
+  if (filterChip === "bookstores") {
+    result = result.filter(
+      (item) => item.place_type?.toLowerCase() === "bookstore",
+    );
+  }
+
   if (idOrder?.length) {
     const byId = new Map(result.map((i) => [i.id, i]));
     const ordered: FeedItem[] = [];

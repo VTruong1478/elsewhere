@@ -21,8 +21,6 @@ export default async function PlaceDetailPage({ params }: PageProps) {
     .eq("id", id)
     .single();
 
-  // Important: do not return 404 here. Mobile/tablet UI depends on the
-  // client-side `/api/places/[id]` response (which includes mock data).
   const placeRow = !error && place ? place : null;
 
   const photoRef =
@@ -36,7 +34,7 @@ export default async function PlaceDetailPage({ params }: PageProps) {
       : null;
 
   const initialCenter = placeRow
-    ? { lat: placeRow.lat as number, lng: placeRow.lng as number }
+    ? { lat: Number(placeRow.lat), lng: Number(placeRow.lng) }
     : FALLBACK_CENTER;
 
   return (

@@ -1,7 +1,6 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Bookmark, Check } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -34,10 +33,6 @@ function getOpenStatus(
 }
 
 export function MapPlacePreview({ place }: { place: FeedItem }) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const [isMobileOrTablet, setIsMobileOrTablet] = useState(false);
-
   const queryClient = useQueryClient();
   const ratedQuery = useQuery<string[]>({
     queryKey: ["rated-places"],
@@ -48,30 +43,6 @@ export function MapPlacePreview({ place }: { place: FeedItem }) {
   const ratedPlaces = ratedQuery.data ?? [];
   const isRated = ratedPlaces.includes(place.id);
   const [isSaved, setIsSaved] = useState(!!place.is_favorited);
-
-  const lastPushedRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const mq = window.matchMedia("(max-width: 1023px)");
-    const update = () => setIsMobileOrTablet(mq.matches);
-    update();
-    mq.addEventListener("change", update);
-    return () => mq.removeEventListener("change", update);
-  }, []);
-
-  useEffect(() => {
-    if (!isMobileOrTablet) return;
-    const isOnPlaceDetail =
-      pathname?.split("/").filter(Boolean).includes("places") ?? false;
-    if (isOnPlaceDetail) return;
-
-    // When the user taps a marker, MapPage renders this preview.
-    // On mobile/tablet, immediately navigate to the place detail sheet.
-    if (lastPushedRef.current === place.id) return;
-    lastPushedRef.current = place.id;
-    router.push(`/places/${place.id}`);
-  }, [isMobileOrTablet, pathname, place.id, router]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect

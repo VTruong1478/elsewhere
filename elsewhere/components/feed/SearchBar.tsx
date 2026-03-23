@@ -2,16 +2,22 @@
 
 import { Search } from "lucide-react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import styles from "./SearchBar.module.css";
+
+const DEBOUNCE_MS = 300;
 
 export function SearchBar() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathname = usePathname();
-  const [value, setValue] = useState(searchParams.get("q") ?? "");
+  const urlQ = searchParams.get("q") ?? "";
+  const [value, setValue] = useState(urlQ);
 
   const basePath = pathname?.startsWith("/map") ? "/map" : "/feed";
+
+  const skipNextUrlSyncRef = useRef(false);
+  const debounceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const updateQuery = useCallback(
     (q: string) => {
@@ -21,16 +27,62 @@ export function SearchBar() {
       } else {
         next.delete("q");
       }
-      router.push(`${basePath}?${next.toString()}`);
+      const qs = next.toString();
+      router.push(qs ? `${basePath}?${qs}` : basePath);
     },
     [router, searchParams, basePath],
   );
+
+  // Sync input when `q` changes from outside this field (e.g. back/forward, nav).
+  // Skip one sync after our own debounced `router.push` so in-progress typing isn't overwritten.
+  useEffect(() => {
+    if (skipNextUrlSyncRef.current) {
+      skipNextUrlSyncRef.current = false;
+      return;
+    }
+    setValue(urlQ);
+  }, [urlQ]);
+
+  // Debounce URL updates so the feed TanStack Query refetches via the existing `q` param.
+  useEffect(() => {
+    const trimmed = value.trim();
+    const urlTrimmed = urlQ.trim();
+    if (trimmed === urlTrimmed) {
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
+        debounceTimeoutRef.current = null;
+      }
+      return;
+    }
+
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current);
+    }
+
+    debounceTimeoutRef.current = setTimeout(() => {
+      debounceTimeoutRef.current = null;
+      skipNextUrlSyncRef.current = true;
+      updateQuery(value);
+    }, DEBOUNCE_MS);
+
+    return () => {
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
+        debounceTimeoutRef.current = null;
+      }
+    };
+  }, [value, urlQ, updateQuery]);
 
   return (
     <form
       className="flex items-center gap-2 rounded-radius-md  bg-surface outline-none"
       onSubmit={(e) => {
         e.preventDefault();
+        if (debounceTimeoutRef.current) {
+          clearTimeout(debounceTimeoutRef.current);
+          debounceTimeoutRef.current = null;
+        }
+        skipNextUrlSyncRef.current = true;
         updateQuery(value);
       }}
     >

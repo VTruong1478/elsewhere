@@ -2,6 +2,7 @@
 
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Compass } from 'lucide-react';
 import type { FeedItem } from '@/types/feed';
 import { FeedMap } from '@/components/map/FeedMap';
 import { StatusDot } from '@/components/ui/StatusDot';
@@ -57,6 +58,7 @@ type PlaceDetailResponse = {
 type PlaceDetailMobileProps = {
   placeId: string;
   initialCenter: { lat: number; lng: number };
+  renderMap?: boolean;
 };
 
 function n(v: number | string | bigint | null | undefined): number {
@@ -169,13 +171,21 @@ function feedItemForDetailMap(
   };
 }
 
-export function PlaceDetailMobile({ placeId, initialCenter }: PlaceDetailMobileProps) {
+export function PlaceDetailMobile({
+  placeId,
+  initialCenter,
+  renderMap = true,
+}: PlaceDetailMobileProps) {
+  const NOVA_CENTER = { lat: 38.8304, lng: -77.1941 };
+  const DEFAULT_MAP_ZOOM = 11;
+  const DETAIL_MAP_ZOOM = 15;
   const { setSelectedPlaceId } = usePlaceStore();
   const supabase = useMemo(() => createClient(), []);
 
   const [detail, setDetail] = useState<PlaceDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
+  const [isDefaultMapView, setIsDefaultMapView] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -184,10 +194,14 @@ export function PlaceDetailMobile({ placeId, initialCenter }: PlaceDetailMobileP
       setDetail(null);
       try {
         const res = await fetch(`/api/places/${placeId}`);
-        const body = (await res.json()) as { data?: PlaceDetailResponse; error?: unknown };
+        const body = (await res.json()) as {
+          data?: PlaceDetailResponse;
+          error?: unknown;
+        };
         if (cancelled) return;
         setDetail(body.data ?? null);
-      } catch {
+      } catch (err) {
+        console.error('[PlaceDetailMobile] fetch error:', err);
         if (cancelled) return;
         setDetail(null);
       } finally {
@@ -201,9 +215,14 @@ export function PlaceDetailMobile({ placeId, initialCenter }: PlaceDetailMobileP
   }, [placeId]);
 
   useEffect(() => {
-    setSelectedPlaceId(placeId);
-    return () => setSelectedPlaceId(null);
-  }, [placeId, setSelectedPlaceId]);
+    if (!renderMap) return;
+    setIsDefaultMapView(false);
+  }, [placeId, renderMap]);
+
+  useEffect(() => {
+    if (!renderMap) return;
+    setSelectedPlaceId(isDefaultMapView ? null : placeId);
+  }, [isDefaultMapView, placeId, setSelectedPlaceId, renderMap]);
 
   // Build photo URLs (from storage paths where available, otherwise omit).
   useEffect(() => {
@@ -268,9 +287,9 @@ export function PlaceDetailMobile({ placeId, initialCenter }: PlaceDetailMobileP
   const pointerIdRef = useRef<number | null>(null);
 
   useEffect(() => {
-    // Default to peek (lowest snap): maximum map visible; user drags up for more detail
+    // Default to mid snap so key details are visible immediately.
     if (!heights) return;
-    setTranslateY(heights.peekTy);
+    setTranslateY(heights.midTy);
   }, [heights]);
 
   function clampTy(ty: number): number {
@@ -368,8 +387,8 @@ export function PlaceDetailMobile({ placeId, initialCenter }: PlaceDetailMobileP
   const dominantOutlets = stats ? dominantOutletsFromCounts(stats) : null;
 
   const coords =
-    place && isFinite(place.lat) && isFinite(place.lng)
-      ? { lat: place.lat, lng: place.lng }
+    place && isFinite(Number(place.lat)) && isFinite(Number(place.lng))
+      ? { lat: Number(place.lat), lng: Number(place.lng) }
       : initialCenter;
   const avgOverall =
     stats?.avg_overall_rating == null
@@ -382,23 +401,36 @@ export function PlaceDetailMobile({ placeId, initialCenter }: PlaceDetailMobileP
     [placeId, coords.lat, coords.lng, place, avgOverall],
   );
 
-  const mapCenterOffsetPx = heights ? Math.round(heights.peek * 0.38) : 100;
+  const mapCenterOffsetPx = heights ? Math.round(heights.mid) : 100;
+  const mapPlacesToRender = isDefaultMapView ? [] : mapPlaces;
+  const mapCenter = isDefaultMapView ? NOVA_CENTER : coords;
+  const mapZoom = isDefaultMapView ? DEFAULT_MAP_ZOOM : DETAIL_MAP_ZOOM;
+  const mapSelectedPlaceId = isDefaultMapView ? null : placeId;
+  const mapInstanceKey = `${isDefaultMapView ? 'default' : 'detail'}-${placeId}`;
+
+  function handleResetToDefaultMapView() {
+    setIsDefaultMapView(true);
+    setSelectedPlaceId(null);
+  }
 
   if (loading) {
-    // Keep map visible while loading: show a minimal fixed panel.
+    // Keep a minimal panel visible while loading details.
     return (
-      <div className="fixed inset-0">
-        <div className="absolute inset-0">
-          <FeedMap
-            places={[feedItemForDetailMap(placeId, initialCenter, null, null)]}
-            selectedPlaceId={placeId}
-            onSelectPlace={setSelectedPlaceId}
-            center={initialCenter}
-            zoom={15}
-            centerVerticalOffsetPx={mapCenterOffsetPx}
-          />
-        </div>
-        <div className="pointer-events-none fixed bottom-0 left-0 right-0 z-30 rounded-t-radius-md bg-surface shadow-map">
+      <div className={renderMap ? 'fixed inset-0' : 'absolute inset-0 pointer-events-none'}>
+        {renderMap && (
+          <div className="absolute inset-0 pointer-events-auto">
+            <FeedMap
+              key={mapInstanceKey}
+              places={[feedItemForDetailMap(placeId, initialCenter, null, null)]}
+              selectedPlaceId={mapSelectedPlaceId}
+              onSelectPlace={setSelectedPlaceId}
+              center={mapCenter}
+              zoom={mapZoom}
+              centerVerticalOffsetPx={mapCenterOffsetPx}
+            />
+          </div>
+        )}
+        <div className="pointer-events-none absolute bottom-0 left-0 right-0 z-30 rounded-t-radius-md bg-surface shadow-map">
           <div className="h-48" />
         </div>
       </div>
@@ -406,30 +438,52 @@ export function PlaceDetailMobile({ placeId, initialCenter }: PlaceDetailMobileP
   }
 
   return (
-    <div className="fixed inset-0 overflow-hidden">
-      <div className="absolute inset-0">
-        <FeedMap
-          places={mapPlaces}
-          selectedPlaceId={placeId}
-          onSelectPlace={setSelectedPlaceId}
-          center={coords}
-          zoom={15}
-          centerVerticalOffsetPx={mapCenterOffsetPx}
-        />
-      </div>
+    <div className={renderMap ? 'fixed inset-0 overflow-hidden' : 'absolute inset-0 overflow-hidden pointer-events-none'}>
+      {renderMap && (
+        <div className="absolute inset-0 pointer-events-auto">
+          <FeedMap
+            key={mapInstanceKey}
+            places={mapPlacesToRender}
+            selectedPlaceId={mapSelectedPlaceId}
+            onSelectPlace={setSelectedPlaceId}
+            center={mapCenter}
+            zoom={mapZoom}
+            centerVerticalOffsetPx={mapCenterOffsetPx}
+          />
+        </div>
+      )}
+      {renderMap && (
+        <div className="pointer-events-auto absolute left-3 top-3 z-30">
+          <button
+            type="button"
+            onClick={handleResetToDefaultMapView}
+            className="flex h-10 w-10 items-center justify-center rounded-radius-sm border border-surface-alt bg-surface text-text shadow-map hover:bg-surface-alt"
+            aria-label="Reset to default map view"
+            title="Reset to default map view"
+          >
+            <Compass className="h-5 w-5 text-accent" aria-hidden />
+          </button>
+        </div>
+      )}
 
       {/* Backdrop */}
       <div className="pointer-events-none absolute inset-0 bg-black/0" aria-hidden />
 
       {/* Bottom sheet */}
-      <div
-        className="fixed bottom-0 left-0 right-0 z-30 overflow-hidden rounded-t-radius-md bg-surface shadow-map"
-        style={{
-          height: heights?.full ?? 'auto',
-          transform: `translateY(${translateY}px)`,
-          transition: isDraggingRef.current ? 'none' : 'transform 260ms ease-out',
-        }}
-      >
+      {!isDefaultMapView && (
+        <div
+          className={[
+            renderMap ? 'fixed' : 'absolute',
+            'pointer-events-auto bottom-0 left-0 right-0 z-30 overflow-hidden rounded-t-radius-md bg-surface shadow-map',
+          ]
+            .filter(Boolean)
+            .join(' ')}
+          style={{
+            height: heights?.full ?? 'auto',
+            transform: `translateY(${translateY}px)`,
+            transition: isDraggingRef.current ? 'none' : 'transform 260ms ease-out',
+          }}
+        >
         <div className="flex h-full flex-col">
           {/* Drag handle */}
           <div
@@ -517,29 +571,33 @@ export function PlaceDetailMobile({ placeId, initialCenter }: PlaceDetailMobileP
             </div>
           </div>
         </div>
-      </div>
+        </div>
+      )}
 
-      <PlaceDetailCta
-        rateHref={`/places/${placeId}/rate?name=${encodeURIComponent(place?.name ?? '')}`}
-        onShare={async () => {
-          const url = `${window.location.origin}/places/${placeId}`;
-          if (navigator.share) {
-            try {
-              await navigator.share({ url, title: place?.name ?? '' });
-            } catch {
-              // ignore
+      {!isDefaultMapView && (
+        <PlaceDetailCta
+          className={!renderMap ? 'pointer-events-auto' : ''}
+          rateHref={`/places/${placeId}/rate?name=${encodeURIComponent(place?.name ?? '')}`}
+          onShare={async () => {
+            const url = `${window.location.origin}/places/${placeId}`;
+            if (navigator.share) {
+              try {
+                await navigator.share({ url, title: place?.name ?? '' });
+              } catch {
+                // ignore
+              }
+            } else {
+              await navigator.clipboard.writeText(url);
             }
-          } else {
-            await navigator.clipboard.writeText(url);
-          }
-        }}
-        onDirections={() => {
-          const lat = place?.lat ?? initialCenter.lat;
-          const lng = place?.lng ?? initialCenter.lng;
-          const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
-          window.open(url, '_blank', 'noopener,noreferrer');
-        }}
-      />
+          }}
+          onDirections={() => {
+            const lat = place?.lat ?? initialCenter.lat;
+            const lng = place?.lng ?? initialCenter.lng;
+            const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+            window.open(url, '_blank', 'noopener,noreferrer');
+          }}
+        />
+      )}
     </div>
   );
 }

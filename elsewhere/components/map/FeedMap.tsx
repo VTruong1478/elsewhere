@@ -7,7 +7,7 @@ import { Locate } from "lucide-react";
 import type { FeedItem } from "@/types/feed";
 import { usePlaceStore } from "@/store/usePlaceStore";
 
-const ATLANTA_CENTER: [number, number] = [-84.388, 33.749];
+const NOVA_CENTER: [number, number] = [-77.1941, 38.8304];
 
 const TIER_COLORS = {
   high: "#4F5D3F",
@@ -53,7 +53,7 @@ export interface FeedMapProps {
 
 const PADDING_PX = 48;
 const MAX_ZOOM = 18;
-const MIN_ZOOM = 10;
+const MIN_ZOOM = 3;
 const SELECTED_MIN_ZOOM = 14;
 const USER_LOCATION_ZOOM = 14;
 
@@ -69,6 +69,11 @@ function createPinElement(): { el: HTMLDivElement; root: Root } {
   el.style.cursor = "pointer";
   const root = createRoot(el);
   return { el, root };
+}
+
+function clearRootSafely(root: Root) {
+  // Clearing content avoids cross-root unmount races during React cleanup.
+  root.render(null);
 }
 
 function PinContent({
@@ -219,7 +224,7 @@ export function FeedMap({
 
   const defaultCenter: [number, number] = center
     ? [center.lng, center.lat]
-    : ATLANTA_CENTER;
+    : NOVA_CENTER;
 
   const validPlaces = useMemo(
     () => places.filter((p) => isValidCoord(p.lat, p.lng)),
@@ -277,12 +282,12 @@ export function FeedMap({
 
     return () => {
       markersRef.current.forEach((tm) => {
-        tm.root.unmount();
+        clearRootSafely(tm.root);
         tm.marker.remove();
       });
       markersRef.current.clear();
       if (userMarkerRef.current) {
-        userMarkerRef.current.root.unmount();
+        clearRootSafely(userMarkerRef.current.root);
         userMarkerRef.current.marker.remove();
         userMarkerRef.current = null;
       }
@@ -392,7 +397,7 @@ export function FeedMap({
     // Remove stale markers
     existing.forEach((tm, id) => {
       if (!currentIds.has(id)) {
-        tm.root.unmount();
+        clearRootSafely(tm.root);
         tm.marker.remove();
         existing.delete(id);
       }
@@ -453,7 +458,7 @@ export function FeedMap({
 
     if (!userLocation) {
       if (userMarkerRef.current) {
-        userMarkerRef.current.root.unmount();
+        clearRootSafely(userMarkerRef.current.root);
         userMarkerRef.current.marker.remove();
         userMarkerRef.current = null;
       }

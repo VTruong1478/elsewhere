@@ -128,7 +128,7 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const result = await buildFeedItemsFromPlaces({
+  let result = await buildFeedItemsFromPlaces({
     supabase,
     serviceRoleClient,
     userId: user?.id ?? null,
@@ -139,6 +139,13 @@ export async function GET(request: NextRequest) {
     favoritedPlaceIds: savedPlaceIds,
     limit: 20,
   });
+
+  if (q) {
+    const normalizedQuery = q.toLowerCase();
+    result = result.filter((item) =>
+      item.name.toLowerCase().includes(normalizedQuery),
+    );
+  }
 
   console.log(
     '[feed] Just before returning response',

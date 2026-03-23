@@ -54,6 +54,7 @@ export type FeedFilter =
   | 'quiet'
   | 'cafes'
   | 'libraries'
+  | 'bookstores'
   | 'open_now';
 
 export const FEED_FILTER_OPTIONS: { value: FeedFilter; label: string }[] = [
@@ -61,5 +62,6 @@ export const FEED_FILTER_OPTIONS: { value: FeedFilter; label: string }[] = [
   { value: 'quiet', label: 'Quiet' },
   { value: 'cafes', label: 'Cafes' },
   { value: 'libraries', label: 'Libraries' },
+  { value: 'bookstores', label: 'Bookstores' },
   { value: 'open_now', label: 'Open now' },
 ];

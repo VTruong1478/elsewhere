@@ -7,6 +7,7 @@ import { SearchBar } from "@/components/feed/SearchBar";
 import { FilterChips } from "@/components/feed/FilterChips";
 import { FeedMap } from "@/components/map/FeedMap";
 import { MapPlacePreview } from "@/components/map/MapPlacePreview";
+import { PlaceDetailMobile } from "@/components/places/PlaceDetailMobile";
 import { usePlaceStore } from "@/store/usePlaceStore";
 import type { FeedItem } from "@/types/feed";
 
@@ -112,6 +113,7 @@ function MapContent() {
   const { selectedPlaceId, setSelectedPlaceId } = usePlaceStore();
   const radiusMilesRef = useRef<number | undefined>(undefined);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [mobileSelectionOffsetPx, setMobileSelectionOffsetPx] = useState(0);
 
   const coords =
     locationState.status === "ready"
@@ -188,6 +190,17 @@ function MapContent() {
     };
   }, []);
 
+  useEffect(() => {
+    function recalcSelectionOffset() {
+      const h = window.innerHeight;
+      // FeedMap internally applies half of this as upward pan; half screen gives ~25% up-shift.
+      setMobileSelectionOffsetPx(Math.round(h * 0.5));
+    }
+    recalcSelectionOffset();
+    window.addEventListener("resize", recalcSelectionOffset);
+    return () => window.removeEventListener("resize", recalcSelectionOffset);
+  }, []);
+
   const places: FeedItem[] = query.data ?? [];
   const selectedPlace = selectedPlaceId
     ? places.find((p) => p.id === selectedPlaceId)
@@ -221,11 +234,20 @@ function MapContent() {
           onSelectPlace={onSelectPlace}
           center={coords ?? FALLBACK_CENTER}
           onZoomEnd={handleZoomEnd}
+          centerVerticalOffsetPx={
+            selectedPlaceId ? mobileSelectionOffsetPx : 0
+          }
         />
-        {selectedPlace && (
-          <div className="absolute bottom-16 left-16 right-16 z-30">
-            <MapPlacePreview place={selectedPlace} />
-          </div>
+        {selectedPlaceId && (
+          <PlaceDetailMobile
+            placeId={selectedPlaceId}
+            initialCenter={
+              selectedPlace
+                ? { lat: selectedPlace.lat, lng: selectedPlace.lng }
+                : (coords ?? FALLBACK_CENTER)
+            }
+            renderMap={false}
+          />
         )}
       </div>
 

@@ -143,7 +143,9 @@ export function PlaceCard({ place }: { place: FeedItem }) {
           ? `${place.distance_mi.toFixed(1)} mi`
           : place.address;
   const ratingLabel =
-    place.rating_count != null ? `· ${place.rating_count} ratings` : undefined;
+    place.rating_count != null
+      ? `· ${place.rating_count} ${place.rating_count === 1 ? "rating" : "ratings"}`
+      : undefined;
   const openStatus = getOpenStatus(
     place.open_now,
     place.closes_at,

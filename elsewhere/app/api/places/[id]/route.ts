@@ -52,61 +52,23 @@ type RatingNoteRow = {
   } | null;
 };
 
-// Mock response so the UI can be built even if DB pieces are incomplete.
-function mockPlaceDetail(placeId: string) {
+function emptyPlaceStats(placeId: string): PlaceStatsRow {
   return {
-    placeId,
-    place: {
-      id: placeId,
-      name: "Breeze Bakery Cafe",
-      address: "4125 Hummer Road, Annandale, VA 22003",
-      lat: 38.8445,
-      lng: -77.185,
-      place_type: "cafe",
-      has_wifi: null,
-      opening_hours: {
-        periods: [
-          { open: { day: 1, time: "0800" }, close: { day: 1, time: "2200" } },
-        ],
-      },
-      timezone: "America/New_York",
-      google_photo_ref: null,
-      vibe_photo_ref: null,
-      vibe_photo_path: null,
-      vibe_photo_attribution: null,
-    } as Partial<PlaceRow>,
-    place_stats: {
-      place_id: placeId,
-      rating_count: 128,
-      noise_silent: 10,
-      noise_quiet: 70,
-      noise_vibrant: 48,
-      tables_limited: 15,
-      tables_mixed: 45,
-      tables_plentiful: 68,
-      outlets_scarce: 20,
-      outlets_some: 55,
-      outlets_ample: 53,
-      vibe_focused: 8,
-      vibe_casual: 75,
-      vibe_social: 45,
-      avg_overall_rating: 4.2,
-    } as Partial<PlaceStatsRow>,
-    is_saved: false,
-    notes: [
-      {
-        id: "mock-note-1",
-        notes: "Great lighting and quiet corners.",
-        created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-        user_initial: "A",
-      },
-      {
-        id: "mock-note-2",
-        notes: "Cozy vibe and fast service during the afternoon.",
-        created_at: new Date(Date.now() - 26 * 60 * 60 * 1000).toISOString(),
-        user_initial: "J",
-      },
-    ],
+    place_id: placeId,
+    rating_count: 0,
+    noise_silent: 0,
+    noise_quiet: 0,
+    noise_vibrant: 0,
+    tables_limited: 0,
+    tables_mixed: 0,
+    tables_plentiful: 0,
+    outlets_scarce: 0,
+    outlets_some: 0,
+    outlets_ample: 0,
+    vibe_focused: 0,
+    vibe_casual: 0,
+    vibe_social: 0,
+    avg_overall_rating: null,
   };
 }
 
@@ -139,9 +101,14 @@ export async function GET(
       .eq("place_id", placeId)
       .maybeSingle<PlaceStatsRow>();
 
-    if (!place || !place_stats) {
-      return NextResponse.json({ data: mockPlaceDetail(placeId), error: null });
+    if (!place) {
+      return NextResponse.json(
+        { data: null, error: "Place not found" },
+        { status: 404 },
+      );
     }
+
+    const stats = place_stats ?? emptyPlaceStats(placeId);
 
     // 2) Whether the user saved it
     let is_saved = false;
@@ -210,18 +177,24 @@ export async function GET(
 
     notes = extractNotes(ratingsRows);
 
-    // Response shape required by the prompt: place row + place_stats + saved flag.
     return NextResponse.json({
       data: {
-        place: { ...place },
-        place_stats: { ...place_stats },
+        place: {
+          ...place,
+          lat: Number(place.lat),
+          lng: Number(place.lng),
+        },
+        place_stats: { ...stats },
         is_saved,
         notes,
       },
       error: null,
     });
   } catch {
-    return NextResponse.json({ data: mockPlaceDetail(placeId), error: null });
+    return NextResponse.json(
+      { data: null, error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }
 

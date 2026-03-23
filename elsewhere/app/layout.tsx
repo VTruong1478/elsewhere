@@ -16,8 +16,8 @@ const dmSans = DM_Sans({
 });
 
 export const metadata: Metadata = {
-  title: 'Elsewhere',
-  description: 'Discover third spaces in Atlanta',
+  title: 'elsewhere',
+  description: 'go work elsewhere',
 };
 
 export default function RootLayout({

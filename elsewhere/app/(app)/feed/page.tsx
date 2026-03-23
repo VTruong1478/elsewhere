@@ -14,9 +14,9 @@ import { MapPanel } from "@/components/map/MapPanel";
 import { usePlaceStore } from "@/store/usePlaceStore";
 import type { FeedItem } from "@/types/feed";
 
-// Fallback when location is denied/unavailable so the feed still shows seeded data (e.g. Atlanta)
+// Fallback when location is denied/unavailable so the feed still shows seeded data (e.g. Northern VA)
 const FALLBACK_CENTER = { lat: 33.749, lng: -84.388 };
-// Larger radius when using fallback so all seeded Atlanta-area places (can be 10+ mi apart) show
+// Larger radius when using fallback so all seeded nova area places (can be 10+ mi apart) show
 const FALLBACK_RADIUS_MILES = 25;
 const COORDS_CACHE_KEY = "elsewhere:lastCoords";
 const MEANINGFUL_DISTANCE_METERS = 200; // If moved less than this, don't refetch.
@@ -240,10 +240,9 @@ function FeedContent() {
               </p>
             </div>
           )}
-          {usingFallbackCoords && (
+          {usingFallbackCoords && !showEnableLocation && (
             <p className="text-body-s text-text-tertiary px-4 py-2 text-center">
-              Showing places near Northern Virginia. Enable location to see
-              spots near you.
+              Currently showing places in Northern Virginia.
             </p>
           )}
           {coords != null && query.isError && (
