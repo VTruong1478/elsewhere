@@ -2,63 +2,33 @@
 
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Compass } from 'lucide-react';
 import type { FeedItem } from '@/types/feed';
+import type { PlaceDetailResponse } from '@/types/placeDetail';
 import { FeedMap } from '@/components/map/FeedMap';
 import { StatusDot } from '@/components/ui/StatusDot';
 import { MetricTile } from '@/components/ui/MetricTile';
 import { PlaceDetailCta } from '@/components/places/PlaceDetailCta';
 import { deriveOpeningState, hasOpenLate } from '@/lib/opening-hours';
 import { createClient } from '@/lib/supabase/client';
+import { normalizePlaceId } from '@/lib/placeId';
+import {
+  fetchPlaceDetail,
+  placeDetailQueryKey,
+} from '@/lib/placeDetailQuery';
 import { usePlaceStore } from '@/store/usePlaceStore';
 
 type OpeningHoursType = Parameters<typeof deriveOpeningState>[0];
-
-type PlaceDetailResponse = {
-  place: {
-    id: string;
-    name: string;
-    address: string;
-    lat: number;
-    lng: number;
-    opening_hours: unknown;
-    timezone: string | null;
-    rating_count: number | bigint | null;
-    place_type: string;
-    google_photo_ref: string | null;
-    vibe_photo_path: string | null;
-    vibe_photo_ref: string | null;
-    vibe_photo_attribution: unknown;
-  };
-  place_stats: {
-    rating_count: number | bigint;
-    noise_silent: number | bigint;
-    noise_quiet: number | bigint;
-    noise_vibrant: number | bigint;
-    tables_limited: number | bigint;
-    tables_mixed: number | bigint;
-    tables_plentiful: number | bigint;
-    outlets_scarce: number | bigint;
-    outlets_some: number | bigint;
-    outlets_ample: number | bigint;
-    vibe_focused: number | bigint;
-    vibe_casual: number | bigint;
-    vibe_social: number | bigint;
-    avg_overall_rating: number | string | null;
-  };
-  is_saved: boolean;
-  notes: Array<{
-    id: string;
-    notes: string;
-    created_at: string;
-    user_initial: string;
-  }>;
-};
 
 type PlaceDetailMobileProps = {
   placeId: string;
   initialCenter: { lat: number; lng: number };
   renderMap?: boolean;
+  initialSnap?: 'full' | 'mid' | 'peek';
+  onDismiss?: () => void;
+  /** Feed row for this place (map tab): instant header/metrics while detail API loads + cache warms. */
+  previewFeedItem?: FeedItem | null;
 };
 
 function n(v: number | string | bigint | null | undefined): number {
@@ -171,48 +141,87 @@ function feedItemForDetailMap(
   };
 }
 
+function previewPlaceFromFeed(
+  feed: FeedItem,
+  canonicalId: string,
+): PlaceDetailResponse['place'] {
+  return {
+    id: canonicalId,
+    name: feed.name,
+    address: feed.address,
+    lat: feed.lat,
+    lng: feed.lng,
+    place_type: feed.place_type,
+    opening_hours: null,
+    timezone: null,
+    google_photo_ref: feed.google_photo_ref ?? null,
+    vibe_photo_path: feed.vibe_photo_path ?? null,
+    vibe_photo_ref: feed.vibe_photo_ref ?? null,
+    vibe_photo_attribution: feed.vibe_photo_attribution ?? null,
+  };
+}
+
 export function PlaceDetailMobile({
   placeId,
   initialCenter,
   renderMap = true,
+  initialSnap = 'mid',
+  onDismiss,
+  previewFeedItem = null,
 }: PlaceDetailMobileProps) {
   const NOVA_CENTER = { lat: 38.8304, lng: -77.1941 };
   const DEFAULT_MAP_ZOOM = 11;
   const DETAIL_MAP_ZOOM = 15;
-  const { setSelectedPlaceId } = usePlaceStore();
+  const { setSelectedPlaceId, setHoveredPlaceId } = usePlaceStore();
+
+  // Only clear global selection when leaving the full-screen place detail flow
+  // (`/places/[id]` with embedded map). When this component is used as a bottom sheet
+  // overlay on the map tab (`renderMap={false}`), unmount cleanup must NOT run — React
+  // Strict Mode remounts would immediately clear the marker tap selection.
+  useEffect(() => {
+    if (!renderMap) return;
+    return () => {
+      setSelectedPlaceId(null);
+      setHoveredPlaceId(null);
+    };
+  }, [renderMap, setSelectedPlaceId, setHoveredPlaceId]);
   const supabase = useMemo(() => createClient(), []);
 
-  const [detail, setDetail] = useState<PlaceDetailResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+  const normalizedId = useMemo(() => normalizePlaceId(placeId), [placeId]);
+  const previewMatches = useMemo(
+    () =>
+      Boolean(
+        previewFeedItem &&
+          normalizedId &&
+          normalizePlaceId(previewFeedItem.id) === normalizedId,
+      ),
+    [previewFeedItem, normalizedId],
+  );
+
+  const {
+    data: detail,
+    isLoading,
+    isFetching,
+    isError,
+    error: queryError,
+  } = useQuery({
+    queryKey: placeDetailQueryKey(normalizedId ?? '__invalid__'),
+    queryFn: () => fetchPlaceDetail(normalizedId!),
+    enabled: !!normalizedId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+  });
+
+  const loadError = !normalizedId
+    ? 'Place not found'
+    : isError
+      ? queryError instanceof Error
+        ? queryError.message
+        : 'Could not load place'
+      : null;
+
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
   const [isDefaultMapView, setIsDefaultMapView] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    async function run() {
-      setLoading(true);
-      setDetail(null);
-      try {
-        const res = await fetch(`/api/places/${placeId}`);
-        const body = (await res.json()) as {
-          data?: PlaceDetailResponse;
-          error?: unknown;
-        };
-        if (cancelled) return;
-        setDetail(body.data ?? null);
-      } catch (err) {
-        console.error('[PlaceDetailMobile] fetch error:', err);
-        if (cancelled) return;
-        setDetail(null);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-    run();
-    return () => {
-      cancelled = true;
-    };
-  }, [placeId]);
 
   useEffect(() => {
     if (!renderMap) return;
@@ -228,20 +237,21 @@ export function PlaceDetailMobile({
   useEffect(() => {
     let cancelled = false;
     async function run() {
-      if (!detail) {
-        setPhotoUrls([]);
+      const vibePath =
+        detail?.place.vibe_photo_path?.trim() ??
+        (previewMatches ? previewFeedItem?.vibe_photo_path?.trim() : undefined);
+
+      if (!vibePath) {
+        if (!cancelled) setPhotoUrls([]);
         return;
       }
 
       const next: string[] = [];
-      const vibePath = detail.place.vibe_photo_path?.trim();
-      if (vibePath) {
-        const objectPath = vibePath.startsWith('user-photos/')
-          ? vibePath.slice('user-photos/'.length)
-          : vibePath;
-        const { data } = supabase.storage.from('user-photos').getPublicUrl(objectPath);
-        if (data?.publicUrl) next.push(data.publicUrl);
-      }
+      const objectPath = vibePath.startsWith('user-photos/')
+        ? vibePath.slice('user-photos/'.length)
+        : vibePath;
+      const { data } = supabase.storage.from('user-photos').getPublicUrl(objectPath);
+      if (data?.publicUrl) next.push(data.publicUrl);
 
       if (!cancelled) setPhotoUrls(next);
     }
@@ -249,10 +259,12 @@ export function PlaceDetailMobile({
     return () => {
       cancelled = true;
     };
-  }, [detail, supabase]);
+  }, [detail, previewMatches, previewFeedItem, supabase]);
 
   // Snap points (mobile/tablet only page, so we can rely on window dimensions after mount)
   const [heights, setHeights] = useState<{ full: number; mid: number; peek: number; midTy: number; peekTy: number; maxTy: number } | null>(null);
+  const DISMISS_DRAG_BUFFER_PX = 80;
+  const DISMISS_THRESHOLD_PX = 40;
   useEffect(() => {
     function recalc() {
       const h = window.innerHeight;
@@ -271,7 +283,7 @@ export function PlaceDetailMobile({
         peek,
         midTy,
         peekTy,
-        maxTy: peekTy,
+        maxTy: peekTy + DISMISS_DRAG_BUFFER_PX,
       });
     }
 
@@ -287,10 +299,15 @@ export function PlaceDetailMobile({
   const pointerIdRef = useRef<number | null>(null);
 
   useEffect(() => {
-    // Default to mid snap so key details are visible immediately.
     if (!heights) return;
-    setTranslateY(heights.midTy);
-  }, [heights]);
+    const ty =
+      initialSnap === 'full'
+        ? 0
+        : initialSnap === 'peek'
+          ? heights.peekTy
+          : heights.midTy;
+    setTranslateY(ty);
+  }, [heights, placeId, initialSnap]);
 
   function clampTy(ty: number): number {
     if (!heights) return ty;
@@ -343,17 +360,31 @@ export function PlaceDetailMobile({
 
     isDraggingRef.current = false;
     pointerIdRef.current = null;
+    if (onDismiss && translateY > heights.peekTy + DISMISS_THRESHOLD_PX) {
+      onDismiss();
+      return;
+    }
     const idx = pickSnap(translateY);
     snapTo(idx);
   }
 
-  const place = detail?.place;
-  const stats = detail?.place_stats;
-  const ratingCount = stats ? n(stats.rating_count) : 0;
+  const stats = detail?.place_stats ?? null;
+  const place =
+    detail?.place ??
+    (previewMatches && previewFeedItem && normalizedId
+      ? previewPlaceFromFeed(previewFeedItem, normalizedId)
+      : undefined);
+
+  const ratingCount = stats
+    ? n(stats.rating_count)
+    : previewMatches && previewFeedItem
+      ? (previewFeedItem.rating_count ?? 0)
+      : 0;
 
   const opening = useMemo(() => {
     if (!place) return null;
     const openingHours = place.opening_hours as OpeningHoursType | null;
+    if (!openingHours) return null;
     return deriveOpeningState(openingHours, place.timezone);
   }, [place]);
 
@@ -364,41 +395,122 @@ export function PlaceDetailMobile({
   }, [place]);
 
   const status = useMemo(() => {
-    if (!opening) return { status: 'closed' as const, label: '—', subLabel: undefined as string | undefined };
-    const closes = opening.closes_at ?? '';
-    if (!opening.open_now) {
-      return { status: 'closed' as const, label: 'Closed', subLabel: ratingCount > 0 ? `· ${ratingCount} ratings` : undefined };
+    if (opening) {
+      const closes = opening.closes_at ?? '';
+      if (!opening.open_now) {
+        return {
+          status: 'closed' as const,
+          label: 'Closed',
+          subLabel: ratingCount > 0 ? `· ${ratingCount} ratings` : undefined,
+        };
+      }
+      if (opening.closing_soon && closes) {
+        return {
+          status: 'closing-soon' as const,
+          label: `Closing soon (${closes})`,
+          subLabel: `· ${ratingCount} ratings`,
+        };
+      }
+      if (opening.open_now && closes) {
+        return {
+          status: 'open' as const,
+          label: `Open until ${closes}`,
+          subLabel: `· ${ratingCount} ratings`,
+        };
+      }
+      if (openLate) {
+        return {
+          status: 'open' as const,
+          label: 'Open late',
+          subLabel: `· ${ratingCount} ratings`,
+        };
+      }
+      return {
+        status: 'open' as const,
+        label: 'Open',
+        subLabel: `· ${ratingCount} ratings`,
+      };
     }
-    if (opening.closing_soon && closes) {
-      return { status: 'closing-soon' as const, label: `Closing soon (${closes})`, subLabel: `· ${ratingCount} ratings` };
+    if (previewMatches && previewFeedItem) {
+      const sub = ratingCount > 0 ? `· ${ratingCount} ratings` : undefined;
+      if (!previewFeedItem.open_now) {
+        return { status: 'closed' as const, label: 'Closed', subLabel: sub };
+      }
+      if (previewFeedItem.closing_soon && previewFeedItem.closes_at) {
+        return {
+          status: 'closing-soon' as const,
+          label: `Closing soon (${previewFeedItem.closes_at})`,
+          subLabel: sub,
+        };
+      }
+      if (previewFeedItem.open_now && previewFeedItem.closes_at) {
+        return {
+          status: 'open' as const,
+          label: `Open until ${previewFeedItem.closes_at}`,
+          subLabel: sub,
+        };
+      }
+      if (previewFeedItem.open_late) {
+        return { status: 'open' as const, label: 'Open late', subLabel: sub };
+      }
+      return { status: 'open' as const, label: 'Open', subLabel: sub };
     }
-    if (opening.open_now && closes) {
-      return { status: 'open' as const, label: `Open until ${closes}`, subLabel: `· ${ratingCount} ratings` };
-    }
-    if (openLate) {
-      return { status: 'open' as const, label: 'Open late', subLabel: `· ${ratingCount} ratings` };
-    }
-    return { status: 'open' as const, label: 'Open', subLabel: `· ${ratingCount} ratings` };
-  }, [opening, ratingCount, openLate]);
+    return {
+      status: 'closed' as const,
+      label: '—',
+      subLabel: undefined as string | undefined,
+    };
+  }, [opening, ratingCount, openLate, previewMatches, previewFeedItem]);
 
-  const dominantNoise = stats ? dominantNoiseFromCounts(stats) : null;
-  const dominantVibe = stats ? dominantVibeFromCounts(stats) : null;
-  const dominantTables = stats ? dominantTablesFromCounts(stats) : null;
-  const dominantOutlets = stats ? dominantOutletsFromCounts(stats) : null;
+  const dominantNoise = stats
+    ? dominantNoiseFromCounts(stats)
+    : previewMatches && previewFeedItem
+      ? (previewFeedItem.dominant_noise ?? previewFeedItem.noise ?? null)
+      : null;
+  const dominantVibe = stats
+    ? dominantVibeFromCounts(stats)
+    : previewMatches && previewFeedItem
+      ? (previewFeedItem.dominant_vibe ?? previewFeedItem.vibe ?? null)
+      : null;
+  const dominantTables = stats
+    ? dominantTablesFromCounts(stats)
+    : previewMatches && previewFeedItem
+      ? (previewFeedItem.dominant_tables ?? previewFeedItem.tables ?? null)
+      : null;
+  const dominantOutlets = stats
+    ? dominantOutletsFromCounts(stats)
+    : previewMatches && previewFeedItem
+      ? (previewFeedItem.dominant_outlets ?? previewFeedItem.outlets ?? null)
+      : null;
 
   const coords =
     place && isFinite(Number(place.lat)) && isFinite(Number(place.lng))
       ? { lat: Number(place.lat), lng: Number(place.lng) }
       : initialCenter;
   const avgOverall =
-    stats?.avg_overall_rating == null
-      ? null
-      : typeof stats.avg_overall_rating === 'number'
+    stats?.avg_overall_rating != null
+      ? typeof stats.avg_overall_rating === 'number'
         ? stats.avg_overall_rating
-        : Number(stats.avg_overall_rating);
+        : Number(stats.avg_overall_rating)
+      : previewMatches &&
+          previewFeedItem?.match_score_percent != null &&
+          !Number.isNaN(previewFeedItem.match_score_percent)
+        ? previewFeedItem.match_score_percent / 20
+        : null;
   const mapPlaces = useMemo(
-    () => [feedItemForDetailMap(placeId, coords, place ?? null, avgOverall)],
-    [placeId, coords.lat, coords.lng, place, avgOverall],
+    () =>
+      previewMatches && previewFeedItem && !detail
+        ? [previewFeedItem]
+        : [feedItemForDetailMap(placeId, coords, place ?? null, avgOverall)],
+    [
+      previewMatches,
+      previewFeedItem,
+      detail,
+      placeId,
+      coords,
+      place,
+      avgOverall,
+    ],
   );
 
   const mapCenterOffsetPx = heights ? Math.round(heights.mid) : 100;
@@ -413,8 +525,8 @@ export function PlaceDetailMobile({
     setSelectedPlaceId(null);
   }
 
-  if (loading) {
-    // Keep a minimal panel visible while loading details.
+  if (isLoading && !previewMatches) {
+    // No cache + no feed preview: skeleton while the first fetch runs.
     return (
       <div className={renderMap ? 'fixed inset-0' : 'absolute inset-0 pointer-events-none'}>
         {renderMap && (
@@ -430,8 +542,16 @@ export function PlaceDetailMobile({
             />
           </div>
         )}
-        <div className="pointer-events-none absolute bottom-0 left-0 right-0 z-30 rounded-t-radius-md bg-surface shadow-map">
-          <div className="h-48" />
+        <div className="pointer-events-none absolute bottom-0 left-0 right-0 z-30 overflow-hidden rounded-t-radius-md bg-surface shadow-map">
+          <div className="flex w-full shrink-0 justify-center pt-12 pb-8">
+            <div
+              className="h-4 w-40 rounded-radius-md bg-surface-alt animate-pulse"
+              aria-hidden
+            />
+          </div>
+          <div className="px-16 pb-24">
+            <div className="h-32 max-w-[280px] rounded-radius-sm bg-surface-alt animate-pulse" />
+          </div>
         </div>
       </div>
     );
@@ -467,7 +587,12 @@ export function PlaceDetailMobile({
       )}
 
       {/* Backdrop */}
-      <div className="pointer-events-none absolute inset-0 bg-black/0" aria-hidden />
+      <button
+        type="button"
+        aria-label="Close place details"
+        onClick={() => onDismiss?.()}
+        className={`absolute inset-0 bg-black/0 ${onDismiss ? 'pointer-events-auto' : 'pointer-events-none'}`}
+      />
 
       {/* Bottom sheet */}
       {!isDefaultMapView && (
@@ -506,68 +631,85 @@ export function PlaceDetailMobile({
           {/* Header + scroll (padding bottom reserves space for viewport-fixed CTAs) */}
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-16">
             <header className="shrink-0">
-              <h2 className="font-lora text-heading-l text-text">{place?.name ?? '—'}</h2>
+              <h2 className="font-lora text-heading-l text-text">
+                {place?.name ?? (loadError ? 'Unable to load' : '—')}
+              </h2>
+              {isFetching && previewMatches ? (
+                <p className="mt-4 text-body-s text-text-tertiary" aria-live="polite">
+                  Updating…
+                </p>
+              ) : null}
               <div className="mt-4">
-                {stats && status && (
+                {place && status ? (
                   <StatusDot status={status.status} label={status.label} subLabel={status.subLabel} />
-                )}
+                ) : null}
               </div>
             </header>
 
             <div
               className="mt-8 min-h-0 flex-1 overflow-y-auto overscroll-y-contain scrollbar-hide [-webkit-overflow-scrolling:touch] pb-[240px]"
             >
-              {photoUrls.length > 0 && (
-                <div className="pb-12">
-                  <div className="flex gap-8 overflow-x-auto scrollbar-hide pb-8">
-                    {photoUrls.map((src, idx) => (
-                      <img
-                        key={`${src}-${idx}`}
-                        src={src}
-                        alt=""
-                        className="h-[96px] w-[128px] shrink-0 rounded-radius-md object-cover"
-                        loading="lazy"
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="grid grid-cols-4 gap-2 pb-12">
-                <MetricTile type="noise" value={dominantNoise} />
-                <MetricTile type="vibes" value={dominantVibe} />
-                <MetricTile type="tables" value={dominantTables} />
-                <MetricTile type="outlets" value={dominantOutlets} />
-              </div>
-
-              <div className="pb-8">
-                <div className="text-body-m text-text font-bold">Notes &amp; Tips</div>
-                {detail?.notes?.length ? (
-                  <div className="mt-8 space-y-12 pr-4">
-                    {detail.notes.map((note) => (
-                      <div key={note.id} className="flex gap-8">
-                        <div className="flex h-32 w-32 shrink-0 items-center justify-center rounded-radius-md border border-surface-alt bg-surface-alt">
-                          <span className="text-ui-label-s font-bold text-text-secondary">
-                            {note.user_initial}
-                          </span>
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-8">
-                            <span className="text-body-s text-text-tertiary">
-                              {timeAgo(note.created_at)}
-                            </span>
-                          </div>
-                          <div className="mt-4 text-body-m text-text">
-                            &ldquo;{note.notes}&rdquo;
-                          </div>
-                        </div>
+              {loadError && !place ? (
+                <p className="text-body-m text-text-secondary pr-4">{loadError}</p>
+              ) : null}
+              {loadError && place ? (
+                <p className="text-body-s text-text-tertiary pr-4 pb-8">{loadError}</p>
+              ) : null}
+              {place ? (
+                <>
+                  {photoUrls.length > 0 && (
+                    <div className="pb-12">
+                      <div className="flex gap-8 overflow-x-auto scrollbar-hide pb-8">
+                        {photoUrls.map((src, idx) => (
+                          <img
+                            key={`${src}-${idx}`}
+                            src={src}
+                            alt=""
+                            className="h-[96px] w-[128px] shrink-0 rounded-radius-md object-cover"
+                            loading="lazy"
+                          />
+                        ))}
                       </div>
-                    ))}
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-4 gap-2 pb-12">
+                    <MetricTile type="noise" value={dominantNoise} />
+                    <MetricTile type="vibes" value={dominantVibe} />
+                    <MetricTile type="tables" value={dominantTables} />
+                    <MetricTile type="outlets" value={dominantOutlets} />
                   </div>
-                ) : (
-                  <div className="mt-8 text-body-s text-text-tertiary">No notes yet.</div>
-                )}
-              </div>
+
+                  <div className="pb-8">
+                    <div className="text-body-m text-text font-bold">Notes &amp; Tips</div>
+                    {detail?.notes?.length ? (
+                      <div className="mt-8 space-y-12 pr-4">
+                        {detail.notes.map((note) => (
+                          <div key={note.id} className="flex gap-8">
+                            <div className="flex h-32 w-32 shrink-0 items-center justify-center rounded-radius-md border border-surface-alt bg-surface-alt">
+                              <span className="text-ui-label-s font-bold text-text-secondary">
+                                {note.user_initial}
+                              </span>
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-8">
+                                <span className="text-body-s text-text-tertiary">
+                                  {timeAgo(note.created_at)}
+                                </span>
+                              </div>
+                              <div className="mt-4 text-body-m text-text">
+                                &ldquo;{note.notes}&rdquo;
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="mt-8 text-body-s text-text-tertiary">No notes yet.</div>
+                    )}
+                  </div>
+                </>
+              ) : null}
             </div>
           </div>
         </div>

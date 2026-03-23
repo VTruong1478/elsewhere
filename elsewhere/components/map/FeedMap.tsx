@@ -1,10 +1,17 @@
 "use client";
 
-import { useEffect, useCallback, useState, useRef, useMemo } from "react";
+import {
+  useEffect,
+  useCallback,
+  useState,
+  useRef,
+  useMemo,
+} from "react";
 import mapboxgl from "mapbox-gl";
 import { createRoot, Root } from "react-dom/client";
 import { Locate } from "lucide-react";
 import type { FeedItem } from "@/types/feed";
+import { samePlaceId } from "@/lib/placeId";
 import { usePlaceStore } from "@/store/usePlaceStore";
 
 const NOVA_CENTER: [number, number] = [-77.1941, 38.8304];
@@ -49,6 +56,14 @@ export interface FeedMapProps {
    * pixels downward so the marker sits higher in the viewport (e.g. above a bottom sheet).
    */
   centerVerticalOffsetPx?: number;
+  /**
+   * When `true`, show the user dot at `userLocationForDot`. When `false`, never show it.
+   * When omitted, legacy behavior: dot only after the locate control is used.
+   */
+  showUserLocationDot?: boolean;
+  userLocationForDot?: { lat: number; lng: number };
+  /** Prefetch place detail on desktop hover (e.g. before tap). */
+  onPlaceMarkerHover?: (placeId: string) => void;
 }
 
 const PADDING_PX = 48;
@@ -199,6 +214,9 @@ export function FeedMap({
   zoom = 12,
   onZoomEnd,
   centerVerticalOffsetPx = 0,
+  showUserLocationDot,
+  userLocationForDot,
+  onPlaceMarkerHover,
 }: FeedMapProps) {
   const token = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN?.trim() ?? "";
   const { hoveredPlaceId, setHoveredPlaceId } = usePlaceStore();
@@ -215,12 +233,26 @@ export function FeedMap({
   const onZoomEndRef = useRef(onZoomEnd);
   onZoomEndRef.current = onZoomEnd;
 
-  const [userLocation, setUserLocation] = useState<{
+  const [legacyLocatePosition, setLegacyLocatePosition] = useState<{
     lat: number;
     lng: number;
   } | null>(null);
   const [isLocating, setIsLocating] = useState(false);
   const [locateError, setLocateError] = useState<string | null>(null);
+
+  const legacyMode = showUserLocationDot === undefined;
+  const effectiveUserLocation = useMemo(() => {
+    if (legacyMode) return legacyLocatePosition;
+    if (showUserLocationDot === false) return null;
+    return userLocationForDot ?? null;
+  }, [
+    legacyMode,
+    showUserLocationDot,
+    userLocationForDot,
+    legacyLocatePosition,
+  ]);
+
+  const showLocateControl = legacyMode || showUserLocationDot === true;
 
   const defaultCenter: [number, number] = center
     ? [center.lng, center.lat]
@@ -321,6 +353,20 @@ export function FeedMap({
     };
   }, [token]);
 
+  // Clear stuck hover (e.g. tablet touch) when tapping the map background, not a marker.
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const clearHover = () => setHoveredPlaceId(null);
+    map.on("click", clearHover);
+    return () => {
+      map.off("click", clearHover);
+    };
+  }, [setHoveredPlaceId, token]);
+
+  const lastEmptyCenterFlyKeyRef = useRef("");
+
   // -----------------------------------------------------------------------
   // 3. Fit bounds when places change
   // -----------------------------------------------------------------------
@@ -329,10 +375,18 @@ export function FeedMap({
     const map = mapRef.current;
     if (!map) return;
 
+    // While a place is selected, camera is driven by the "fly to selected" effect only.
+    // Do not fit all markers here — otherwise when `centerVerticalOffsetPx` updates for
+    // the bottom sheet, the key changes and this effect re-runs ~600ms later and zooms out.
+    if (selectedPlaceId) {
+      lastBoundsKeyRef.current = "";
+      return;
+    }
+
     const sorted = [...validPlaces]
       .sort((a, b) => a.id.localeCompare(b.id))
       .map((p) => ({ id: p.id, lat: p.lat, lng: p.lng }));
-    const key = `${JSON.stringify(sorted)}\u0000${centerVerticalOffsetPx}`;
+    const key = JSON.stringify(sorted);
     if (key === lastBoundsKeyRef.current) return;
     lastBoundsKeyRef.current = key;
 
@@ -356,7 +410,23 @@ export function FeedMap({
       maxZoom: MAX_ZOOM,
       duration: 600,
     });
-  }, [validPlaces, centerVerticalOffsetPx]);
+  }, [validPlaces, selectedPlaceId, centerVerticalOffsetPx]);
+
+  // When there are no place markers, follow the logical map center (e.g. user in Case 4).
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !center) return;
+    if (validPlaces.length > 0) return;
+    const flyKey = `${validPlaces.length}\u0000${center.lat.toFixed(5)}\u0000${center.lng.toFixed(5)}\u0000${zoom}`;
+    if (flyKey === lastEmptyCenterFlyKeyRef.current) return;
+    lastEmptyCenterFlyKeyRef.current = flyKey;
+    map.flyTo({
+      center: [center.lng, center.lat],
+      zoom,
+      duration: 600,
+    });
+  }, [center?.lat, center?.lng, validPlaces.length, zoom]);
 
   // -----------------------------------------------------------------------
   // 4. Fly to selected place
@@ -368,7 +438,7 @@ export function FeedMap({
       lastFlyKeyRef.current = null;
       return;
     }
-    const place = validPlaces.find((p) => p.id === selectedPlaceId);
+    const place = validPlaces.find((p) => samePlaceId(p.id, selectedPlaceId));
     if (!place) return;
     const flyKey = `${selectedPlaceId}\u0000${place.lat}\u0000${place.lng}\u0000${centerVerticalOffsetPx}`;
     if (flyKey === lastFlyKeyRef.current) return;
@@ -405,17 +475,24 @@ export function FeedMap({
 
     // Add or update markers
     validPlaces.forEach((place) => {
-      const selected = selectedPlaceId === place.id;
-      const hovered = hoveredPlaceId === place.id;
+      const selected = samePlaceId(selectedPlaceId, place.id);
+      const hovered = samePlaceId(hoveredPlaceId, place.id);
       let tracked = existing.get(place.id);
 
       if (!tracked) {
         const { el, root } = createPinElement();
 
-        el.addEventListener("mouseenter", () => setHoveredPlaceId(place.id));
+        el.addEventListener("mouseenter", () => {
+          setHoveredPlaceId(place.id);
+          onPlaceMarkerHover?.(place.id);
+        });
         el.addEventListener("mouseleave", () => setHoveredPlaceId(null));
-        el.addEventListener("click", (e) => {
+        // Use pointerup (not click) so taps work reliably on touch; avoid duplicate
+        // handlers — pointerup fires for mouse + touch, and we stopPropagation so
+        // the map canvas click handler does not run.
+        el.addEventListener("pointerup", (e) => {
           e.stopPropagation();
+          if (e.pointerType === "mouse" && e.button !== 0) return;
           onSelectPlace(place.id);
         });
 
@@ -446,6 +523,7 @@ export function FeedMap({
     hoveredPlaceId,
     onSelectPlace,
     setHoveredPlaceId,
+    onPlaceMarkerHover,
   ]);
 
   // -----------------------------------------------------------------------
@@ -456,7 +534,7 @@ export function FeedMap({
     const map = mapRef.current;
     if (!map) return;
 
-    if (!userLocation) {
+    if (!effectiveUserLocation) {
       if (userMarkerRef.current) {
         clearRootSafely(userMarkerRef.current.root);
         userMarkerRef.current.marker.remove();
@@ -469,23 +547,33 @@ export function FeedMap({
       const { el, root } = createPinElement();
       el.style.pointerEvents = "none";
       const marker = new mapboxgl.Marker({ element: el, anchor: "center" })
-        .setLngLat([userLocation.lng, userLocation.lat])
+        .setLngLat([effectiveUserLocation.lng, effectiveUserLocation.lat])
         .addTo(map);
       userMarkerRef.current = { marker, root };
     } else {
       userMarkerRef.current.marker.setLngLat([
-        userLocation.lng,
-        userLocation.lat,
+        effectiveUserLocation.lng,
+        effectiveUserLocation.lat,
       ]);
     }
 
     userMarkerRef.current.root.render(<UserLocationDot />);
-  }, [userLocation]);
+  }, [effectiveUserLocation]);
 
   // -----------------------------------------------------------------------
   // 7. Locate button handler
   // -----------------------------------------------------------------------
   const handleLocate = useCallback(() => {
+    if (!legacyMode) {
+      if (userLocationForDot) {
+        mapRef.current?.flyTo({
+          center: [userLocationForDot.lng, userLocationForDot.lat],
+          zoom: USER_LOCATION_ZOOM,
+          duration: 600,
+        });
+      }
+      return;
+    }
     if (!navigator.geolocation) {
       setLocateError("Geolocation is not supported");
       return;
@@ -496,7 +584,7 @@ export function FeedMap({
       (position) => {
         const { latitude, longitude } = position.coords;
         const loc = { lat: latitude, lng: longitude };
-        setUserLocation(loc);
+        setLegacyLocatePosition(loc);
         mapRef.current?.flyTo({
           center: [longitude, latitude],
           zoom: USER_LOCATION_ZOOM,
@@ -510,7 +598,7 @@ export function FeedMap({
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
     );
-  }, []);
+  }, [legacyMode, userLocationForDot]);
 
   // -----------------------------------------------------------------------
   // Render
@@ -518,31 +606,33 @@ export function FeedMap({
   return (
     <div className="relative h-full w-full min-h-[200px]">
       <div ref={mapContainerRef} className="h-full w-full" />
-      <div className="absolute bottom-3 right-3 z-30">
-        <button
-          type="button"
-          onClick={handleLocate}
-          disabled={isLocating}
-          className="flex h-10 w-10 items-center justify-center rounded-radius-sm bg-surface shadow-map text-text hover:bg-surface-alt disabled:opacity-60"
-          aria-label={
-            isLocating
-              ? "Getting your location…"
-              : "Center map on your location"
-          }
-          title={
-            isLocating
-              ? "Getting your location…"
-              : "Center map on your location"
-          }
-        >
-          <Locate className="h-5 w-5 text-accent" aria-hidden />
-        </button>
-        {locateError && (
-          <span className="sr-only" role="alert">
-            {locateError}
-          </span>
-        )}
-      </div>
+      {showLocateControl && (
+        <div className="absolute bottom-3 right-3 z-30">
+          <button
+            type="button"
+            onClick={handleLocate}
+            disabled={isLocating}
+            className="flex h-10 w-10 items-center justify-center rounded-radius-sm bg-surface shadow-map text-text hover:bg-surface-alt disabled:opacity-60"
+            aria-label={
+              isLocating
+                ? "Getting your location…"
+                : "Center map on your location"
+            }
+            title={
+              isLocating
+                ? "Getting your location…"
+                : "Center map on your location"
+            }
+          >
+            <Locate className="h-5 w-5 text-accent" aria-hidden />
+          </button>
+          {locateError && (
+            <span className="sr-only" role="alert">
+              {locateError}
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }

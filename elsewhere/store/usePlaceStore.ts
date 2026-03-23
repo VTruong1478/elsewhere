@@ -1,4 +1,5 @@
-import { create } from 'zustand';
+import { create } from "zustand";
+import { normalizePlaceId } from "@/lib/placeId";
 
 interface PlaceStore {
   selectedPlaceId: string | null;
@@ -10,6 +11,8 @@ interface PlaceStore {
 export const usePlaceStore = create<PlaceStore>((set) => ({
   selectedPlaceId: null,
   hoveredPlaceId: null,
-  setSelectedPlaceId: (id) => set({ selectedPlaceId: id }),
-  setHoveredPlaceId: (id) => set({ hoveredPlaceId: id }),
+  setSelectedPlaceId: (id) =>
+    set({ selectedPlaceId: normalizePlaceId(id) }),
+  setHoveredPlaceId: (id) =>
+    set({ hoveredPlaceId: normalizePlaceId(id) }),
 }));

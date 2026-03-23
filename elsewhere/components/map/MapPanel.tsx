@@ -8,6 +8,8 @@ interface MapPanelProps {
   selectedPlaceId: string | null;
   onSelectPlace: (id: string) => void;
   center?: { lat: number; lng: number };
+  showUserLocationDot?: boolean;
+  userLocationForDot?: { lat: number; lng: number };
 }
 
 /**
@@ -19,6 +21,8 @@ export function MapPanel({
   selectedPlaceId,
   onSelectPlace,
   center,
+  showUserLocationDot,
+  userLocationForDot,
 }: MapPanelProps) {
   return (
     <div className="relative hidden min-h-0 w-full md:block md:h-full">
@@ -28,6 +32,8 @@ export function MapPanel({
           selectedPlaceId={selectedPlaceId}
           onSelectPlace={onSelectPlace}
           center={center}
+          showUserLocationDot={showUserLocationDot}
+          userLocationForDot={userLocationForDot}
         />
       </div>
     </div>
