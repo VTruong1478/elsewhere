@@ -24,6 +24,9 @@ export type FeedLocationStatusMessage =
 
 export type FeedLocationCase = 1 | 2 | 3 | 4;
 
+/** Case 3 (outside NoVA, Annandale fallback): wide enough radius to include all seeded NoVA places. */
+export const CASE3_FEED_RADIUS_MILES = 75;
+
 /**
  * Coordinates for GET /api/feed — depends only on permission + region, never on
  * prior feed results (so the first request is correct).
@@ -31,21 +34,42 @@ export type FeedLocationCase = 1 | 2 | 3 | 4;
 export function getFeedRequestCoords(locationState: UserLocationState): {
   feedCoords: { lat: number; lng: number };
   feedQueryEnabled: boolean;
+  /**
+   * When set, the client must pass this as `radius_miles` on the feed request.
+   * Case 3 only — otherwise the API falls back to user_preferences (Cases 1, 2, 4).
+   */
+  feedRadiusMiles: number | null;
 } {
   if (locationState.status === "loading") {
-    return { feedCoords: ANNANDALE_FALLBACK, feedQueryEnabled: false };
+    return {
+      feedCoords: ANNANDALE_FALLBACK,
+      feedQueryEnabled: false,
+      feedRadiusMiles: null,
+    };
   }
   if (
     locationState.status === "denied" ||
     locationState.status === "unavailable"
   ) {
-    return { feedCoords: ANNANDALE_FALLBACK, feedQueryEnabled: true };
+    return {
+      feedCoords: ANNANDALE_FALLBACK,
+      feedQueryEnabled: true,
+      feedRadiusMiles: null,
+    };
   }
   const { lat, lng } = locationState;
   if (!isNearNorthernVirginia(lat, lng)) {
-    return { feedCoords: ANNANDALE_FALLBACK, feedQueryEnabled: true };
+    return {
+      feedCoords: ANNANDALE_FALLBACK,
+      feedQueryEnabled: true,
+      feedRadiusMiles: CASE3_FEED_RADIUS_MILES,
+    };
   }
-  return { feedCoords: { lat, lng }, feedQueryEnabled: true };
+  return {
+    feedCoords: { lat, lng },
+    feedQueryEnabled: true,
+    feedRadiusMiles: null,
+  };
 }
 
 export function computeFeedLocationContext(

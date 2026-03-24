@@ -25,6 +25,8 @@ function fetchFeed(params: {
   lng: number;
   q: string;
   filter: string;
+  /** Case 3 only; omit so API uses user_preferences. */
+  radiusMiles?: number | null;
 }): Promise<FeedItem[]> {
   const sp = new URLSearchParams({
     lat: String(params.lat),
@@ -32,6 +34,9 @@ function fetchFeed(params: {
   });
   if (params.q) sp.set("q", params.q);
   if (params.filter) sp.set("filter", params.filter);
+  if (params.radiusMiles != null) {
+    sp.set("radius_miles", String(params.radiusMiles));
+  }
   return fetch(`/api/feed?${sp.toString()}`).then(async (res) => {
     const body = await res.json();
     if (!res.ok) {
@@ -62,6 +67,7 @@ function FeedContent() {
       "feed",
       feedRequest.feedCoords.lat,
       feedRequest.feedCoords.lng,
+      feedRequest.feedRadiusMiles,
       q,
       filter,
     ],
@@ -71,6 +77,7 @@ function FeedContent() {
         lng: feedRequest.feedCoords.lng,
         q,
         filter,
+        radiusMiles: feedRequest.feedRadiusMiles,
       }),
     enabled: feedRequest.feedQueryEnabled,
   });
