@@ -2,7 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { PhotoAttribution } from "@/components/ui/PhotoAttribution";
 import type { PhotoAttributionPayload } from "@/components/ui/PhotoAttribution";
-import { PlaceDetailMobile } from "@/components/places/PlaceDetailMobile";
+import { PlaceDetailPageMobile } from "@/components/places/PlaceDetailPageMobile";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -70,12 +70,9 @@ export default async function PlaceDetailPage({ params }: PageProps) {
         </div>
       </div>
 
-      {/* Mobile/tablet < lg: map background + draggable place bottom sheet */}
+      {/* Mobile/tablet < lg: map background + draggable place bottom sheet (same as map marker) */}
       <div className="lg:hidden">
-        <PlaceDetailMobile
-          placeId={id}
-          initialCenter={initialCenter}
-        />
+        <PlaceDetailPageMobile placeId={id} initialCenter={initialCenter} />
       </div>
     </>
   );

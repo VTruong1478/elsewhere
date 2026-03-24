@@ -9,6 +9,7 @@ import { FilterChips } from "@/components/feed/FilterChips";
 import { PlaceCard } from "@/components/feed/PlaceCard";
 import { PlaceCardSkeleton } from "@/components/feed/PlaceCardSkeleton";
 import { FeedEmptyState } from "@/components/feed/EmptyState";
+import { LocationStatusMessageBody } from "@/components/feed/LocationStatusMessageBody";
 import { FeedMap } from "@/components/map/FeedMap";
 import { MapPanel } from "@/components/map/MapPanel";
 import { usePlaceStore } from "@/store/usePlaceStore";
@@ -108,8 +109,8 @@ function FeedContent() {
     !filter;
 
   return (
-    <div className="flex min-h-0 w-full flex-1 flex-col md:grid md:grid-cols-[5fr_8fr] md:overflow-hidden">
-      <div className="scrollbar-hide flex min-h-0 w-full flex-col overflow-y-auto md:min-h-0">
+    <div className="flex min-h-0 w-full flex-1 flex-col lg:grid lg:grid-cols-[5fr_8fr] lg:overflow-hidden">
+      <div className="scrollbar-hide flex min-h-0 w-full flex-col overflow-y-auto lg:min-h-0">
         <div className="shrink-0 pt-16">
           <div className="px-16">
             <SearchBar />
@@ -117,9 +118,11 @@ function FeedContent() {
           <FilterChips />
         </div>
         <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto px-16 py-8">
-          {locationCtx.statusText && (
+          {locationCtx.locationStatusMessage && (
             <p className="text-body-s text-text-tertiary px-4 py-2 text-center">
-              {locationCtx.statusText}
+              <LocationStatusMessageBody
+                message={locationCtx.locationStatusMessage}
+              />
             </p>
           )}
           {showSkeletons && (
@@ -159,7 +162,7 @@ function FeedContent() {
           )}
         </div>
       </div>
-      <div className="flex min-h-0 flex-col md:h-full md:min-h-0">
+      <div className="flex min-h-0 flex-col lg:h-full lg:min-h-0">
         {isMapTabActive && (
           <div className="h-[280px] w-full shrink-0 md:hidden">
             <FeedMap
@@ -189,8 +192,8 @@ function FeedContent() {
 
 function FeedPageFallback() {
   return (
-    <div className="flex min-h-0 w-full flex-1 flex-col md:grid md:grid-cols-[5fr_8fr] md:overflow-hidden">
-      <div className="flex min-h-0 w-full flex-col overflow-hidden md:min-h-0 md:overflow-y-auto">
+    <div className="flex min-h-0 w-full flex-1 flex-col lg:grid lg:grid-cols-[5fr_8fr] lg:overflow-hidden">
+      <div className="flex min-h-0 w-full flex-col overflow-hidden lg:min-h-0 lg:overflow-y-auto">
         <div className="shrink-0 space-y-4 p-4">
           <div className="h-12 rounded-radius-sm bg-surface-alt animate-pulse" />
           <div className="flex gap-2">
@@ -202,13 +205,13 @@ function FeedPageFallback() {
             ))}
           </div>
         </div>
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 pb-8 md:px-6">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 pb-8 lg:px-6">
           {Array.from({ length: 5 }).map((_, i) => (
             <PlaceCardSkeleton key={i} />
           ))}
         </div>
       </div>
-      <div className="hidden min-h-0 md:block md:h-full bg-surface-alt animate-pulse" />
+      <div className="hidden min-h-0 lg:block lg:h-full bg-surface-alt animate-pulse" />
     </div>
   );
 }

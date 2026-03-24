@@ -9,11 +9,18 @@ export type UserLocationState =
 
 export const LOCATION_STATUS_CASE1 =
   "Showing places near Northern Virginia. Enable location to see spots near you.";
-export const LOCATION_STATUS_CASE2 = "Showing places near you.";
-export const LOCATION_STATUS_CASE3 =
-  "Elsewhere is only available in Northern Virginia right now. Showing places near Northern Virginia instead.";
+/** Text before the waitlist link (case 3). */
+export const LOCATION_STATUS_CASE3_BEFORE =
+  "Elsewhere is only available in Northern Virginia right now. ";
+export const LOCATION_STATUS_CASE3_LINK = "Add your area to the waitlist.";
+export const AREA_WAITLIST_URL =
+  "https://elsewhere-landing-one.vercel.app/area-waitlist";
 export const LOCATION_STATUS_CASE4 =
-  "No places found near you. Try zooming out.";
+  "No places found nearby. Try searching from a different spot.";
+
+export type FeedLocationStatusMessage =
+  | { kind: "plain"; text: string }
+  | { kind: "waitlist" };
 
 export type FeedLocationCase = 1 | 2 | 3 | 4;
 
@@ -52,7 +59,7 @@ export function computeFeedLocationContext(
   mapCenter: { lat: number; lng: number };
   showUserLocationDot: boolean;
   userLocationForDot: { lat: number; lng: number } | null;
-  statusText: string | null;
+  locationStatusMessage: FeedLocationStatusMessage | null;
   feedQueryEnabled: boolean;
   locationCase: FeedLocationCase | null;
 } {
@@ -64,7 +71,7 @@ export function computeFeedLocationContext(
       mapCenter: ANNANDALE_FALLBACK,
       showUserLocationDot: false,
       userLocationForDot: null,
-      statusText: null,
+      locationStatusMessage: null,
       feedQueryEnabled,
       locationCase: null,
     };
@@ -79,7 +86,10 @@ export function computeFeedLocationContext(
       mapCenter: ANNANDALE_FALLBACK,
       showUserLocationDot: false,
       userLocationForDot: null,
-      statusText: LOCATION_STATUS_CASE1,
+      locationStatusMessage: {
+        kind: "plain",
+        text: LOCATION_STATUS_CASE1,
+      },
       feedQueryEnabled,
       locationCase: 1,
     };
@@ -94,7 +104,7 @@ export function computeFeedLocationContext(
       mapCenter: ANNANDALE_FALLBACK,
       showUserLocationDot: false,
       userLocationForDot: null,
-      statusText: LOCATION_STATUS_CASE3,
+      locationStatusMessage: { kind: "waitlist" },
       feedQueryEnabled,
       locationCase: 3,
     };
@@ -113,7 +123,7 @@ export function computeFeedLocationContext(
       mapCenter: { lat, lng },
       showUserLocationDot: true,
       userLocationForDot: { lat, lng },
-      statusText: LOCATION_STATUS_CASE4,
+      locationStatusMessage: { kind: "plain", text: LOCATION_STATUS_CASE4 },
       feedQueryEnabled,
       locationCase: 4,
     };
@@ -124,7 +134,7 @@ export function computeFeedLocationContext(
     mapCenter: { lat, lng },
     showUserLocationDot: true,
     userLocationForDot: { lat, lng },
-    statusText: LOCATION_STATUS_CASE2,
+    locationStatusMessage: null,
     feedQueryEnabled,
     locationCase: 2,
   };

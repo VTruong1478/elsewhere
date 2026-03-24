@@ -24,25 +24,35 @@ function readCachedCoords(): { lat: number; lng: number } | null {
 /**
  * Browser geolocation for feed/map. Caches last coords in sessionStorage so the UI
  * can show a position quickly while a fresh fix is requested.
+ *
+ * Initial state is always `"loading"` so server and first client render match
+ * (sessionStorage is only read after mount).
  */
 export function useUserLocation(): UserLocationState {
-  const cachedCoords = readCachedCoords();
-  const [state, setState] = useState<UserLocationState>(() =>
-    cachedCoords
-      ? { status: "ready", lat: cachedCoords.lat, lng: cachedCoords.lng }
-      : { status: "loading" },
-  );
+  const [state, setState] = useState<UserLocationState>({ status: "loading" });
 
   useEffect(() => {
+    const cachedCoords = readCachedCoords();
+
+    if (cachedCoords) {
+      setState({
+        status: "ready",
+        lat: cachedCoords.lat,
+        lng: cachedCoords.lng,
+      });
+    }
+
     if (!navigator.geolocation) {
       if (!cachedCoords) setState({ status: "unavailable" });
       return;
     }
+
     let cancelled = false;
     const timeoutId = window.setTimeout(() => {
       if (cancelled) return;
       if (!cachedCoords) setState({ status: "denied" });
     }, LOCATION_TIMEOUT_MS);
+
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         if (cancelled) return;
@@ -76,11 +86,12 @@ export function useUserLocation(): UserLocationState {
       },
       { timeout: LOCATION_TIMEOUT_MS, maximumAge: 0 },
     );
+
     return () => {
       cancelled = true;
       window.clearTimeout(timeoutId);
     };
-  }, [cachedCoords]);
+  }, []);
 
   return state;
 }

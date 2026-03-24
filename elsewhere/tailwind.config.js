@@ -185,6 +185,10 @@ module.exports = {
           textTransform: "uppercase",
           letterSpacing: "0.025em",
         },
+        ".text-link": {
+          color: theme("colors.accent"),
+          textDecoration: "underline",
+        },
       });
     },
   ],

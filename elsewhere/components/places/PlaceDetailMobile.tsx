@@ -3,7 +3,6 @@
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Compass } from 'lucide-react';
 import type { FeedItem } from '@/types/feed';
 import type { PlaceDetailResponse } from '@/types/placeDetail';
 import { FeedMap } from '@/components/map/FeedMap';
@@ -169,8 +168,6 @@ export function PlaceDetailMobile({
   onDismiss,
   previewFeedItem = null,
 }: PlaceDetailMobileProps) {
-  const NOVA_CENTER = { lat: 38.8304, lng: -77.1941 };
-  const DEFAULT_MAP_ZOOM = 11;
   const DETAIL_MAP_ZOOM = 15;
   const { setSelectedPlaceId, setHoveredPlaceId } = usePlaceStore();
 
@@ -221,17 +218,11 @@ export function PlaceDetailMobile({
       : null;
 
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
-  const [isDefaultMapView, setIsDefaultMapView] = useState(false);
 
   useEffect(() => {
     if (!renderMap) return;
-    setIsDefaultMapView(false);
-  }, [placeId, renderMap]);
-
-  useEffect(() => {
-    if (!renderMap) return;
-    setSelectedPlaceId(isDefaultMapView ? null : placeId);
-  }, [isDefaultMapView, placeId, setSelectedPlaceId, renderMap]);
+    setSelectedPlaceId(placeId);
+  }, [placeId, setSelectedPlaceId, renderMap]);
 
   // Build photo URLs (from storage paths where available, otherwise omit).
   useEffect(() => {
@@ -514,16 +505,10 @@ export function PlaceDetailMobile({
   );
 
   const mapCenterOffsetPx = heights ? Math.round(heights.mid) : 100;
-  const mapPlacesToRender = isDefaultMapView ? [] : mapPlaces;
-  const mapCenter = isDefaultMapView ? NOVA_CENTER : coords;
-  const mapZoom = isDefaultMapView ? DEFAULT_MAP_ZOOM : DETAIL_MAP_ZOOM;
-  const mapSelectedPlaceId = isDefaultMapView ? null : placeId;
-  const mapInstanceKey = `${isDefaultMapView ? 'default' : 'detail'}-${placeId}`;
-
-  function handleResetToDefaultMapView() {
-    setIsDefaultMapView(true);
-    setSelectedPlaceId(null);
-  }
+  const mapCenter = coords;
+  const mapZoom = DETAIL_MAP_ZOOM;
+  const mapSelectedPlaceId = placeId;
+  const mapInstanceKey = `detail-${placeId}`;
 
   if (isLoading && !previewMatches) {
     // No cache + no feed preview: skeleton while the first fetch runs.
@@ -563,26 +548,13 @@ export function PlaceDetailMobile({
         <div className="absolute inset-0 pointer-events-auto">
           <FeedMap
             key={mapInstanceKey}
-            places={mapPlacesToRender}
+            places={mapPlaces}
             selectedPlaceId={mapSelectedPlaceId}
             onSelectPlace={setSelectedPlaceId}
             center={mapCenter}
             zoom={mapZoom}
             centerVerticalOffsetPx={mapCenterOffsetPx}
           />
-        </div>
-      )}
-      {renderMap && (
-        <div className="pointer-events-auto absolute left-3 top-3 z-30">
-          <button
-            type="button"
-            onClick={handleResetToDefaultMapView}
-            className="flex h-10 w-10 items-center justify-center rounded-radius-sm border border-surface-alt bg-surface text-text shadow-map hover:bg-surface-alt"
-            aria-label="Reset to default map view"
-            title="Reset to default map view"
-          >
-            <Compass className="h-5 w-5 text-accent" aria-hidden />
-          </button>
         </div>
       )}
 
@@ -595,8 +567,7 @@ export function PlaceDetailMobile({
       />
 
       {/* Bottom sheet */}
-      {!isDefaultMapView && (
-        <div
+      <div
           className={[
             renderMap ? 'fixed' : 'absolute',
             'pointer-events-auto bottom-0 left-0 right-0 z-30 overflow-hidden rounded-t-radius-md bg-surface shadow-map',
@@ -714,10 +685,8 @@ export function PlaceDetailMobile({
           </div>
         </div>
         </div>
-      )}
 
-      {!isDefaultMapView && (
-        <PlaceDetailCta
+      <PlaceDetailCta
           className={!renderMap ? 'pointer-events-auto' : ''}
           rateHref={`/places/${placeId}/rate?name=${encodeURIComponent(place?.name ?? '')}`}
           onShare={async () => {
@@ -739,7 +708,6 @@ export function PlaceDetailMobile({
             window.open(url, '_blank', 'noopener,noreferrer');
           }}
         />
-      )}
     </div>
   );
 }

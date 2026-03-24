@@ -13,6 +13,7 @@ import {
 import { ArrowLeft } from "lucide-react";
 import { SearchBar } from "@/components/feed/SearchBar";
 import { FilterChips } from "@/components/feed/FilterChips";
+import { LocationStatusMessageBody } from "@/components/feed/LocationStatusMessageBody";
 import { FeedMap } from "@/components/map/FeedMap";
 import { MapPlacePreview } from "@/components/map/MapPlacePreview";
 import { PlaceDetailMobile } from "@/components/places/PlaceDetailMobile";
@@ -196,9 +197,11 @@ function MapContent() {
     <div className="relative flex min-h-0 flex-1 w-full flex-col">
       {/* On desktop: show the top header. */}
       <div className="hidden shrink-0 px-16 pt-16 lg:block">
-        {locationCtx.statusText && (
+        {locationCtx.locationStatusMessage && (
           <p className="text-heading-m text-text mb-8">
-            {locationCtx.statusText}
+            <LocationStatusMessageBody
+              message={locationCtx.locationStatusMessage}
+            />
           </p>
         )}
         <div className="mb-8">
@@ -215,9 +218,11 @@ function MapContent() {
           </div>
           <FilterChips />
         </div>
-        {!selectedPlaceId && locationCtx.statusText && (
+        {!selectedPlaceId && locationCtx.locationStatusMessage && (
           <p className="text-body-s text-text-tertiary shrink-0 px-16 pb-8 text-center">
-            {locationCtx.statusText}
+            <LocationStatusMessageBody
+              message={locationCtx.locationStatusMessage}
+            />
           </p>
         )}
         <div className="relative min-h-0 flex-1">

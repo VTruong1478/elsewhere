@@ -14,7 +14,7 @@ interface MapPanelProps {
 
 /**
  * Map panel for the desktop feed / saved layout (8fr column in `grid-cols-[5fr_8fr]`).
- * Hidden below `md`; fills the right column height so only the list scrolls.
+ * Hidden below `lg` so tablet matches mobile (feed-only); fills the right column on desktop.
  */
 export function MapPanel({
   places,
@@ -25,7 +25,7 @@ export function MapPanel({
   userLocationForDot,
 }: MapPanelProps) {
   return (
-    <div className="relative hidden min-h-0 w-full md:block md:h-full">
+    <div className="relative hidden min-h-0 w-full lg:block lg:h-full">
       <div className="h-full w-full min-h-0 overflow-hidden">
         <FeedMap
           places={places}
