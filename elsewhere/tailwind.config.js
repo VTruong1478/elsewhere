@@ -45,6 +45,7 @@ module.exports = {
         30: "30",
         40: "40",
         50: "50",
+        60: "60",
       },
       boxShadow: {
         map: "0 2px 8px rgba(47,47,47,0.5)",
@@ -78,6 +79,9 @@ module.exports = {
           inset: 0,
           backgroundImage: theme("backgroundImage.image-overlay"),
           pointerEvents: "none",
+        },
+        ".modal-overlay": {
+          backgroundColor: "rgba(47, 47, 47, 0.6)",
         },
         ".scrollbar-hide": {
           scrollbarWidth: "none",

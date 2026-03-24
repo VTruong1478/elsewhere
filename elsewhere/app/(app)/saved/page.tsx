@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { FeedItem } from "@/types/feed";
 import { PlaceCard } from "@/components/feed/PlaceCard";
 import { PlaceCardSkeleton } from "@/components/feed/PlaceCardSkeleton";
-import { FeedMap } from "@/components/map/FeedMap";
+import { MapPanel } from "@/components/map/MapPanel";
 import { MapPin } from "lucide-react";
 import { usePlaceStore } from "@/store/usePlaceStore";
 
@@ -44,9 +44,9 @@ function SavedEmptyState() {
 }
 
 /**
- * Desktop: 5:8 split (13-column proportion per product spec) — saved list
- * scrolls on the left, map fixed on the right. Mobile: list scrolls, map strip
- * below (same idea as feed + map). Matches frontend-plan scroll rules.
+ * Layout mirrors the feed: single scrolling column on mobile/tablet; desktop (lg+)
+ * uses the same 5:8 list + map split. Cards use the same tap behavior as feed
+ * (mobile/tablet → /places/[id] with map-style detail).
  */
 export default function SavedPage() {
   const { selectedPlaceId, setSelectedPlaceId } = usePlaceStore();
@@ -87,11 +87,12 @@ export default function SavedPage() {
   }, [selectedPlaceId]);
 
   return (
-    <div className="flex min-h-0 w-full flex-1 flex-col bg-background md:grid md:grid-cols-[5fr_8fr] md:overflow-hidden">
-      {/* Saved panel: 5/13 width on desktop — matches feed left column behavior */}
-      <div className="scrollbar-hide flex min-h-0 flex-col overflow-y-auto md:min-h-0">
-        <div className="shrink-0 px-16 pt-16">
-          <h1 className="font-lora text-heading-l text-text">Saved</h1>
+    <div className="flex min-h-0 w-full flex-1 flex-col bg-background lg:grid lg:grid-cols-[5fr_8fr] lg:overflow-hidden">
+      <div className="scrollbar-hide flex min-h-0 w-full flex-col overflow-y-auto lg:min-h-0">
+        <div className="shrink-0 pt-16">
+          <div className="px-16">
+            <h1 className="font-lora text-heading-l text-text">Saved</h1>
+          </div>
         </div>
         <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto px-16 py-8">
           {errMsg && (
@@ -100,8 +101,8 @@ export default function SavedPage() {
             </p>
           )}
           {isLoading && (
-            <div className="space-y-12">
-              {Array.from({ length: 4 }).map((_, i) => (
+            <div className="space-y-4">
+              {Array.from({ length: 5 }).map((_, i) => (
                 <PlaceCardSkeleton key={i} />
               ))}
             </div>
@@ -122,16 +123,14 @@ export default function SavedPage() {
         </div>
       </div>
 
-      {/* Map panel: 8/13 width on desktop; short strip on mobile */}
-      <div className="flex h-[280px] w-full shrink-0 md:h-full md:min-h-0">
-        <div className="h-full w-full min-h-0 overflow-hidden">
-          <FeedMap
-            places={places}
-            selectedPlaceId={selectedPlaceId}
-            onSelectPlace={onSelectPlace}
-            center={mapCenter}
-          />
-        </div>
+      <div className="flex min-h-0 flex-col lg:h-full lg:min-h-0">
+        <MapPanel
+          places={places}
+          selectedPlaceId={selectedPlaceId}
+          onSelectPlace={onSelectPlace}
+          center={mapCenter}
+          showUserLocationDot={false}
+        />
       </div>
     </div>
   );

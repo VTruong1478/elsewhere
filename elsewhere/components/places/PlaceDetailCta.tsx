@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useRouter } from 'next/navigation';
-import { Navigation, Share2 } from 'lucide-react';
-import { Button } from '@/components/ui/Button';
+import { useRouter } from "next/navigation";
+import { Navigation, Share2 } from "lucide-react";
+import { Button } from "@/components/ui/Button";
 
 export type PlaceDetailCtaProps = {
   rateHref: string;
@@ -20,25 +20,25 @@ export type PlaceDetailCtaProps = {
  */
 export function PlaceDetailCta({
   rateHref,
-  rateLabel = 'Rate this Place',
+  rateLabel = "Rate this Place",
   onShare,
   onDirections,
-  className = '',
+  className = "",
 }: PlaceDetailCtaProps) {
   const router = useRouter();
 
   return (
     <div
       className={[
-        'pointer-events-none fixed left-0 right-0 z-[35]',
-        'bottom-[calc(56px+env(safe-area-inset-bottom,0px))]',
-        'px-16 pb-12',
+        "pointer-events-none fixed left-0 right-0 z-[35]",
+        "bottom-[calc(56px+env(safe-area-inset-bottom,0px))]",
+        "px-16 pb-8",
         className,
       ]
         .filter(Boolean)
-        .join(' ')}
+        .join(" ")}
     >
-      <div className="pointer-events-auto flex flex-col gap-12">
+      <div className="pointer-events-auto flex flex-col gap-8">
         <Button
           className="w-full shadow-map"
           variant="primary"
