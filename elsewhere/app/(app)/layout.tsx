@@ -11,7 +11,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <div className="block min-[1025px]:hidden">
         <RouteTopNav />
       </div>
-      <main className="flex min-h-0 flex-1 flex-col pb-[56px] md:flex-row md:max-h-[calc(100vh-88px)] lg:pb-0">
+      <main className="flex min-h-0 flex-1 flex-col pb-[calc(80px+env(safe-area-inset-bottom,0px))] md:flex-row md:max-h-[calc(100vh-88px)] lg:pb-0">
         {children}
       </main>
       <BottomTabs />

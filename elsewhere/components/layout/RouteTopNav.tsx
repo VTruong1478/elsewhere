@@ -18,6 +18,9 @@ export function RouteTopNav() {
   // On the map tab we want the map to use the full vertical space.
   if (lastSegment === "map") return null;
 
+  // Rating flow: only the in-form back control + content (no app chrome).
+  if (segments[0] === "places" && lastSegment === "rate") return null;
+
   // On place detail screens we also want to remove the top nav
   // so the map background + bottom sheet can use the full height.
   if (penultimateSegment === "places") return null;

@@ -157,6 +157,12 @@ module.exports = {
           lineHeight: "20px",
           fontWeight: "700",
         },
+        ".text-ui-label-xl": {
+          fontFamily: sans,
+          fontSize: "20px",
+          lineHeight: "24px",
+          fontWeight: "700",
+        },
         ".text-ui-label-l": {
           fontFamily: sans,
           fontSize: "16px",

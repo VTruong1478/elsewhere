@@ -5,12 +5,12 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Camera,
-  Volume2,
   Headphones,
+  Pencil,
   Plug,
   Table as TableIcon,
   Star,
-  StarHalf,
+  Volume2,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -55,7 +55,10 @@ async function submitRating(placeId: string, payload: RatingPayload) {
   return json;
 }
 
-function getStarFill(overall: number, index: number): "full" | "half" | "empty" {
+function getStarFill(
+  overall: number,
+  index: number,
+): "full" | "half" | "empty" {
   const starValue = index + 1;
   if (overall >= starValue) return "full";
   if (overall >= starValue - 0.5) return "half";
@@ -63,6 +66,34 @@ function getStarFill(overall: number, index: number): "full" | "half" | "empty" 
 }
 
 const STAR_GAP_PX = 4; // gap-4 in this project's Tailwind (spacing 4 = 4px)
+const STAR_PX = 28;
+
+/** Half star: clipped full star (straight vertical bisect) — avoids Lucide StarHalf rounded “cut”. */
+function HalfStarIcon() {
+  return (
+    <div
+      className="relative shrink-0"
+      style={{ width: STAR_PX, height: STAR_PX }}
+    >
+      <Star
+        size={STAR_PX}
+        className="absolute left-0 top-0 text-secondary"
+        strokeWidth={1.75}
+        fill="none"
+      />
+      <div
+        className="absolute inset-y-0 left-0 overflow-hidden"
+        style={{ width: STAR_PX / 2 }}
+        aria-hidden
+      >
+        <Star
+          size={STAR_PX}
+          className="absolute left-0 top-0 fill-primary text-primary"
+        />
+      </div>
+    </div>
+  );
+}
 
 function updateRatingFromPosition(
   clientX: number,
@@ -75,7 +106,10 @@ function updateRatingFromPosition(
   const starWidth = (rect.width - 4 * STAR_GAP_PX) / 5;
   const segment = starWidth + STAR_GAP_PX; // one star + its right gap
   const starIndex = Math.min(4, Math.max(0, Math.floor(relX / segment)));
-  const posInStar = Math.max(0, Math.min(1, (relX - starIndex * segment) / starWidth));
+  const posInStar = Math.max(
+    0,
+    Math.min(1, (relX - starIndex * segment) / starWidth),
+  );
   const isLeftHalf = posInStar < 0.55; // Slightly favor half-star to make it easier to select
   setRating(isLeftHalf ? starIndex + 0.5 : starIndex + 1);
 }
@@ -112,10 +146,10 @@ export function RatingForm({
       if (photo) {
         const formData = new FormData();
         formData.append("photo", photo);
-        const uploadRes = await fetch(
-          `/api/places/${placeId}/upload-photo`,
-          { method: "POST", body: formData },
-        );
+        const uploadRes = await fetch(`/api/places/${placeId}/upload-photo`, {
+          method: "POST",
+          body: formData,
+        });
         if (!uploadRes.ok) {
           const json = await uploadRes.json().catch(() => ({}));
           throw new Error(
@@ -208,77 +242,66 @@ export function RatingForm({
   }) {
     return (
       <section className="space-y-8">
-        <div className="flex items-center gap-8">
-          <span className="text-text-secondary">{icon}</span>
-          <p className="text-ui-label-l text-text">
-            {label}
-            {required && <span className="text-status-low"> *</span>}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-8">
-          {options.map((opt) => {
-            const isSelected = value === opt;
-            const display =
-              opt.charAt(0).toUpperCase() + opt.slice(1).replace("-", " ");
-            return (
-              <button
-                key={opt}
-                type="button"
-                onClick={() => onChange(opt)}
-                className="relative rounded-radius-md focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-              >
-                <Pill
-                  variant="placeType"
-                  className={
-                    isSelected ? "!bg-accent !text-text-inverse" : ""
-                  }
+        <div className="space-y-8">
+          <div className="flex items-center gap-8">
+            <span className="text-text">{icon}</span>
+            <p className="text-ui-label-l text-text">
+              {label}
+              {required && <span className="text-status-low"> *</span>}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-8">
+            {options.map((opt) => {
+              const isSelected = value === opt;
+              const display =
+                opt.charAt(0).toUpperCase() + opt.slice(1).replace("-", " ");
+              return (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => onChange(opt)}
+                  className="relative rounded-radius-md focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                 >
-                  {display}
-                </Pill>
-              </button>
-            );
-          })}
+                  <Pill
+                    variant="placeType"
+                    className={
+                      isSelected ? "!bg-accent !text-text-inverse" : ""
+                    }
+                  >
+                    {display}
+                  </Pill>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </section>
     );
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="space-y-24 rounded-radius-md bg-surface p-16"
-    >
-      {/* Photo upload */}
-      <section className="space-y-8 rounded-radius-md bg-surface-alt p-16">
-        <div className="flex items-center gap-8">
-          <div className="flex h-32 w-32 shrink-0 items-center justify-center rounded-full bg-surface">
-            <Camera className="text-text-secondary" size={20} aria-hidden />
-          </div>
-          <div>
-            <p className="text-ui-label-l text-text">Show us the vibe</p>
-            <p className="text-body-s text-text-secondary">
-              Upload a photo of the seating or workspace (JPEG or WebP, max 5MB).
-            </p>
-          </div>
-        </div>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/jpeg,image/jpg,image/webp"
-          className="hidden"
-          onChange={handlePhotoChange}
-        />
+    <form onSubmit={handleSubmit} className="space-y-24">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/jpg,image/webp"
+        className="hidden"
+        onChange={handlePhotoChange}
+      />
+
+      {/* Photo upload — dashed frame, camera in circle, copy per Figma */}
+      <section>
         {photoPreview ? (
-          <div className="relative">
+          <div className="relative overflow-hidden rounded-radius-md border-2 border-dashed border-text-secondary bg-surface p-16">
             <img
               src={photoPreview}
               alt="Preview"
-              className="h-[160px] w-full rounded-radius-md object-cover"
+              className="h-[160px] w-full rounded-radius-sm object-cover"
             />
             <button
               type="button"
               onClick={clearPhoto}
-              className="absolute right-8 top-8 flex h-24 w-24 items-center justify-center rounded-full bg-surface/90 text-text"
+              className="absolute right-12 top-12 flex h-32 w-32 items-center justify-center rounded-full bg-surface text-text shadow-map"
               aria-label="Remove photo"
             >
               <X size={16} />
@@ -288,9 +311,15 @@ export function RatingForm({
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="mt-8 flex h-[120px] w-full items-center justify-center rounded-radius-md border border-dashed border-surface-alt bg-surface text-body-m text-text-secondary"
+            className="flex w-full flex-col items-center rounded-radius-md border-2 border-dashed border-text-secondary bg-surface px-24 py-32 text-center focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
-            Tap to add a photo
+            <div className="flex h-40 w-40 items-center justify-center rounded-full bg-surface-chip">
+              <Camera className="text-primary" size={24} aria-hidden />
+            </div>
+            <p className="mt-8 text-ui-label-xl text-text">Show us the vibe</p>
+            <p className="max-w-xs text-body-s text-text-secondary">
+              Upload a photo of the seating or workspace.
+            </p>
           </button>
         )}
       </section>
@@ -332,12 +361,12 @@ export function RatingForm({
       })}
 
       {/* Overall rating — 5 stars with half-star support (hover/drag to select) */}
-      <section className="space-y-8">
+      <section className="space-y-16 text-center">
         <p className="text-ui-label-l text-text">
           Overall rating <span className="text-status-low">*</span>
         </p>
         <div
-          className="flex items-center gap-4"
+          className="flex items-center justify-center gap-4"
           role="slider"
           aria-label="Overall rating, drag to select half stars"
           aria-valuemin={0.5}
@@ -345,7 +374,11 @@ export function RatingForm({
           aria-valuenow={overallRating ?? 0}
           onPointerMove={(e) => {
             // Only update when clicking/dragging, not on hover. e.buttons is 0 for touch, so also check pointer capture.
-            if (e.buttons === 0 && !e.currentTarget.hasPointerCapture(e.pointerId)) return;
+            if (
+              e.buttons === 0 &&
+              !e.currentTarget.hasPointerCapture(e.pointerId)
+            )
+              return;
             const rect = e.currentTarget.getBoundingClientRect();
             updateRatingFromPosition(e.clientX, rect, setOverallRating);
           }}
@@ -363,15 +396,22 @@ export function RatingForm({
             return (
               <div
                 key={i}
-                className="relative flex h-28 flex-1 shrink-0 cursor-pointer"
+                className="relative flex h-30 flex-1 shrink-0 cursor-pointer"
               >
                 <span className="pointer-events-none flex h-full w-full items-center justify-center">
                   {fill === "full" ? (
-                    <Star size={28} className="text-accent" />
+                    <Star
+                      size={STAR_PX}
+                      className="fill-primary text-primary"
+                    />
                   ) : fill === "half" ? (
-                    <StarHalf size={28} className="text-accent" />
+                    <HalfStarIcon />
                   ) : (
-                    <Star size={28} className="text-surface-alt" />
+                    <Star
+                      size={STAR_PX}
+                      className="text-secondary"
+                      strokeWidth={1.75}
+                    />
                   )}
                 </span>
               </div>
@@ -380,9 +420,10 @@ export function RatingForm({
         </div>
       </section>
 
-      {/* Notes */}
-      <section className="space-y-8">
+      {/* Notes — field uses same chrome as global Input (multiline variant) */}
+      <section className="space-y-16">
         <div className="flex items-center gap-8">
+          <Pencil className="text-text" size={20} aria-hidden />
           <span className="text-ui-label-l text-text">Add a tip</span>
         </div>
         <TextArea
@@ -397,11 +438,10 @@ export function RatingForm({
         variant="primary"
         type="submit"
         disabled={!isComplete || mutation.isPending}
-        className="w-full"
+        className="w-full rounded-full py-12"
       >
-        {mutation.isPending ? "Submitting..." : `Submit rating for ${placeName}`}
+        {mutation.isPending ? "Submitting..." : `Submit rating`}
       </Button>
     </form>
   );
 }
-
