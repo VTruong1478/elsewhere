@@ -17,10 +17,9 @@ export function LogoutButton() {
     <button
       type="button"
       onClick={handleLogout}
-      className="mt-24 text-body-m text-text-secondary underline-offset-2 hover:underline"
+      className="mt-24 text-body-m text-accent text-link"
     >
       Log out &rarr;
     </button>
   );
 }
-

@@ -1,19 +1,8 @@
-create or replace view public.place_notes_public as
-select
-  r.place_id,
-  r.id as rating_id,
-  r.notes,
-  r.updated_at as created_at,
-  case
-    when p.full_name is null or btrim(p.full_name) = '' then 'Anonymous'
-    when strpos(btrim(p.full_name), ' ') = 0 then btrim(p.full_name)
-    else
-      split_part(btrim(p.full_name), ' ', 1) || ' ' ||
-      left(split_part(btrim(p.full_name), ' ', array_length(string_to_array(btrim(p.full_name), ' '), 1)), 1) || '.'
-  end as author_short_name
-from public.ratings r
-join public.profiles p
-  on p.id = r.user_id
-where r.notes is not null
-  and btrim(r.notes) <> ''
-  and r.is_hidden = false;
+create index place_submissions_user_id_idx
+on public.place_submissions (user_id);
+
+create index place_submissions_status_idx
+on public.place_submissions (status);
+
+create index place_submissions_created_at_idx
+on public.place_submissions (created_at desc);

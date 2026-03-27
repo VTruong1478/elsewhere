@@ -159,7 +159,11 @@ function FeedContent() {
           {showResults &&
             places.length === 0 &&
             !isCase4Empty &&
-            !query.isLoading && <FeedEmptyState />}
+            !query.isLoading && (
+              <FeedEmptyState
+                submittedFromSearch={q.trim() || undefined}
+              />
+            )}
           {showResults && places.length > 0 && (
             <div className="space-y-12">
               {places.map((place) => (

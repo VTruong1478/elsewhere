@@ -142,7 +142,7 @@ module.exports = {
         ".text-body-m": {
           fontFamily: sans,
           fontSize: "14px",
-          lineHeight: "24px",
+          lineHeight: "20px",
           fontWeight: "400",
         },
         ".text-body-s": {
@@ -196,7 +196,6 @@ module.exports = {
           letterSpacing: "0.025em",
         },
         ".text-link": {
-          color: theme("colors.accent"),
           textDecoration: "underline",
         },
       });

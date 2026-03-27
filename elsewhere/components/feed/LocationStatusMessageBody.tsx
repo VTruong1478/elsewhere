@@ -20,7 +20,7 @@ export function LocationStatusMessageBody({
         href={AREA_WAITLIST_URL}
         target="_blank"
         rel="noopener noreferrer"
-        className="text-link"
+        className="text-link text-accent"
       >
         {LOCATION_STATUS_CASE3_LINK}
       </a>

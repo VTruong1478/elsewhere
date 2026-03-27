@@ -175,7 +175,7 @@ export default function SignupPage() {
       <button
         type="button"
         onClick={() => router.push("/login")}
-        className="mx-auto mt-auto pb-16 text-body-l text-primary underline-offset-2 hover:underline"
+        className="mx-auto mt-auto pb-16 text-body-l text-accent text-link"
       >
         Already have an account? Log in
       </button>
@@ -202,7 +202,7 @@ export default function SignupPage() {
             <button
               type="button"
               onClick={() => router.push("/feed")}
-              className="mx-auto mt-auto pb-16 text-body-l text-primary underline-offset-2 hover:underline"
+              className="mx-auto mt-auto pb-16 text-body-l text-accent text-link"
             >
               Browse without an account
             </button>
@@ -231,7 +231,7 @@ export default function SignupPage() {
               <button
                 type="button"
                 onClick={() => router.push("/feed")}
-                className="mx-auto pb-16 text-body-l text-primary underline-offset-2 hover:underline lg:absolute lg:bottom-24 lg:left-1/2 lg:-translate-x-1/2 lg:pb-0"
+                className="mx-auto pb-16 text-body-l text-accent text-link lg:absolute lg:bottom-24 lg:left-1/2 lg:-translate-x-1/2 lg:pb-0"
               >
                 Browse without an account
               </button>

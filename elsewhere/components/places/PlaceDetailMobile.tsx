@@ -1121,7 +1121,7 @@ export function PlaceDetailMobile({
                     Updating…
                   </p>
                 ) : null}
-                <div className="mt-4">
+                <div>
                   {place && status ? (
                     <StatusDot
                       status={status.status}

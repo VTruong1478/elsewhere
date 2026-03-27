@@ -7,7 +7,17 @@ import styles from "./SearchBar.module.css";
 
 const DEBOUNCE_MS = 300;
 
-export function SearchBar() {
+export type SearchBarProps = {
+  /**
+   * Map screen: controlled input without syncing `q` to the URL (no query params / navigation).
+   * Feed: omit for URL-backed search behavior.
+   */
+  value?: string;
+  onValueChange?: (value: string) => void;
+};
+
+export function SearchBar({ value: controlledValue, onValueChange }: SearchBarProps = {}) {
+  const isControlled = onValueChange != null;
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathname = usePathname();
@@ -33,18 +43,23 @@ export function SearchBar() {
     [router, searchParams, basePath],
   );
 
+  const displayValue = isControlled ? (controlledValue ?? "") : value;
+  const setDisplayValue = isControlled ? onValueChange! : setValue;
+
   // Sync input when `q` changes from outside this field (e.g. back/forward, nav).
   // Skip one sync after our own debounced `router.push` so in-progress typing isn't overwritten.
   useEffect(() => {
+    if (isControlled) return;
     if (skipNextUrlSyncRef.current) {
       skipNextUrlSyncRef.current = false;
       return;
     }
     setValue(urlQ);
-  }, [urlQ]);
+  }, [urlQ, isControlled]);
 
   // Debounce URL updates so the feed TanStack Query refetches via the existing `q` param.
   useEffect(() => {
+    if (isControlled) return;
     const trimmed = value.trim();
     const urlTrimmed = urlQ.trim();
     if (trimmed === urlTrimmed) {
@@ -71,13 +86,14 @@ export function SearchBar() {
         debounceTimeoutRef.current = null;
       }
     };
-  }, [value, urlQ, updateQuery]);
+  }, [value, urlQ, updateQuery, isControlled]);
 
   return (
     <form
       className="flex items-center gap-2 rounded-radius-md  bg-surface outline-none"
       onSubmit={(e) => {
         e.preventDefault();
+        if (isControlled) return;
         if (debounceTimeoutRef.current) {
           clearTimeout(debounceTimeoutRef.current);
           debounceTimeoutRef.current = null;
@@ -93,8 +109,8 @@ export function SearchBar() {
       />
       <input
         type="search"
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
+        value={displayValue}
+        onChange={(e) => setDisplayValue(e.target.value)}
         placeholder="Search places to work"
         className={`${styles.searchInput} min-w-0 flex-1 bg-transparent py-12 pr-4 text-body-m text-text placeholder:text-text-tertiary focus:outline-none focus:ring-0`}
         aria-label="Search places"

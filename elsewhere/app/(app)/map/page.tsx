@@ -15,6 +15,7 @@ import { SearchBar } from "@/components/feed/SearchBar";
 import { FilterChips } from "@/components/feed/FilterChips";
 import { LocationStatusMessageBody } from "@/components/feed/LocationStatusMessageBody";
 import { FeedMap } from "@/components/map/FeedMap";
+import { FeedEmptyState } from "@/components/feed/EmptyState";
 import { MapPlacePreview } from "@/components/map/MapPlacePreview";
 import { PlaceDetailMobile } from "@/components/places/PlaceDetailMobile";
 import { Button } from "@/components/ui/Button";
@@ -27,6 +28,10 @@ import {
 import { fetchPlaceDetail, placeDetailQueryKey } from "@/lib/placeDetailQuery";
 import { normalizePlaceId, samePlaceId } from "@/lib/placeId";
 import { useUserLocation } from "@/hooks/useUserLocation";
+
+const MAP_SEARCH_DEBOUNCE_MS = 300;
+
+type MapPanelState = "default" | "map_search_no_results";
 
 function zoomToRadiusMiles(zoom: number): number {
   const table: Record<number, number> = {
@@ -73,12 +78,40 @@ function fetchFeed(params: {
 
 function MapContent() {
   const searchParams = useSearchParams();
-  const q = searchParams.get("q") ?? "";
   const filter = searchParams.get("filter") ?? "";
   const locationState = useUserLocation();
   const queryClient = useQueryClient();
   const { selectedPlaceId, setSelectedPlaceId, setHoveredPlaceId } =
     usePlaceStore();
+
+  /** Local search text on map only — not synced to URL (see SearchBar controlled mode). */
+  const [mapSearchInput, setMapSearchInput] = useState("");
+  const [debouncedMapQ, setDebouncedMapQ] = useState("");
+  const [mapPanelState, setMapPanelState] =
+    useState<MapPanelState>("default");
+  const urlHydratedRef = useRef(false);
+
+  useEffect(() => {
+    if (urlHydratedRef.current) return;
+    urlHydratedRef.current = true;
+    const q0 = searchParams.get("q") ?? "";
+    if (q0) setMapSearchInput(q0);
+  }, [searchParams]);
+
+  useEffect(() => {
+    const t = setTimeout(
+      () => setDebouncedMapQ(mapSearchInput),
+      MAP_SEARCH_DEBOUNCE_MS,
+    );
+    return () => clearTimeout(t);
+  }, [mapSearchInput]);
+
+  const handleMapSearchChange = useCallback((next: string) => {
+    setMapSearchInput(next);
+  }, []);
+
+  const mapSearchPending =
+    mapSearchInput.trim() !== debouncedMapQ.trim();
 
   // Fresh map tab: clear selection/hover once on mount only. Do not depend on Zustand
   // setter identity — if deps ever change between renders, this would re-run after a
@@ -101,7 +134,7 @@ function MapContent() {
       feedRequest.feedCoords.lat,
       feedRequest.feedCoords.lng,
       feedRequest.feedRadiusMiles,
-      q,
+      debouncedMapQ,
       filter,
       // eslint-disable-next-line react-hooks/refs
       radiusMilesRef.current,
@@ -110,7 +143,7 @@ function MapContent() {
       fetchFeed({
         lat: feedRequest.feedCoords.lat,
         lng: feedRequest.feedCoords.lng,
-        q,
+        q: debouncedMapQ,
         filter,
         radiusMiles: feedRequest.feedRadiusMiles,
       }),
@@ -171,6 +204,38 @@ function MapContent() {
     ? places.find((p) => samePlaceId(p.id, selectedPlaceId))
     : null;
 
+  useEffect(() => {
+    if (mapSearchPending) {
+      setMapPanelState("default");
+      return;
+    }
+    if (debouncedMapQ.trim().length === 0) {
+      setMapPanelState("default");
+      return;
+    }
+    if (query.isFetching) {
+      setMapPanelState("default");
+      return;
+    }
+    if (query.isSuccess && places.length === 0) {
+      setMapPanelState("map_search_no_results");
+    } else {
+      setMapPanelState("default");
+    }
+  }, [
+    mapSearchPending,
+    debouncedMapQ,
+    query.isFetching,
+    query.isSuccess,
+    places.length,
+  ]);
+
+  useEffect(() => {
+    if (mapPanelState === "map_search_no_results") {
+      setSelectedPlaceId(null);
+    }
+  }, [mapPanelState, setSelectedPlaceId]);
+
   const prefetchPlaceDetail = useCallback(
     (markerPlaceId: string) => {
       const nid = normalizePlaceId(markerPlaceId);
@@ -187,7 +252,7 @@ function MapContent() {
     locationState,
     places,
     { isSuccess: query.isSuccess, isLoading: query.isLoading },
-    q,
+    debouncedMapQ,
     filter,
   );
 
@@ -234,17 +299,28 @@ function MapContent() {
               </p>
             )}
             <div className="mb-8">
-              <SearchBar />
+              <SearchBar
+                value={mapSearchInput}
+                onValueChange={handleMapSearchChange}
+              />
             </div>
             <FilterChips />
           </div>
 
           <div className="relative min-h-0 flex-1">
             <FeedMap {...feedMapSharedProps} />
-            {selectedPlace && (
-              <div className="absolute bottom-16 left-16 right-16 z-30">
-                <MapPlacePreview place={selectedPlace} />
+            {mapPanelState === "map_search_no_results" ? (
+              <div className="pointer-events-auto absolute inset-0 z-30 flex items-center justify-center px-16">
+                <FeedEmptyState
+                  submittedFromSearch={debouncedMapQ.trim() || undefined}
+                />
               </div>
+            ) : (
+              selectedPlace && (
+                <div className="absolute bottom-16 left-16 right-16 z-30">
+                  <MapPlacePreview place={selectedPlace} />
+                </div>
+              )
             )}
           </div>
         </>
@@ -252,7 +328,10 @@ function MapContent() {
         <div className="fixed inset-0 z-0 flex flex-col bg-background">
           <div className="shrink-0 pt-16">
             <div className="px-16">
-              <SearchBar />
+              <SearchBar
+                value={mapSearchInput}
+                onValueChange={handleMapSearchChange}
+              />
             </div>
             <FilterChips />
           </div>
@@ -267,34 +346,44 @@ function MapContent() {
             <FeedMap
               {...feedMapSharedProps}
               centerVerticalOffsetPx={
-                selectedPlaceId ? mobileSelectionOffsetPx : 0
+                selectedPlaceId && mapPanelState !== "map_search_no_results"
+                  ? mobileSelectionOffsetPx
+                  : 0
               }
             />
-            {selectedPlaceId && (
-              <>
-                <PlaceDetailMobile
-                  placeId={selectedPlaceId}
-                  initialCenter={
-                    selectedPlace
-                      ? { lat: selectedPlace.lat, lng: selectedPlace.lng }
-                      : locationCtx.mapCenter
-                  }
-                  renderMap={false}
-                  previewFeedItem={selectedPlace ?? null}
-                  onDismiss={onDismissPlaceDetail}
+            {mapPanelState === "map_search_no_results" ? (
+              <div className="pointer-events-auto absolute inset-0 z-30 flex items-center justify-center px-16">
+                <FeedEmptyState
+                  submittedFromSearch={debouncedMapQ.trim() || undefined}
                 />
-                <div className="pointer-events-auto absolute left-3 top-3 z-40">
-                  <Button
-                    variant="secondaryIcon"
-                    type="button"
-                    onClick={onDismissPlaceDetail}
-                    className="shadow-map"
-                    aria-label="Back to map"
-                  >
-                    <ArrowLeft className="h-5 w-5" aria-hidden />
-                  </Button>
-                </div>
-              </>
+              </div>
+            ) : (
+              selectedPlaceId && (
+                <>
+                  <PlaceDetailMobile
+                    placeId={selectedPlaceId}
+                    initialCenter={
+                      selectedPlace
+                        ? { lat: selectedPlace.lat, lng: selectedPlace.lng }
+                        : locationCtx.mapCenter
+                    }
+                    renderMap={false}
+                    previewFeedItem={selectedPlace ?? null}
+                    onDismiss={onDismissPlaceDetail}
+                  />
+                  <div className="pointer-events-auto absolute left-3 top-3 z-40">
+                    <Button
+                      variant="secondaryIcon"
+                      type="button"
+                      onClick={onDismissPlaceDetail}
+                      className="shadow-map"
+                      aria-label="Back to map"
+                    >
+                      <ArrowLeft className="h-5 w-5" aria-hidden />
+                    </Button>
+                  </div>
+                </>
+              )
             )}
           </div>
         </div>

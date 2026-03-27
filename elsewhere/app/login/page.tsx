@@ -173,7 +173,7 @@ export default function LoginPage() {
       <button
         type="button"
         onClick={() => router.push("/signup")}
-        className="mx-auto mt-auto pb-16 text-body-l text-primary underline-offset-2 hover:underline"
+        className="mx-auto mt-auto pb-16 text-body-l text-accent text-link"
       >
         Don't have an account? Sign up
       </button>
@@ -200,7 +200,7 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={() => router.push("/feed")}
-              className="mx-auto mt-auto pb-16 text-body-l text-primary underline-offset-2 hover:underline"
+              className="mx-auto mt-auto pb-16 text-body-l text-accent text-link"
             >
               Browse without an account
             </button>
@@ -229,7 +229,7 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => router.push("/feed")}
-                className="mx-auto pb-16 text-body-l text-primary underline-offset-2 hover:underline lg:absolute lg:bottom-24 lg:left-1/2 lg:-translate-x-1/2 lg:pb-0"
+                className="mx-auto pb-16 text-body-l text-accent text-link lg:absolute lg:bottom-24 lg:left-1/2 lg:-translate-x-1/2 lg:pb-0"
               >
                 Browse without an account
               </button>
