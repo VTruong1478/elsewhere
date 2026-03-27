@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bookmark, Check } from "lucide-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { FeedItem } from "@/types/feed";
 import { usePlaceStore } from "@/store/usePlaceStore";
 import { Button } from "@/components/ui/Button";
@@ -55,15 +55,7 @@ export function PlaceCard({ place }: { place: FeedItem }) {
     mq.addEventListener("change", update);
     return () => mq.removeEventListener("change", update);
   }, []);
-  const ratedQuery = useQuery<string[]>({
-    queryKey: ["rated-places"],
-    // No network fetch needed; this query is purely client-side cache.
-    queryFn: async () => [],
-    staleTime: Infinity,
-    initialData: [],
-  });
-  const ratedPlaces = ratedQuery.data ?? [];
-  const isRated = ratedPlaces.includes(place.id);
+  const isRated = !!place.user_has_rated;
   const [isSaved, setIsSaved] = useState<boolean>(!!place.is_favorited);
 
   useEffect(() => {

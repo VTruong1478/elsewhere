@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/Button";
 import { Pill } from "@/components/ui/Pill";
 import { TextArea } from "@/components/ui/TextArea";
+import { placeDetailQueryKey } from "@/lib/placeDetailQuery";
 
 const NOISE_OPTIONS = ["silent", "quiet", "vibrant"] as const;
 const VIBE_OPTIONS = ["focused", "casual", "social"] as const;
@@ -168,14 +169,9 @@ export function RatingForm({
       }
     },
     onSuccess: () => {
-      queryClient.setQueryData<string[] | undefined>(
-        ["rated-places"],
-        (prev) => {
-          const base = prev ?? [];
-          if (base.includes(placeId)) return base;
-          return [...base, placeId];
-        },
-      );
+      queryClient.invalidateQueries({ queryKey: ["feed"] });
+      queryClient.invalidateQueries({ queryKey: ["saved-places"] });
+      queryClient.invalidateQueries({ queryKey: placeDetailQueryKey(placeId) });
       router.push("/feed");
     },
   });

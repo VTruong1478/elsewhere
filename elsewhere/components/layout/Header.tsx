@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, MapPin, Bookmark, CircleUser } from "lucide-react";
+import { Home, Bookmark, CircleUser } from "lucide-react";
 
 export type HeaderRoute = "feed" | "saved" | string;
 
@@ -15,13 +15,12 @@ export interface HeaderProps {
 }
 
 const NAV_ITEMS: {
-  route: "feed" | "map" | "saved";
+  route: "feed" | "saved";
   href: string;
   label: string;
   icon: typeof Home;
 }[] = [
   { route: "feed", href: "/feed", label: "Feed", icon: Home },
-  { route: "map", href: "/map", label: "Map", icon: MapPin },
   { route: "saved", href: "/saved", label: "Saved", icon: Bookmark },
 ];
 
@@ -110,12 +109,9 @@ export function Header({
   if (/^\/places\/[^/]+\/rate(?:\/|$)/.test(pathname ?? "")) {
     return null;
   }
-  if (pathname === "/saved") {
-    return null;
-  }
   const route =
     currentRoute ??
-    (pathname === "/saved" ? "saved" : pathname === "/map" ? "map" : "feed");
+    (pathname === "/saved" ? "saved" : "feed");
 
   return (
     <header

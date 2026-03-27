@@ -119,14 +119,14 @@ function FeedContent() {
     <div className="flex min-h-0 w-full flex-1 flex-col lg:grid lg:grid-cols-[5fr_8fr] lg:overflow-hidden">
       <div className="scrollbar-hide flex min-h-0 w-full flex-col overflow-y-auto lg:min-h-0">
         <div className="shrink-0">
-          <div className="px-16">
+          <div className="px-16 lg:pt-16">
             <SearchBar />
           </div>
           <FilterChips />
         </div>
-        <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto px-16 py-8">
+        <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto px-16 pb-8">
           {locationCtx.locationStatusMessage && (
-            <p className="text-body-s text-text-tertiary px-4 py-2 text-center">
+            <p className="text-body-s text-text-tertiary px-4 pb-8 text-center">
               <LocationStatusMessageBody
                 message={locationCtx.locationStatusMessage}
               />

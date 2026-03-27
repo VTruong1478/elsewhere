@@ -103,6 +103,21 @@ export async function buildFeedItemsFromPlaces(
   const ratingsDb = ratingsDbOpt ?? supabase;
 
   const placeIds = placeList.map((r) => r.id);
+  let userRatedPlaceIds: Set<string> = new Set();
+  if (userId && placeIds.length > 0) {
+    const { data: myRatings } = await ratingsDb
+      .from("ratings")
+      .select("place_id")
+      .eq("user_id", userId)
+      .in("place_id", placeIds);
+    if (myRatings) {
+      userRatedPlaceIds = new Set(
+        myRatings
+          .map((row) => row.place_id)
+          .filter((id): id is string => typeof id === "string" && id.length > 0),
+      );
+    }
+  }
 
   let vibePhotoPathByPlaceId: Record<string, string | null> = {};
   if (placeIds.length > 0) {
@@ -220,6 +235,7 @@ export async function buildFeedItemsFromPlaces(
       open_late: openLate,
       pills: pillsByPlace[row.id] ?? [],
       is_favorited: favoritedPlaceIds.has(row.id),
+      user_has_rated: userRatedPlaceIds.has(row.id),
       distance_mi: dist / 1609.344,
       rating_count: ratingCount,
       image_url: null,

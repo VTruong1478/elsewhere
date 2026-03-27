@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Bookmark, Check } from "lucide-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { FeedItem } from "@/types/feed";
 import { Button } from "@/components/ui/Button";
 import { MatchRing } from "@/components/ui/MatchRing";
@@ -34,14 +34,7 @@ function getOpenStatus(
 
 export function MapPlacePreview({ place }: { place: FeedItem }) {
   const queryClient = useQueryClient();
-  const ratedQuery = useQuery<string[]>({
-    queryKey: ["rated-places"],
-    queryFn: async () => [],
-    staleTime: Infinity,
-    initialData: [],
-  });
-  const ratedPlaces = ratedQuery.data ?? [];
-  const isRated = ratedPlaces.includes(place.id);
+  const isRated = !!place.user_has_rated;
   const [isSaved, setIsSaved] = useState(!!place.is_favorited);
 
   useEffect(() => {

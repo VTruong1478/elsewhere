@@ -29,6 +29,7 @@ export interface FeedItem {
   open_late: boolean;
   pills: string[];
   is_favorited?: boolean;
+  user_has_rated?: boolean;
   /** Distance from user in miles (when available) */
   distance_mi?: number;
   /** Neighborhood or area label (when available) */
