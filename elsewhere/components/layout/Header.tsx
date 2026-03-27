@@ -110,6 +110,9 @@ export function Header({
   if (/^\/places\/[^/]+\/rate(?:\/|$)/.test(pathname ?? "")) {
     return null;
   }
+  if (pathname === "/saved") {
+    return null;
+  }
   const route =
     currentRoute ??
     (pathname === "/saved" ? "saved" : pathname === "/map" ? "map" : "feed");

@@ -15,7 +15,7 @@ export function PlaceCardSkeleton() {
         <div className="absolute inset-0 z-0 flex flex-col">
           {/* Place type pill — left-16 top-16 */}
           <div className="absolute left-16 top-16 flex gap-8">
-            <div className="inline-flex items-center justify-center rounded-radius-md bg-surface/90 px-16 py-8">
+            <div className="inline-flex items-center justify-center rounded-radius-sm bg-surface/90 px-12 py-4">
               <span className="h-8 w-24 animate-pulse rounded-radius-sm bg-surface-alt" />
             </div>
           </div>

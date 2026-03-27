@@ -12,7 +12,7 @@ const variantStyles: Record<PillVariant, string> = {
   cost:
     'inline-flex h-24 items-center justify-center gap-4 rounded-radius-sm bg-accent px-12 py-4 text-ui-label-m font-medium text-text-inverse',
   placeType:
-    'inline-flex items-center justify-center gap-4 whitespace-nowrap rounded-radius-md bg-surface px-16 py-8 text-ui-label-m font-medium text-text',
+    'inline-flex items-center justify-center gap-4 whitespace-nowrap rounded-radius-sm bg-surface px-12 py-4 text-ui-label-m font-medium text-text',
 };
 
 export function Pill({
