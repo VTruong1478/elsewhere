@@ -19,9 +19,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     ref,
   ) {
     const isIcon = variant === "secondaryIcon";
-    const sizeLayout = isIcon
-      ? "h-10 w-10 min-h-10 min-w-10 max-h-10 max-w-10 p-0 box-border rounded-radius-md"
-      : "min-w-[44px] px-24 py-8 text-ui-label-l";
+    const iconSizeLayout =
+      "h-10 w-10 min-h-10 min-w-10 max-h-10 max-w-10 p-0 box-border rounded-radius-md";
 
     const variantTone =
       variant === "primary"
@@ -40,9 +39,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         className={`
           inline-flex cursor-pointer items-center justify-center
           ${isIcon ? "" : "rounded-radius-md"}
-          ${sizeLayout}
           ${variantTone}
-          ${className}
+          ${isIcon ? iconSizeLayout : `min-w-[44px] max-h-[36px] text-ui-label-l ${className} px-24 py-8`}
         `.trim()}
         {...props}
       >
