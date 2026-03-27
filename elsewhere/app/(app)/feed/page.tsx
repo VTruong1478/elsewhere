@@ -118,7 +118,7 @@ function FeedContent() {
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col lg:grid lg:grid-cols-[5fr_8fr] lg:overflow-hidden">
       <div className="scrollbar-hide flex min-h-0 w-full flex-col overflow-y-auto lg:min-h-0">
-        <div className="shrink-0 pt-16">
+        <div className="shrink-0">
           <div className="px-16">
             <SearchBar />
           </div>
@@ -178,9 +178,7 @@ function FeedContent() {
               onSelectPlace={onSelectPlace}
               center={locationCtx.mapCenter}
               showUserLocationDot={locationCtx.showUserLocationDot}
-              userLocationForDot={
-                locationCtx.userLocationForDot ?? undefined
-              }
+              userLocationForDot={locationCtx.userLocationForDot ?? undefined}
             />
           </div>
         )}

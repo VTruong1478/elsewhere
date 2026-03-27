@@ -454,7 +454,7 @@ export function FeedMap({
   }, [selectedPlaceId, validPlaces, centerVerticalOffsetPx]);
 
   // -----------------------------------------------------------------------
-  // 5. Sync markers (add / remove / update)
+  // 5a. Marker lifecycle (add / remove / position) — depends only on places + handlers
   // -----------------------------------------------------------------------
   // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => {
@@ -464,7 +464,6 @@ export function FeedMap({
     const currentIds = new Set(validPlaces.map((p) => p.id));
     const existing = markersRef.current;
 
-    // Remove stale markers
     existing.forEach((tm, id) => {
       if (!currentIds.has(id)) {
         clearRootSafely(tm.root);
@@ -473,10 +472,7 @@ export function FeedMap({
       }
     });
 
-    // Add or update markers
     validPlaces.forEach((place) => {
-      const selected = samePlaceId(selectedPlaceId, place.id);
-      const hovered = samePlaceId(hoveredPlaceId, place.id);
       let tracked = existing.get(place.id);
 
       if (!tracked) {
@@ -487,9 +483,7 @@ export function FeedMap({
           onPlaceMarkerHover?.(place.id);
         });
         el.addEventListener("mouseleave", () => setHoveredPlaceId(null));
-        // Use pointerup (not click) so taps work reliably on touch; avoid duplicate
-        // handlers — pointerup fires for mouse + touch, and we stopPropagation so
-        // the map canvas click handler does not run.
+        // pointerup (not click): reliable on touch; stopPropagation avoids map canvas click.
         el.addEventListener("pointerup", (e) => {
           e.stopPropagation();
           if (e.pointerType === "mouse" && e.button !== 0) return;
@@ -505,6 +499,25 @@ export function FeedMap({
       } else {
         tracked.marker.setLngLat([place.lng, place.lat]);
       }
+    });
+  }, [validPlaces, onSelectPlace, setHoveredPlaceId, onPlaceMarkerHover]);
+
+  // -----------------------------------------------------------------------
+  // 5b. Marker visuals (PinContent + z-index) — selected / hover / score
+  // -----------------------------------------------------------------------
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const existing = markersRef.current;
+
+    validPlaces.forEach((place) => {
+      const tracked = existing.get(place.id);
+      if (!tracked) return;
+
+      const selected = samePlaceId(selectedPlaceId, place.id);
+      const hovered = samePlaceId(hoveredPlaceId, place.id);
 
       tracked.root.render(
         <PinContent
@@ -517,14 +530,7 @@ export function FeedMap({
       const el = tracked.marker.getElement();
       el.style.zIndex = selected ? "3" : hovered ? "2" : "1";
     });
-  }, [
-    validPlaces,
-    selectedPlaceId,
-    hoveredPlaceId,
-    onSelectPlace,
-    setHoveredPlaceId,
-    onPlaceMarkerHover,
-  ]);
+  }, [validPlaces, selectedPlaceId, hoveredPlaceId]);
 
   // -----------------------------------------------------------------------
   // 6. User location marker

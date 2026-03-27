@@ -200,99 +200,105 @@ function MapContent() {
     [setSelectedPlaceId],
   );
 
+  /** Tailwind `lg` (1024px): mount exactly one FeedMap — mobile vs desktop branch. */
+  const [isLg, setIsLg] = useState(false);
+  useLayoutEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const sync = () => setIsLg(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
+  const feedMapSharedProps = {
+    places,
+    selectedPlaceId,
+    onSelectPlace,
+    center: locationCtx.mapCenter,
+    onZoomEnd: handleZoomEnd,
+    showUserLocationDot: locationCtx.showUserLocationDot,
+    userLocationForDot: locationCtx.userLocationForDot ?? undefined,
+    onPlaceMarkerHover: prefetchPlaceDetail,
+  } as const;
+
   return (
     <div className="relative flex min-h-0 flex-1 w-full flex-col">
-      {/* On desktop: show the top header. */}
-      <div className="hidden shrink-0 px-16 pt-16 lg:block">
-        {locationCtx.locationStatusMessage && (
-          <p className="text-heading-m text-text mb-8">
-            <LocationStatusMessageBody
-              message={locationCtx.locationStatusMessage}
-            />
-          </p>
-        )}
-        <div className="mb-8">
-          <SearchBar />
-        </div>
-        <FilterChips />
-      </div>
-
-      {/* On mobile/tablet: search + filters like feed, then map fills the rest. */}
-      <div className="lg:hidden fixed inset-0 z-0 flex flex-col bg-background">
-        <div className="shrink-0 pt-16">
-          <div className="px-16">
-            <SearchBar />
+      {isLg ? (
+        <>
+          <div className="shrink-0 px-16 pt-16">
+            {locationCtx.locationStatusMessage && (
+              <p className="text-heading-m text-text mb-8">
+                <LocationStatusMessageBody
+                  message={locationCtx.locationStatusMessage}
+                />
+              </p>
+            )}
+            <div className="mb-8">
+              <SearchBar />
+            </div>
+            <FilterChips />
           </div>
-          <FilterChips />
-        </div>
-        {!selectedPlaceId && locationCtx.locationStatusMessage && (
-          <p className="text-body-s text-text-tertiary shrink-0 px-16 pb-8 text-center">
-            <LocationStatusMessageBody
-              message={locationCtx.locationStatusMessage}
-            />
-          </p>
-        )}
-        <div className="relative min-h-0 flex-1">
-          <FeedMap
-            places={places}
-            selectedPlaceId={selectedPlaceId}
-            onSelectPlace={onSelectPlace}
-            center={locationCtx.mapCenter}
-            onZoomEnd={handleZoomEnd}
-            showUserLocationDot={locationCtx.showUserLocationDot}
-            userLocationForDot={locationCtx.userLocationForDot ?? undefined}
-            centerVerticalOffsetPx={
-              selectedPlaceId ? mobileSelectionOffsetPx : 0
-            }
-            onPlaceMarkerHover={prefetchPlaceDetail}
-          />
-          {selectedPlaceId && (
-            <>
-              <PlaceDetailMobile
-                placeId={selectedPlaceId}
-                initialCenter={
-                  selectedPlace
-                    ? { lat: selectedPlace.lat, lng: selectedPlace.lng }
-                    : locationCtx.mapCenter
-                }
-                renderMap={false}
-                previewFeedItem={selectedPlace ?? null}
-                onDismiss={onDismissPlaceDetail}
-              />
-              <div className="pointer-events-auto absolute left-3 top-3 z-40">
-                <Button
-                  variant="secondaryIcon"
-                  type="button"
-                  onClick={onDismissPlaceDetail}
-                  className="shadow-map"
-                  aria-label="Back to map"
-                >
-                  <ArrowLeft className="h-5 w-5" aria-hidden />
-                </Button>
+
+          <div className="relative min-h-0 flex-1">
+            <FeedMap {...feedMapSharedProps} />
+            {selectedPlace && (
+              <div className="absolute bottom-16 left-16 right-16 z-30">
+                <MapPlacePreview place={selectedPlace} />
               </div>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Desktop: keep the original layout. */}
-      <div className="relative min-h-0 flex-1 hidden lg:block">
-        <FeedMap
-          places={places}
-          selectedPlaceId={selectedPlaceId}
-          onSelectPlace={onSelectPlace}
-          center={locationCtx.mapCenter}
-          onZoomEnd={handleZoomEnd}
-          showUserLocationDot={locationCtx.showUserLocationDot}
-          userLocationForDot={locationCtx.userLocationForDot ?? undefined}
-          onPlaceMarkerHover={prefetchPlaceDetail}
-        />
-        {selectedPlace && (
-          <div className="absolute bottom-16 left-16 right-16 z-30">
-            <MapPlacePreview place={selectedPlace} />
+            )}
           </div>
-        )}
-      </div>
+        </>
+      ) : (
+        <div className="fixed inset-0 z-0 flex flex-col bg-background">
+          <div className="shrink-0 pt-16">
+            <div className="px-16">
+              <SearchBar />
+            </div>
+            <FilterChips />
+          </div>
+          {!selectedPlaceId && locationCtx.locationStatusMessage && (
+            <p className="text-body-s text-text-tertiary shrink-0 px-16 pb-8 text-center">
+              <LocationStatusMessageBody
+                message={locationCtx.locationStatusMessage}
+              />
+            </p>
+          )}
+          <div className="relative min-h-0 flex-1">
+            <FeedMap
+              {...feedMapSharedProps}
+              centerVerticalOffsetPx={
+                selectedPlaceId ? mobileSelectionOffsetPx : 0
+              }
+            />
+            {selectedPlaceId && (
+              <>
+                <PlaceDetailMobile
+                  placeId={selectedPlaceId}
+                  initialCenter={
+                    selectedPlace
+                      ? { lat: selectedPlace.lat, lng: selectedPlace.lng }
+                      : locationCtx.mapCenter
+                  }
+                  renderMap={false}
+                  previewFeedItem={selectedPlace ?? null}
+                  onDismiss={onDismissPlaceDetail}
+                />
+                <div className="pointer-events-auto absolute left-3 top-3 z-40">
+                  <Button
+                    variant="secondaryIcon"
+                    type="button"
+                    onClick={onDismissPlaceDetail}
+                    className="shadow-map"
+                    aria-label="Back to map"
+                  >
+                    <ArrowLeft className="h-5 w-5" aria-hidden />
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
