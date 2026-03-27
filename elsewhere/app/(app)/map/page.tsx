@@ -15,6 +15,7 @@ import { SearchBar } from "@/components/feed/SearchBar";
 import { FilterChips } from "@/components/feed/FilterChips";
 import { LocationStatusMessageBody } from "@/components/feed/LocationStatusMessageBody";
 import { FeedMap } from "@/components/map/FeedMap";
+import { MapLoadingOverlay } from "@/components/map/MapLoadingOverlay";
 import { FeedEmptyState } from "@/components/feed/EmptyState";
 import { MapPlacePreview } from "@/components/map/MapPlacePreview";
 import { PlaceDetailMobile } from "@/components/places/PlaceDetailMobile";
@@ -286,6 +287,13 @@ function MapContent() {
     onPlaceMarkerHover: prefetchPlaceDetail,
   } as const;
 
+  // Use isLoading, not isFetching: refetches (e.g. after zoom → invalidateQueries(["feed"])
+  // in handleZoomEnd) keep cached data, so isFetching flashes but isLoading stays false.
+  const showMapLoading =
+    mapSearchPending ||
+    locationState.status === "loading" ||
+    (feedRequest.feedQueryEnabled && query.isLoading);
+
   return (
     <div className="relative flex min-h-0 flex-1 w-full flex-col">
       {isLg ? (
@@ -309,6 +317,7 @@ function MapContent() {
 
           <div className="relative min-h-0 flex-1">
             <FeedMap {...feedMapSharedProps} />
+            {showMapLoading ? <MapLoadingOverlay /> : null}
             {mapPanelState === "map_search_no_results" ? (
               <div className="pointer-events-auto absolute inset-0 z-30 flex items-center justify-center px-16">
                 <FeedEmptyState
@@ -351,6 +360,7 @@ function MapContent() {
                   : 0
               }
             />
+            {showMapLoading ? <MapLoadingOverlay /> : null}
             {mapPanelState === "map_search_no_results" ? (
               <div className="pointer-events-auto absolute inset-0 z-30 flex items-center justify-center px-16">
                 <FeedEmptyState
