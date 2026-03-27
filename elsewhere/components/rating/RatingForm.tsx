@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Camera,
   Headphones,
@@ -16,7 +16,9 @@ import {
 import { Button } from "@/components/ui/Button";
 import { Pill } from "@/components/ui/Pill";
 import { TextArea } from "@/components/ui/TextArea";
-import { placeDetailQueryKey } from "@/lib/placeDetailQuery";
+import { createClient } from "@/lib/supabase/client";
+import { normalizePlaceId } from "@/lib/placeId";
+import { fetchPlaceDetail, placeDetailQueryKey } from "@/lib/placeDetailQuery";
 
 const NOISE_OPTIONS = ["silent", "quiet", "vibrant"] as const;
 const VIBE_OPTIONS = ["focused", "casual", "social"] as const;
@@ -37,6 +39,19 @@ type RatingPayload = {
   notes?: string | null;
   photo_path?: string | null;
 };
+
+function isNoiseValue(v: string): v is NoiseValue {
+  return (NOISE_OPTIONS as readonly string[]).includes(v);
+}
+function isVibeValue(v: string): v is VibeValue {
+  return (VIBE_OPTIONS as readonly string[]).includes(v);
+}
+function isTablesValue(v: string): v is TablesValue {
+  return (TABLES_OPTIONS as readonly string[]).includes(v);
+}
+function isOutletsValue(v: string): v is OutletsValue {
+  return (OUTLETS_OPTIONS as readonly string[]).includes(v);
+}
 
 async function submitRating(placeId: string, payload: RatingPayload) {
   const res = await fetch(`/api/places/${placeId}/rate`, {
@@ -117,13 +132,22 @@ function updateRatingFromPosition(
 
 export function RatingForm({
   placeId,
-  placeName,
+  placeName: _placeName,
 }: {
   placeId: string;
   placeName: string;
 }) {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const supabase = useMemo(() => createClient(), []);
+
+  const normalizedPlaceId = useMemo(() => normalizePlaceId(placeId), [placeId]);
+  const { data: detail, isFetched: detailFetched } = useQuery({
+    queryKey: placeDetailQueryKey(normalizedPlaceId ?? "__invalid__"),
+    queryFn: () => fetchPlaceDetail(normalizedPlaceId!),
+    enabled: !!normalizedPlaceId,
+    staleTime: 5 * 60 * 1000,
+  });
 
   const [noise, setNoise] = useState<NoiseValue | null>(null);
   const [vibe, setVibe] = useState<VibeValue | null>(null);
@@ -132,8 +156,64 @@ export function RatingForm({
   const [overallRating, setOverallRating] = useState<number | null>(null);
   const [notes, setNotes] = useState("");
   const [photoFile, setPhotoFile] = useState<File | null>(null);
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  /** Local preview URL for a newly selected file only (revoked on clear). */
+  const [localPhotoBlobUrl, setLocalPhotoBlobUrl] = useState<string | null>(
+    null,
+  );
+  /** Server photo path from `my_rating` — kept for POST so upsert does not clear photo before upload/PATCH. */
+  const [initialPhotoPathFromServer, setInitialPhotoPathFromServer] = useState<
+    string | null
+  >(null);
+  const [photoRemovedByUser, setPhotoRemovedByUser] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const hydratedFromDetailRef = useRef(false);
+
+  const serverPhotoPublicUrl = useMemo(() => {
+    if (!initialPhotoPathFromServer?.trim()) return null;
+    const p = initialPhotoPathFromServer.trim();
+    const objectPath = p.startsWith("user-photos/")
+      ? p.slice("user-photos/".length)
+      : p;
+    return supabase.storage.from("user-photos").getPublicUrl(objectPath).data
+      .publicUrl;
+  }, [supabase, initialPhotoPathFromServer]);
+
+  const displayPhotoUrl =
+    photoFile && localPhotoBlobUrl
+      ? localPhotoBlobUrl
+      : !photoRemovedByUser && serverPhotoPublicUrl
+        ? serverPhotoPublicUrl
+        : null;
+
+  useEffect(() => {
+    if (!detail || hydratedFromDetailRef.current) return;
+    const m = detail.my_rating;
+    if (!m) {
+      hydratedFromDetailRef.current = true;
+      return;
+    }
+    if (isNoiseValue(m.noise)) setNoise(m.noise);
+    if (isVibeValue(m.vibe)) setVibe(m.vibe);
+    if (isTablesValue(m.tables)) setTables(m.tables);
+    if (isOutletsValue(m.outlets)) setOutlets(m.outlets);
+    const o = Number(m.overall_rating);
+    if (Number.isFinite(o) && o >= 0 && o <= 5) setOverallRating(o);
+    if (m.notes != null) {
+      setNotes(String(m.notes));
+    }
+    const path = m.photo_path?.trim();
+    setInitialPhotoPathFromServer(path && path.length > 0 ? path : null);
+    hydratedFromDetailRef.current = true;
+  }, [detail]);
+
+  useEffect(() => {
+    const url = localPhotoBlobUrl;
+    return () => {
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [localPhotoBlobUrl]);
+
+  const isEditMode = Boolean(detailFetched && detail?.my_rating);
 
   const mutation = useMutation({
     mutationFn: async ({
@@ -171,8 +251,16 @@ export function RatingForm({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["feed"] });
       queryClient.invalidateQueries({ queryKey: ["saved-places"] });
-      queryClient.invalidateQueries({ queryKey: placeDetailQueryKey(placeId) });
-      router.push("/feed");
+      if (normalizedPlaceId) {
+        queryClient.invalidateQueries({
+          queryKey: placeDetailQueryKey(normalizedPlaceId),
+        });
+      }
+      if (typeof window !== "undefined" && window.history.length > 1) {
+        router.back();
+      } else {
+        router.push("/feed");
+      }
     },
   });
 
@@ -192,21 +280,36 @@ export function RatingForm({
       if (file.size > 5 * 1024 * 1024) {
         return;
       }
+      setPhotoRemovedByUser(false);
       setPhotoFile(file);
-      setPhotoPreview(URL.createObjectURL(file));
+      setLocalPhotoBlobUrl(URL.createObjectURL(file));
     }
     e.target.value = "";
   }
 
   function clearPhoto() {
-    setPhotoFile(null);
-    if (photoPreview) URL.revokeObjectURL(photoPreview);
-    setPhotoPreview(null);
+    if (photoFile) {
+      setPhotoFile(null);
+      setLocalPhotoBlobUrl(null);
+      return;
+    }
+    if (initialPhotoPathFromServer && !photoRemovedByUser) {
+      setPhotoRemovedByUser(true);
+    }
   }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!isComplete || mutation.isPending || overallRating == null) return;
+
+    let photo_path: string | null = null;
+    if (photoRemovedByUser && !photoFile) {
+      photo_path = null;
+    } else if (photoFile) {
+      photo_path = initialPhotoPathFromServer;
+    } else {
+      photo_path = initialPhotoPathFromServer ?? null;
+    }
 
     const payload: RatingPayload = {
       noise: noise!,
@@ -215,7 +318,7 @@ export function RatingForm({
       outlets: outlets!,
       overall_rating: overallRating,
       notes: notes.trim() ? notes.trim() : null,
-      photo_path: null,
+      photo_path,
     };
 
     mutation.mutate({ payload, photo: photoFile });
@@ -287,18 +390,25 @@ export function RatingForm({
 
       {/* Photo upload — dashed frame, camera in circle, copy per Figma */}
       <section>
-        {photoPreview ? (
+        {displayPhotoUrl ? (
           <div className="relative overflow-hidden rounded-radius-md border-2 border-dashed border-text-secondary bg-surface p-16">
-            <img
-              src={photoPreview}
-              alt="Preview"
-              className="h-[160px] w-full rounded-radius-sm object-cover"
-            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="block w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              aria-label="Replace photo"
+            >
+              <img
+                src={displayPhotoUrl}
+                alt=""
+                className="h-[160px] w-full rounded-radius-sm object-cover"
+              />
+            </button>
             <button
               type="button"
               onClick={clearPhoto}
-              className="absolute right-12 top-12 flex h-32 w-32 items-center justify-center rounded-full bg-surface text-text shadow-map"
-              aria-label="Remove photo"
+              className="absolute right-12 top-12 z-10 flex h-32 w-32 items-center justify-center rounded-full bg-surface text-text shadow-map"
+              aria-label={photoFile ? "Remove new photo" : "Remove photo"}
             >
               <X size={16} />
             </button>
@@ -436,7 +546,11 @@ export function RatingForm({
         disabled={!isComplete || mutation.isPending}
         className="w-full rounded-full py-12"
       >
-        {mutation.isPending ? "Submitting..." : `Submit rating`}
+        {mutation.isPending
+          ? "Submitting..."
+          : isEditMode
+            ? "Update Rating"
+            : "Submit rating"}
       </Button>
     </form>
   );

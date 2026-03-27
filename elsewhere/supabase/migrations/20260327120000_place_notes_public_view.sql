@@ -1,3 +1,4 @@
+-- Public notes for place detail: short author label + note text (non-hidden ratings only).
 create or replace view public.place_notes_public as
 select
   r.place_id,
@@ -15,5 +16,4 @@ from public.ratings r
 join public.profiles p
   on p.id = r.user_id
 where r.notes is not null
-  and btrim(r.notes) <> ''
-  and r.is_hidden = false;
+  and btrim(r.notes) <> '';

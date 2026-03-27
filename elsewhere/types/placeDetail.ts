@@ -36,7 +36,7 @@ export type PlaceDetailResponse = {
     id: string;
     notes: string;
     created_at: string;
-    user_initial: string;
+    author_short_name: string;
   }>;
   my_rating?: {
     id: string;

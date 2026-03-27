@@ -3,8 +3,8 @@
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useQuery } from "@tanstack/react-query";
-import { X } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Bookmark, X } from "lucide-react";
 import type { FeedItem } from "@/types/feed";
 import type { PlaceDetailResponse } from "@/types/placeDetail";
 import { FeedMap } from "@/components/map/FeedMap";
@@ -124,6 +124,12 @@ function timeAgo(iso: string): string {
   return `${diffDays}d ago`;
 }
 
+function noteAuthorAvatarLetter(authorShortName: string): string {
+  const t = authorShortName.trim();
+  if (!t) return "?";
+  return t.charAt(0).toUpperCase();
+}
+
 /** Single place on the map: markers only render from `places`; match % from avg rating when available */
 function feedItemForDetailMap(
   placeId: string,
@@ -208,6 +214,8 @@ export function PlaceDetailMobile({
       ),
     [previewFeedItem, normalizedId],
   );
+
+  const queryClient = useQueryClient();
 
   const {
     data: detail,
@@ -729,6 +737,116 @@ export function PlaceDetailMobile({
       ? (previewFeedItem.rating_count ?? 0)
       : 0;
 
+  const coords =
+    place && isFinite(Number(place.lat)) && isFinite(Number(place.lng))
+      ? { lat: Number(place.lat), lng: Number(place.lng) }
+      : initialCenter;
+  const avgOverall =
+    stats?.avg_overall_rating != null
+      ? typeof stats.avg_overall_rating === "number"
+        ? stats.avg_overall_rating
+        : Number(stats.avg_overall_rating)
+      : previewMatches &&
+          previewFeedItem?.match_score_percent != null &&
+          !Number.isNaN(previewFeedItem.match_score_percent)
+        ? previewFeedItem.match_score_percent / 20
+        : null;
+
+  /** Same signal as PlaceCard (`user_has_rated`): detail API `my_rating`, else feed preview while loading. */
+  const userHasRated = useMemo(() => {
+    if (detail != null) return !!detail.my_rating;
+    if (previewMatches && previewFeedItem)
+      return !!previewFeedItem.user_has_rated;
+    return false;
+  }, [detail, previewMatches, previewFeedItem]);
+
+  const [isSaved, setIsSaved] = useState(false);
+
+  useEffect(() => {
+    if (detail != null) {
+      setIsSaved(detail.is_saved);
+    } else if (previewMatches && previewFeedItem) {
+      setIsSaved(!!previewFeedItem.is_favorited);
+    } else {
+      setIsSaved(false);
+    }
+  }, [detail, previewMatches, previewFeedItem]);
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/saved", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ place_id: normalizedId! }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(
+          (body as { error?: string }).error ?? "Failed to save place",
+        );
+      }
+    },
+    onMutate: async () => {
+      setIsSaved(true);
+      queryClient.setQueryData<FeedItem[] | undefined>(
+        ["saved-places"],
+        (prev) => {
+          if (!Array.isArray(prev) || !normalizedId) return prev;
+          if (prev.some((p) => p.id === normalizedId)) return prev;
+          const row: FeedItem =
+            previewMatches && previewFeedItem
+              ? { ...previewFeedItem, is_favorited: true }
+              : {
+                  ...feedItemForDetailMap(
+                    normalizedId,
+                    coords,
+                    place ?? null,
+                    avgOverall,
+                  ),
+                  is_favorited: true,
+                };
+          return [row, ...prev];
+        },
+      );
+    },
+    onError: () => {
+      setIsSaved(false);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["saved-places"] });
+    },
+  });
+
+  const unsaveMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/saved/${normalizedId!}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(
+          (body as { error?: string }).error ?? "Failed to unsave place",
+        );
+      }
+    },
+    onMutate: async () => {
+      setIsSaved(false);
+      queryClient.setQueryData<FeedItem[] | undefined>(
+        ["saved-places"],
+        (prev) =>
+          Array.isArray(prev) && normalizedId
+            ? prev.filter((p) => p.id !== normalizedId)
+            : prev,
+      );
+    },
+    onError: () => {
+      setIsSaved(true);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["saved-places"] });
+    },
+  });
+
   const opening = useMemo(() => {
     if (!place) return null;
     const openingHours = place.opening_hours as OpeningHoursType | null;
@@ -831,20 +949,6 @@ export function PlaceDetailMobile({
       ? (previewFeedItem.dominant_outlets ?? previewFeedItem.outlets ?? null)
       : null;
 
-  const coords =
-    place && isFinite(Number(place.lat)) && isFinite(Number(place.lng))
-      ? { lat: Number(place.lat), lng: Number(place.lng) }
-      : initialCenter;
-  const avgOverall =
-    stats?.avg_overall_rating != null
-      ? typeof stats.avg_overall_rating === "number"
-        ? stats.avg_overall_rating
-        : Number(stats.avg_overall_rating)
-      : previewMatches &&
-          previewFeedItem?.match_score_percent != null &&
-          !Number.isNaN(previewFeedItem.match_score_percent)
-        ? previewFeedItem.match_score_percent / 20
-        : null;
   const mapPlaces = useMemo(
     () =>
       previewMatches && previewFeedItem && !detail
@@ -939,7 +1043,7 @@ export function PlaceDetailMobile({
       <div
         className={[
           renderMap ? "fixed" : "absolute",
-          "pointer-events-auto bottom-0 left-0 right-0 z-30 overflow-hidden rounded-t-radius-md bg-surface shadow-map",
+          "pointer-events-auto bottom-0 left-0 right-0 z-30 overflow-hidden rounded-t-radius-md bg-background shadow-map",
         ]
           .filter(Boolean)
           .join(" ")}
@@ -971,9 +1075,44 @@ export function PlaceDetailMobile({
 
             <div className="px-16">
               <header className="shrink-0">
-                <h2 className="font-lora text-heading-l text-text">
-                  {place?.name ?? (loadError ? "Unable to load" : "—")}
-                </h2>
+                <div className="flex items-start justify-between gap-8">
+                  <h2 className="min-w-0 flex-1 font-lora text-heading-l text-text">
+                    {place?.name ?? (loadError ? "Unable to load" : "—")}
+                  </h2>
+                  {place && normalizedId ? (
+                    <Button
+                      variant="secondaryIcon"
+                      type="button"
+                      data-sheet-drag-ignore
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (isSaved) {
+                          unsaveMutation.mutate();
+                        } else {
+                          saveMutation.mutate();
+                        }
+                      }}
+                      className="shrink-0"
+                      disabled={
+                        saveMutation.isPending || unsaveMutation.isPending
+                      }
+                      aria-label={
+                        isSaved
+                          ? `Remove ${place.name} from saved places`
+                          : `Save ${place.name}`
+                      }
+                      aria-pressed={isSaved}
+                    >
+                      <Bookmark
+                        size={18}
+                        aria-hidden
+                        fill={isSaved ? "currentColor" : "none"}
+                        stroke="currentColor"
+                        strokeWidth={2}
+                      />
+                    </Button>
+                  ) : null}
+                </div>
                 {isFetching && previewMatches ? (
                   <p
                     className="mt-4 text-body-s text-text-tertiary"
@@ -1043,27 +1182,43 @@ export function PlaceDetailMobile({
                 </div>
 
                 <div className="pb-8">
-                  <div className="text-body-m text-text font-bold">
+                  <div className="text-heading-m text-text font-bold">
                     Notes &amp; Tips
                   </div>
                   {detail?.notes?.length ? (
-                    <div className="mt-8 space-y-12 pr-4">
+                    <div className="mt-8 space-y-8">
                       {detail.notes.map((note) => (
-                        <div key={note.id} className="flex gap-8">
-                          <div className="flex h-32 w-32 shrink-0 items-center justify-center rounded-radius-md border border-surface-alt bg-surface-alt">
-                            <span className="text-ui-label-s font-bold text-text-secondary">
-                              {note.user_initial}
-                            </span>
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-8">
-                              <span className="text-body-s text-text-tertiary">
-                                {timeAgo(note.created_at)}
+                        <div
+                          key={note.id}
+                          className="rounded-radius-md bg-surface p-16"
+                        >
+                          <div className="flex items-center justify-between gap-8">
+                            <div
+                              className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-primary text-ui-label-s font-bold text-text-inverse"
+                              aria-hidden
+                            >
+                              {noteAuthorAvatarLetter(note.author_short_name)}
+                            </div>
+                            <div className="flex min-w-0 flex-1  gap-8">
+                              <span className="truncate text-ui-label-s font-bold text-text">
+                                {note.author_short_name}
                               </span>
+                              <span
+                                className="shrink-0 text-ui-label-s font-normal text-text-tertiary"
+                                aria-hidden
+                              >
+                                ·
+                              </span>
+                              <time
+                                className="shrink-0 text-ui-label-s font-normal text-text-tertiary"
+                                dateTime={note.created_at}
+                              >
+                                {timeAgo(note.created_at)}
+                              </time>
                             </div>
-                            <div className="mt-4 text-body-m text-text">
-                              &ldquo;{note.notes}&rdquo;
-                            </div>
+                          </div>
+                          <div className="mt-8 text-body-m text-text">
+                            {note.notes}
                           </div>
                         </div>
                       ))}
@@ -1126,6 +1281,7 @@ export function PlaceDetailMobile({
 
       <PlaceDetailCta
         className={!renderMap ? "pointer-events-auto" : ""}
+        userHasRated={userHasRated}
         rateHref={`/places/${placeId}/rate?name=${encodeURIComponent(place?.name ?? "")}`}
         onShare={async () => {
           const url = `${window.location.origin}/places/${placeId}`;

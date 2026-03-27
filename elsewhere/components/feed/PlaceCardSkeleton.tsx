@@ -61,7 +61,7 @@ export function PlaceCardSkeleton() {
       </div>
 
       {/* Footer row — px-16 py-16, justify-between (no top border on PlaceCard) */}
-      <div className="flex flex-wrap items-center justify-between gap-8 px-16 py-16">
+      <div className="flex flex-wrap items-center justify-between gap-8 px-16 pb-16">
         <div className="flex min-w-0 items-center gap-8">
           <span className="h-8 w-8 shrink-0 animate-pulse rounded-full bg-surface-alt" />
           <div className="flex flex-col gap-8">

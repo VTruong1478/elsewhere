@@ -36,22 +36,6 @@ type PlaceRow = {
   vibe_photo_attribution: unknown;
 };
 
-function toInitial(fullName: string | null | undefined): string {
-  const v = (fullName ?? "").trim();
-  if (!v) return "?";
-  return v.charAt(0).toUpperCase();
-}
-
-type RatingNoteRow = {
-  id: string;
-  notes: string | null;
-  created_at: string;
-  user_id: string;
-  profiles?: {
-    full_name: string | null;
-  } | null;
-};
-
 /** Current user's rating row returned only for the authenticated subject (backend-plan §6 GET /api/places/[id]). */
 type MyRatingRow = {
   id: string;
@@ -208,45 +192,44 @@ export async function GET(
       is_saved = !!row;
     }
 
-    // 4) Notes / tips: non-null notes for this place. Server uses raw `ratings` + profiles
-    // (service role) because `ratings_public` omits id/user_id needed for stable keys + initials.
-    // Response exposes initials only (no user_id).
+    // 4) Notes / tips: `place_notes_public` (author_short_name, created_at, non-hidden notes).
+    type PlaceNotePublicRow = {
+      rating_id: string;
+      notes: string;
+      created_at: string;
+      author_short_name: string;
+    };
+
     let notes: Array<{
       id: string;
       notes: string;
       created_at: string;
-      user_initial: string;
+      author_short_name: string;
     }> = [];
 
-    const extractNotes = (rows: unknown[]) => {
-      return rows
-        .filter(
-          (r): r is { notes: string | null } =>
-            typeof (r as { notes?: unknown }).notes === "string" &&
-            ((r as { notes?: string }).notes ?? "").trim().length > 0,
-        )
-        .slice(0, 30)
-        .map((r) => {
-          const row = r as RatingNoteRow;
-          return {
-            id: String(row.id),
-            notes: String(row.notes ?? ""),
-            created_at: new Date(row.created_at).toISOString(),
-            user_initial: toInitial(row.profiles?.full_name),
-          };
-        });
-    };
+    const { data: placeNotesRows, error: placeNotesError } =
+      await serviceClient
+        .from("place_notes_public")
+        .select("rating_id, notes, created_at, author_short_name")
+        .eq("place_id", placeId)
+        .order("created_at", { ascending: false })
+        .limit(30);
 
-    const { data: ratingsNotes } = await serviceClient
-      .from("ratings")
-      .select("id, notes, created_at, user_id, profiles(full_name)")
-      .eq("place_id", placeId)
-      .not("notes", "is", null)
-      .order("created_at", { ascending: false })
-      .limit(30);
-    const ratingsRows = Array.isArray(ratingsNotes) ? ratingsNotes : [];
+    if (placeNotesError) {
+      console.error(
+        "[GET /api/places/[id]] place_notes_public query",
+        placeNotesError,
+      );
+    }
 
-    notes = extractNotes(ratingsRows);
+    notes = Array.isArray(placeNotesRows)
+      ? (placeNotesRows as PlaceNotePublicRow[]).map((row) => ({
+          id: String(row.rating_id),
+          notes: String(row.notes ?? ""),
+          created_at: new Date(row.created_at).toISOString(),
+          author_short_name: String(row.author_short_name ?? ""),
+        }))
+      : [];
 
     return NextResponse.json({
       data: {

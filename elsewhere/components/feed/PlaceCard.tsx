@@ -293,7 +293,7 @@ export function PlaceCard({ place }: { place: FeedItem }) {
       )}
 
       {/* Footer row */}
-      <div className="flex flex-wrap items-center justify-between gap-8 px-16 py-16">
+      <div className="flex flex-wrap items-center justify-between gap-8 px-16 pb-16">
         <div className="flex items-center gap-8">
           {openStatus && (
             <StatusDot

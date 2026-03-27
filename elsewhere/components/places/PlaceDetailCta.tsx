@@ -1,12 +1,14 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Navigation, Share2 } from "lucide-react";
+import { Check, Navigation, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 
 export type PlaceDetailCtaProps = {
   rateHref: string;
-  /** Defaults to "Rate this Place" */
+  /** When true: surface bg + border (secondarySurface), "Rated" + check — same idea as PlaceCard's rated state. */
+  userHasRated?: boolean;
+  /** Defaults to "Rate this Place" (only when userHasRated is false) */
   rateLabel?: string;
   onShare: () => void | Promise<void>;
   onDirections: () => void;
@@ -20,6 +22,7 @@ export type PlaceDetailCtaProps = {
  */
 export function PlaceDetailCta({
   rateHref,
+  userHasRated = false,
   rateLabel = "Rate this Place",
   onShare,
   onDirections,
@@ -41,10 +44,17 @@ export function PlaceDetailCta({
       <div className="pointer-events-auto flex flex-col gap-8">
         <Button
           className="w-full shadow-map"
-          variant="primary"
+          variant={userHasRated ? "secondarySurface" : "primary"}
           onClick={() => router.push(rateHref)}
         >
-          {rateLabel}
+          {userHasRated ? (
+            <span className="flex items-center gap-8">
+              <Check size={18} aria-hidden />
+              <span>Rated</span>
+            </span>
+          ) : (
+            rateLabel
+          )}
         </Button>
 
         <div className="flex gap-8">

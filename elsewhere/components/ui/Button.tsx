@@ -40,7 +40,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
           inline-flex cursor-pointer items-center justify-center
           ${isIcon ? "" : "rounded-radius-md"}
           ${variantTone}
-          ${isIcon ? iconSizeLayout : `min-w-[44px] max-h-[36px] text-ui-label-l ${className} px-24 py-8`}
+          ${isIcon ? `${iconSizeLayout} ${className}` : `min-w-[44px] max-h-[36px] text-ui-label-l ${className} px-24 py-8`}
         `.trim()}
         {...props}
       >
