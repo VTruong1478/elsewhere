@@ -12,7 +12,7 @@ async function getProfileData() {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/login");
+    redirect("/auth");
   }
 
   const serviceClient = createServiceRoleClient();

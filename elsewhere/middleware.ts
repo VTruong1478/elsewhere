@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
-const PUBLIC_PATHS = ['/login', '/auth/callback', '/', '/feed', '/api'];
+const PUBLIC_PATHS = ['/auth', '/login', '/signup', '/auth/callback', '/', '/feed', '/api'];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some(
@@ -37,7 +37,7 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (!isPublicPath(request.nextUrl.pathname) && !user) {
-    const loginUrl = new URL('/login', request.url);
+    const loginUrl = new URL('/auth', request.url);
     return NextResponse.redirect(loginUrl);
   }
 

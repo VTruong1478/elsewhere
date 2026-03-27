@@ -59,7 +59,7 @@ function AuthIllustration() {
   );
 }
 
-export default function LoginPage() {
+export default function SignupPage() {
   const router = useRouter();
   const [email, setEmail] = useState(IS_DEV ? "test@example.com" : "");
   const [password, setPassword] = useState(IS_DEV ? "testpass123" : "");
@@ -114,7 +114,9 @@ export default function LoginPage() {
 
   const authPanelContent = (
     <>
-      <p className="text-ui-label-xl text-text-secondary">Welcome back!</p>
+      <p className="text-ui-label-xl text-text-secondary">
+        Create your account to unlock all features.
+      </p>
       <form onSubmit={handleEmailSignIn} className="flex flex-col gap-16">
         <Input
           variant="field"
@@ -141,7 +143,7 @@ export default function LoginPage() {
           disabled={isLoadingEmail}
           className="w-full text-ui-button disabled:opacity-50"
         >
-          {isLoadingEmail ? "Logging in..." : "Log in"}
+          {isLoadingEmail ? "Creating account..." : "Create account"}
         </Button>
       </form>
 
@@ -172,10 +174,10 @@ export default function LoginPage() {
 
       <button
         type="button"
-        onClick={() => router.push("/signup")}
+        onClick={() => router.push("/login")}
         className="mx-auto mt-auto pb-16 text-body-l text-primary underline-offset-2 hover:underline"
       >
-        Don't have an account? Sign up
+        Already have an account? Log in
       </button>
 
       {error && <p className="text-body-s text-status-low">{error}</p>}
