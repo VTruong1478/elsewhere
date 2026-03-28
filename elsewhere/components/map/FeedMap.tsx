@@ -64,12 +64,19 @@ export interface FeedMapProps {
   userLocationForDot?: { lat: number; lng: number };
   /** Prefetch place detail on desktop hover (e.g. before tap). */
   onPlaceMarkerHover?: (placeId: string) => void;
+  /**
+   * Horizontal position (0–1 from left of map) where the selected marker should sit.
+   * Default 0.5 (screen center). E.g. 0.75 centers the pin in the right half of the map.
+   */
+  selectedMarkerScreenXRatio?: number;
 }
 
 const PADDING_PX = 48;
 const MAX_ZOOM = 18;
 const MIN_ZOOM = 3;
 const SELECTED_MIN_ZOOM = 14;
+/** Slightly closer framing when offsetting the pin (e.g. desktop feed + side panel). */
+const SELECTED_FOCUS_ZOOM = 15;
 const USER_LOCATION_ZOOM = 14;
 
 const MAPBOX_STYLE = "mapbox://styles/vtruong1478/cmmgu21ou006c01rybm1m2nrt";
@@ -217,6 +224,7 @@ export function FeedMap({
   showUserLocationDot,
   userLocationForDot,
   onPlaceMarkerHover,
+  selectedMarkerScreenXRatio,
 }: FeedMapProps) {
   const token = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN?.trim() ?? "";
   const { hoveredPlaceId, setHoveredPlaceId } = usePlaceStore();
@@ -440,18 +448,35 @@ export function FeedMap({
     }
     const place = validPlaces.find((p) => samePlaceId(p.id, selectedPlaceId));
     if (!place) return;
-    const flyKey = `${selectedPlaceId}\u0000${place.lat}\u0000${place.lng}\u0000${centerVerticalOffsetPx}`;
+
+    const ratioRaw = selectedMarkerScreenXRatio ?? 0.5;
+    const ratio = Math.min(0.95, Math.max(0.05, ratioRaw));
+    const w = map.getContainer().clientWidth;
+    // Mapbox: offset is pixel delta from map center to where `center` should appear (x right, y down).
+    const offsetX = (ratio - 0.5) * w;
+    const offsetY = centerVerticalOffsetPx ? -centerVerticalOffsetPx / 2 : 0;
+    const widthBucket = Math.floor(w / 64);
+    const flyKey = `${selectedPlaceId}\u0000${place.lat}\u0000${place.lng}\u0000${centerVerticalOffsetPx}\u0000${ratio}\u0000${widthBucket}`;
     if (flyKey === lastFlyKeyRef.current) return;
     lastFlyKeyRef.current = flyKey;
 
     const currentZoom = map.getZoom();
+    const useFocusZoom = Math.abs(ratio - 0.5) > 0.01;
+    const minZ = useFocusZoom
+      ? Math.max(SELECTED_MIN_ZOOM, SELECTED_FOCUS_ZOOM)
+      : SELECTED_MIN_ZOOM;
     map.flyTo({
       center: [place.lng, place.lat],
-      zoom: currentZoom < SELECTED_MIN_ZOOM ? SELECTED_MIN_ZOOM : currentZoom,
-      offset: [0, centerVerticalOffsetPx ? -centerVerticalOffsetPx / 2 : 0],
+      zoom: currentZoom < minZ ? minZ : currentZoom,
+      offset: [offsetX, offsetY],
       duration: 600,
     });
-  }, [selectedPlaceId, validPlaces, centerVerticalOffsetPx]);
+  }, [
+    selectedPlaceId,
+    validPlaces,
+    centerVerticalOffsetPx,
+    selectedMarkerScreenXRatio,
+  ]);
 
   // -----------------------------------------------------------------------
   // 5a. Marker lifecycle (add / remove / position) — depends only on places + handlers

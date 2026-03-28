@@ -24,8 +24,11 @@ export async function fetchPlaceDetail(
   const payload = body.data;
   const resolvedPlaceId =
     payload?.place?.id != null ? String(payload.place.id).trim() : '';
-  if (!resolvedPlaceId) {
+  if (!resolvedPlaceId || payload == null) {
     throw new Error('Invalid response from server');
   }
-  return payload;
+  return {
+    ...payload,
+    notes: Array.isArray(payload.notes) ? payload.notes : [],
+  };
 }

@@ -5,7 +5,7 @@ import { BottomTabs } from "@/components/layout/BottomTabs";
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div
-      className="flex min-h-screen flex-col bg-background"
+      className="flex min-h-dvh flex-col bg-background"
       suppressHydrationWarning
     >
       <div className="hidden min-[1025px]:block">
@@ -15,7 +15,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <RouteTopNav />
       </div>
       <main
-        className="flex min-h-0 flex-1 flex-col pb-[calc(80px+env(safe-area-inset-bottom,0px))] md:flex-row md:max-h-[calc(100vh-88px)] lg:pb-0"
+        className="flex min-h-0 flex-1 flex-col md:flex-row md:max-h-[calc(100dvh-88px)]"
         suppressHydrationWarning
       >
         {children}

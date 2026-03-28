@@ -2,7 +2,7 @@
 
 import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { useCallback, useEffect, Suspense } from "react";
+import { useCallback, useEffect, useMemo, useState, Suspense } from "react";
 import { usePathname } from "next/navigation";
 import { SearchBar } from "@/components/feed/SearchBar";
 import { FilterChips } from "@/components/feed/FilterChips";
@@ -20,6 +20,7 @@ import {
   getFeedRequestCoords,
 } from "@/lib/feedLocationContext";
 import { useUserLocation } from "@/hooks/useUserLocation";
+import { samePlaceId } from "@/lib/placeId";
 
 function fetchFeed(params: {
   lat: number;
@@ -61,6 +62,18 @@ function FeedContent() {
   const locationState = useUserLocation();
   const { selectedPlaceId, setSelectedPlaceId } = usePlaceStore();
 
+  const [isLgDesktop, setIsLgDesktop] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia("(min-width: 1024px)").matches;
+  });
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const sync = () => setIsLgDesktop(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
   const feedRequest = getFeedRequestCoords(locationState);
 
   const query = useQuery({
@@ -91,6 +104,22 @@ function FeedContent() {
     { isSuccess: query.isSuccess, isLoading: query.isLoading },
     q,
     filter,
+  );
+
+  const selectedPlace = useMemo(() => {
+    if (!selectedPlaceId) return null;
+    return places.find((p) => samePlaceId(p.id, selectedPlaceId)) ?? null;
+  }, [places, selectedPlaceId]);
+
+  const desktopDetailCenter = useMemo(
+    () =>
+      selectedPlace
+        ? { lat: selectedPlace.lat, lng: selectedPlace.lng }
+        : {
+            lat: locationCtx.mapCenter.lat,
+            lng: locationCtx.mapCenter.lng,
+          },
+    [selectedPlace, locationCtx.mapCenter.lat, locationCtx.mapCenter.lng],
   );
 
   const onSelectPlace = useCallback(
@@ -174,18 +203,7 @@ function FeedContent() {
           )}
         </div>
       </div>
-      {selectedPlaceId ? (
-        <aside className="hidden min-h-0 lg:flex lg:col-span-4 lg:flex-col lg:min-h-0">
-          <DesktopPlaceDetailPanel />
-        </aside>
-      ) : null}
-      <div
-        className={
-          selectedPlaceId
-            ? "flex min-h-0 flex-col lg:col-span-4 lg:h-full lg:min-h-0"
-            : "flex min-h-0 flex-col lg:col-span-8 lg:h-full lg:min-h-0"
-        }
-      >
+      <div className="relative flex min-h-0 flex-col lg:col-span-8 lg:h-full lg:min-h-0">
         {isMapTabActive && (
           <div className="h-[280px] w-full shrink-0 md:hidden">
             <FeedMap
@@ -205,7 +223,26 @@ function FeedContent() {
           center={locationCtx.mapCenter}
           showUserLocationDot={locationCtx.showUserLocationDot}
           userLocationForDot={locationCtx.userLocationForDot ?? undefined}
+          selectedMarkerScreenXRatio={
+            isLgDesktop && selectedPlaceId ? 0.75 : undefined
+          }
         />
+        {selectedPlaceId ? (
+          <div className="pointer-events-none absolute inset-0 z-30 hidden lg:block">
+            <div className="absolute bottom-0 left-0 top-0 flex w-1/2 flex-col p-16">
+              <div className="pointer-events-auto flex h-0 min-h-0 flex-1 flex-col">
+                <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-radius-md shadow-map">
+                  <DesktopPlaceDetailPanel
+                    placeId={selectedPlaceId}
+                    initialCenter={desktopDetailCenter}
+                    previewFeedItem={selectedPlace}
+                    onDismiss={() => setSelectedPlaceId(null)}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );

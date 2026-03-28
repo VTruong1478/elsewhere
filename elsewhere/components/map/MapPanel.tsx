@@ -10,6 +10,8 @@ interface MapPanelProps {
   center?: { lat: number; lng: number };
   showUserLocationDot?: boolean;
   userLocationForDot?: { lat: number; lng: number };
+  /** See FeedMap `selectedMarkerScreenXRatio`. */
+  selectedMarkerScreenXRatio?: number;
 }
 
 /**
@@ -24,6 +26,7 @@ export function MapPanel({
   center,
   showUserLocationDot,
   userLocationForDot,
+  selectedMarkerScreenXRatio,
 }: MapPanelProps) {
   return (
     <div className="relative hidden min-h-0 w-full lg:block lg:h-full">
@@ -35,6 +38,7 @@ export function MapPanel({
           center={center}
           showUserLocationDot={showUserLocationDot}
           userLocationForDot={userLocationForDot}
+          selectedMarkerScreenXRatio={selectedMarkerScreenXRatio}
         />
       </div>
     </div>

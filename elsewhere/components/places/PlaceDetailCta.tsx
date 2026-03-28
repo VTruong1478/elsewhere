@@ -13,6 +13,11 @@ export type PlaceDetailCtaProps = {
   onShare: () => void | Promise<void>;
   onDirections: () => void;
   className?: string;
+  /**
+   * `viewport`: fixed full width above BottomTabs (mobile / full-screen detail).
+   * `panel`: static footer inside a flex column (e.g. desktop `DesktopPlaceDetailPanel`).
+   */
+  dock?: "viewport" | "panel";
 };
 
 /**
@@ -27,20 +32,17 @@ export function PlaceDetailCta({
   onShare,
   onDirections,
   className = "",
+  dock = "viewport",
 }: PlaceDetailCtaProps) {
   const router = useRouter();
 
+  const dockClass =
+    dock === "panel"
+      ? "pointer-events-none w-full shrink-0 bg-background px-16 pt-12 pb-16"
+      : "pointer-events-none fixed inset-x-0 z-[35] bottom-[calc(56px+env(safe-area-inset-bottom,0px))] px-16 pb-8";
+
   return (
-    <div
-      className={[
-        "pointer-events-none fixed left-0 right-0 z-[35]",
-        "bottom-[calc(56px+env(safe-area-inset-bottom,0px))]",
-        "px-16 pb-8",
-        className,
-      ]
-        .filter(Boolean)
-        .join(" ")}
-    >
+    <div className={[dockClass, className].filter(Boolean).join(" ")}>
       <div className="pointer-events-auto flex flex-col gap-8">
         <Button
           className="w-full shadow-map"
