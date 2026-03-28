@@ -13,7 +13,8 @@ interface MapPanelProps {
 }
 
 /**
- * Map panel for the desktop feed / saved layout (8fr column in `grid-cols-[5fr_8fr]`).
+ * Map panel for the desktop feed / saved layout (remaining columns in `grid-cols-12`
+ * after feed + optional place-detail column).
  * Hidden below `lg` so tablet matches mobile (feed-only); fills the right column on desktop.
  */
 export function MapPanel({

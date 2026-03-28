@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { normalizePlaceId } from "@/lib/placeId";
+import { userPhotoProxyUrl } from "@/lib/userPhotoProxyUrl";
 
 const BUCKET = "user-photos";
 
@@ -43,11 +44,7 @@ export async function GET(
 
   const urls = (files ?? [])
     .filter((f) => f.name && isUserPhotoFile(f.name))
-    .map((f) => {
-      const objectPath = `${placeId}/${f.name}`;
-      const { data } = supabase.storage.from(BUCKET).getPublicUrl(objectPath);
-      return data.publicUrl;
-    });
+    .map((f) => userPhotoProxyUrl(`${placeId}/${f.name}`));
 
   return NextResponse.json({ urls });
 }

@@ -16,7 +16,7 @@ import {
 import { Button } from "@/components/ui/Button";
 import { Pill } from "@/components/ui/Pill";
 import { TextArea } from "@/components/ui/TextArea";
-import { createClient } from "@/lib/supabase/client";
+import { userPhotoProxyUrl } from "@/lib/userPhotoProxyUrl";
 import { normalizePlaceId } from "@/lib/placeId";
 import { fetchPlaceDetail, placeDetailQueryKey } from "@/lib/placeDetailQuery";
 
@@ -139,8 +139,6 @@ export function RatingForm({
 }) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const supabase = useMemo(() => createClient(), []);
-
   const normalizedPlaceId = useMemo(() => normalizePlaceId(placeId), [placeId]);
   const { data: detail, isFetched: detailFetched } = useQuery({
     queryKey: placeDetailQueryKey(normalizedPlaceId ?? "__invalid__"),
@@ -170,13 +168,8 @@ export function RatingForm({
 
   const serverPhotoPublicUrl = useMemo(() => {
     if (!initialPhotoPathFromServer?.trim()) return null;
-    const p = initialPhotoPathFromServer.trim();
-    const objectPath = p.startsWith("user-photos/")
-      ? p.slice("user-photos/".length)
-      : p;
-    return supabase.storage.from("user-photos").getPublicUrl(objectPath).data
-      .publicUrl;
-  }, [supabase, initialPhotoPathFromServer]);
+    return userPhotoProxyUrl(initialPhotoPathFromServer);
+  }, [initialPhotoPathFromServer]);
 
   const displayPhotoUrl =
     photoFile && localPhotoBlobUrl

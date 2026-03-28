@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bookmark, Check } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -12,7 +12,7 @@ import { MatchRing } from "@/components/ui/MatchRing";
 import { MetricTile } from "@/components/ui/MetricTile";
 import { Pill } from "@/components/ui/Pill";
 import { StatusDot } from "@/components/ui/StatusDot";
-import { createClient } from "@/lib/supabase/client";
+import { userPhotoProxyUrl } from "@/lib/userPhotoProxyUrl";
 
 type StatusKind = "open" | "closing-soon" | "closed";
 
@@ -41,14 +41,11 @@ export function PlaceCard({ place }: { place: FeedItem }) {
   const { setSelectedPlaceId } = usePlaceStore();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const supabase = useMemo(() => createClient(), []);
 
-  const [isMobileOrTablet, setIsMobileOrTablet] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return window.matchMedia("(max-width: 1023px)").matches;
-  });
-  useEffect(() => {
-    if (typeof window === "undefined") return;
+  // Match server + first client paint (false), then sync viewport — avoids hydration mismatch
+  // from reading window in useState initializer (server false vs mobile client true).
+  const [isMobileOrTablet, setIsMobileOrTablet] = useState(false);
+  useLayoutEffect(() => {
     const mq = window.matchMedia("(max-width: 1023px)");
     const update = () => setIsMobileOrTablet(mq.matches);
     update();
@@ -179,12 +176,9 @@ export function PlaceCard({ place }: { place: FeedItem }) {
               const objectPath = vibePath.startsWith("user-photos/")
                 ? vibePath.slice("user-photos/".length)
                 : vibePath;
-              const { data } = supabase.storage
-                .from("user-photos")
-                .getPublicUrl(objectPath);
               return (
                 <img
-                  src={data.publicUrl}
+                  src={userPhotoProxyUrl(objectPath)}
                   alt=""
                   loading="lazy"
                   className="h-full w-full object-cover"

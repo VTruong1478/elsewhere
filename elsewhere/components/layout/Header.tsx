@@ -109,14 +109,13 @@ export function Header({
   if (/^\/places\/[^/]+\/rate(?:\/|$)/.test(pathname ?? "")) {
     return null;
   }
-  const route =
-    currentRoute ??
-    (pathname === "/saved" ? "saved" : "feed");
+  const route = currentRoute ?? (pathname === "/saved" ? "saved" : "feed");
 
   return (
     <header
-      className={`flex h-[88px] w-full shrink-0 items-center justify-between bg-header-bg px-24 py-24 z-40 ${className}`.trim()}
+      className={`flex h-[72px] w-full shrink-0 items-center justify-between bg-header-bg px-24 py-24 z-40 ${className}`.trim()}
       role="banner"
+      suppressHydrationWarning
     >
       <div className="flex items-center gap-24">
         <HeaderBrand />

@@ -12,6 +12,7 @@ import { FeedEmptyState } from "@/components/feed/EmptyState";
 import { LocationStatusMessageBody } from "@/components/feed/LocationStatusMessageBody";
 import { FeedMap } from "@/components/map/FeedMap";
 import { MapPanel } from "@/components/map/MapPanel";
+import { DesktopPlaceDetailPanel } from "@/components/feed/DesktopPlaceDetailPanel";
 import { usePlaceStore } from "@/store/usePlaceStore";
 import type { FeedItem } from "@/types/feed";
 import {
@@ -116,8 +117,8 @@ function FeedContent() {
     !filter;
 
   return (
-    <div className="flex min-h-0 w-full flex-1 flex-col lg:grid lg:grid-cols-[5fr_8fr] lg:overflow-hidden">
-      <div className="scrollbar-hide flex min-h-0 w-full flex-col overflow-y-auto lg:min-h-0">
+    <div className="flex min-h-0 w-full flex-1 flex-col lg:grid lg:grid-cols-12 lg:overflow-hidden">
+      <div className="scrollbar-hide flex min-h-0 w-full flex-col overflow-y-auto lg:col-span-4 lg:min-h-0">
         <div className="shrink-0">
           <div className="px-16 lg:pt-16">
             <SearchBar />
@@ -173,7 +174,18 @@ function FeedContent() {
           )}
         </div>
       </div>
-      <div className="flex min-h-0 flex-col lg:h-full lg:min-h-0">
+      {selectedPlaceId ? (
+        <aside className="hidden min-h-0 lg:flex lg:col-span-4 lg:flex-col lg:min-h-0">
+          <DesktopPlaceDetailPanel />
+        </aside>
+      ) : null}
+      <div
+        className={
+          selectedPlaceId
+            ? "flex min-h-0 flex-col lg:col-span-4 lg:h-full lg:min-h-0"
+            : "flex min-h-0 flex-col lg:col-span-8 lg:h-full lg:min-h-0"
+        }
+      >
         {isMapTabActive && (
           <div className="h-[280px] w-full shrink-0 md:hidden">
             <FeedMap
@@ -201,8 +213,8 @@ function FeedContent() {
 
 function FeedPageFallback() {
   return (
-    <div className="flex min-h-0 w-full flex-1 flex-col lg:grid lg:grid-cols-[5fr_8fr] lg:overflow-hidden">
-      <div className="flex min-h-0 w-full flex-col overflow-hidden lg:min-h-0 lg:overflow-y-auto">
+    <div className="flex min-h-0 w-full flex-1 flex-col lg:grid lg:grid-cols-12 lg:overflow-hidden">
+      <div className="flex min-h-0 w-full flex-col overflow-hidden lg:col-span-4 lg:min-h-0 lg:overflow-y-auto">
         <div className="shrink-0 space-y-4 p-4">
           <div className="h-12 rounded-radius-sm bg-surface-alt animate-pulse" />
           <div className="flex gap-2">
@@ -220,7 +232,7 @@ function FeedPageFallback() {
           ))}
         </div>
       </div>
-      <div className="hidden min-h-0 lg:block lg:h-full bg-surface-alt animate-pulse" />
+      <div className="hidden min-h-0 lg:col-span-8 lg:block lg:h-full bg-surface-alt animate-pulse" />
     </div>
   );
 }

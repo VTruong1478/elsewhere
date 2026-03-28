@@ -26,9 +26,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className={`${lora.variable} ${dmSans.variable} font-dm-sans antialiased`}>
-        <QueryClientProvider>{children}</QueryClientProvider>
+    <html lang="en" suppressHydrationWarning>
+      <body
+        className={`${lora.variable} ${dmSans.variable} font-dm-sans antialiased`}
+        suppressHydrationWarning
+      >
+        {/* Extra boundary: Chrome mobile injects __gchrome_* on nested nodes, not only body */}
+        <div suppressHydrationWarning className="min-h-0">
+          <QueryClientProvider>{children}</QueryClientProvider>
+        </div>
       </body>
     </html>
   );

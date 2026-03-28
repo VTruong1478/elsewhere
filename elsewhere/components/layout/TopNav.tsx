@@ -9,7 +9,10 @@ export function TopNav() {
   const isProfile = pathname === "/profile";
 
   return (
-    <header className="z-40 flex h-[72px] w-full shrink-0 items-center justify-between bg-background px-16">
+    <header
+      className="z-40 flex h-[72px] w-full shrink-0 items-center justify-between bg-background px-16"
+      suppressHydrationWarning
+    >
       <Link href="/feed" className="font-lora text-heading-l text-text">
         elsewhere
       </Link>

@@ -19,6 +19,7 @@ export function BottomTabs() {
     <nav
       className="fixed bottom-0 left-0 right-0 flex min-h-[56px] items-center justify-around border-t border-surface-alt bg-surface z-40 lg:hidden"
       role="tablist"
+      suppressHydrationWarning
     >
       {tabs.map(({ href, label, icon: Icon }) => {
         // When the place detail bottom sheet is open (places/[id]), keep the
