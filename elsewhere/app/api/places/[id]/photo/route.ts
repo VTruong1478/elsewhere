@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { isValidGooglePlacesPhotoRef } from "@/lib/googlePlacePhoto";
 
 /**
  * GET /api/places/[id]/photo
- * Uses the stored `places.google_photo_ref` and redirects to the existing
- * Google photo proxy route `/api/place-photo?ref=...`.
+ * Resolves the stored Google photo ref for an active place and redirects to
+ * `/api/place-photo`. Anonymous users may load images for public feed cards;
+ * inactive places return 404.
  */
 export async function GET(
   request: NextRequest,
@@ -15,12 +17,16 @@ export async function GET(
 
   const { data: place } = await serviceClient
     .from("places")
-    .select("google_photo_ref")
+    .select("google_photo_ref, is_active")
     .eq("id", placeId)
     .maybeSingle();
 
-  const ref = place?.google_photo_ref?.trim();
-  if (!ref) {
+  if (!place?.is_active) {
+    return NextResponse.json({ error: "Photo unavailable" }, { status: 404 });
+  }
+
+  const ref = place.google_photo_ref?.trim();
+  if (!ref || !isValidGooglePlacesPhotoRef(ref)) {
     return NextResponse.json(
       { error: "Photo unavailable" },
       { status: 404 },
@@ -33,4 +39,3 @@ export async function GET(
   );
   return NextResponse.redirect(redirectUrl);
 }
-

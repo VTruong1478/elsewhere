@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { isValidGooglePlacesPhotoRef } from "@/lib/googlePlacePhoto";
+import { userPhotoProxyUrl } from "@/lib/userPhotoProxyUrl";
 import { PhotoAttribution } from "@/components/ui/PhotoAttribution";
 import type { PhotoAttributionPayload } from "@/components/ui/PhotoAttribution";
 import { PlaceDetailPageMobile } from "@/components/places/PlaceDetailPageMobile";
@@ -23,11 +25,12 @@ export default async function PlaceDetailPage({ params }: PageProps) {
 
   const placeRow = !error && place ? place : null;
 
-  const photoRef =
-    placeRow
-      ? ((placeRow.vibe_photo_ref as string | null)?.trim() ||
-          (placeRow.google_photo_ref as string | null)?.trim())
-      : null;
+  const vibeRef = placeRow
+    ? ((placeRow.vibe_photo_ref as string | null)?.trim() ?? null)
+    : null;
+  const googleRef = placeRow
+    ? ((placeRow.google_photo_ref as string | null)?.trim() ?? null)
+    : null;
   const attribution =
     placeRow
       ? ((placeRow.vibe_photo_attribution as PhotoAttributionPayload) ?? null)
@@ -54,13 +57,31 @@ export default async function PlaceDetailPage({ params }: PageProps) {
           <p className="text-body-m text-text-secondary mt-1">
             {(placeRow?.address as string) ?? ""}
           </p>
-          {photoRef && (
+          {(vibeRef || googleRef) && (
             <div className="mt-6">
-              <img
-                src={`/api/place-photo?ref=${encodeURIComponent(photoRef)}`}
-                alt=""
-                className="w-full rounded-radius-md object-cover"
-              />
+              {vibeRef && isValidGooglePlacesPhotoRef(vibeRef) ? (
+                <img
+                  src={`/api/place-photo?ref=${encodeURIComponent(vibeRef)}`}
+                  alt=""
+                  className="w-full rounded-radius-md object-cover"
+                />
+              ) : vibeRef ? (
+                <img
+                  src={userPhotoProxyUrl(
+                    vibeRef.startsWith("user-photos/")
+                      ? vibeRef.slice("user-photos/".length)
+                      : vibeRef,
+                  )}
+                  alt=""
+                  className="w-full rounded-radius-md object-cover"
+                />
+              ) : googleRef ? (
+                <img
+                  src={`/api/places/${id}/photo`}
+                  alt=""
+                  className="w-full rounded-radius-md object-cover"
+                />
+              ) : null}
               <PhotoAttribution
                 attribution={attribution}
                 className="mt-2"

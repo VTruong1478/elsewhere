@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Lora, DM_Sans } from 'next/font/google';
 import './globals.css';
 import { QueryClientProvider } from '@/components/providers/QueryClientProvider';
@@ -16,8 +16,16 @@ const dmSans = DM_Sans({
 });
 
 export const metadata: Metadata = {
-  title: 'elsewhere',
-  description: 'go work elsewhere',
+  title: 'Elsewhere',
+  description:
+    'Discover third spaces—cafes, libraries, and bookstores—tailored for focused work near you.',
+  applicationName: 'Elsewhere',
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  themeColor: '#EFEBE0',
 };
 
 export default function RootLayout({

@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 
 const BUCKET = "user-photos";
+/** Max object size to stream from storage (abuse / memory cap). */
+const MAX_USER_PHOTO_BYTES = 6 * 1024 * 1024;
 
 /**
  * Proxies user-photos bucket objects through the Next dev server so img src stays
@@ -44,6 +46,10 @@ export async function GET(
   }
 
   const blob = data as Blob;
+  if (blob.size > MAX_USER_PHOTO_BYTES) {
+    return NextResponse.json({ error: "File too large" }, { status: 413 });
+  }
+
   const contentType =
     blob.type && blob.type !== "application/octet-stream"
       ? blob.type

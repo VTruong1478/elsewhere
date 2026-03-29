@@ -1,11 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
 
 /**
  * GET /api/place-photos?placeId=...
  * Fetches up to 10 photos for a Google Place via Places API (New) Place Details.
  * placeId must be the Google place ID (e.g. ChIJ...), not our internal UUID.
+ * Requires a signed-in user (protects your Google API quota).
  */
 export async function GET(request: NextRequest) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const placeId = request.nextUrl.searchParams.get("placeId");
   if (!placeId || typeof placeId !== "string") {
     return NextResponse.json(

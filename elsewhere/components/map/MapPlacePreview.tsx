@@ -5,6 +5,8 @@ import Link from "next/link";
 import { Bookmark, Check } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { FeedItem } from "@/types/feed";
+import { isValidGooglePlacesPhotoRef } from "@/lib/googlePlacePhoto";
+import { userPhotoProxyUrl } from "@/lib/userPhotoProxyUrl";
 import { Button } from "@/components/ui/Button";
 import { MatchRing } from "@/components/ui/MatchRing";
 import { StatusDot } from "@/components/ui/StatusDot";
@@ -108,11 +110,32 @@ export function MapPlacePreview({ place }: { place: FeedItem }) {
           />
         ) : (
           (() => {
-            const ref =
-              place.vibe_photo_ref?.trim() ?? place.google_photo_ref?.trim();
-            return ref ? (
+            const vibePath = place.vibe_photo_ref?.trim();
+            if (vibePath) {
+              if (isValidGooglePlacesPhotoRef(vibePath)) {
+                return (
+                  <img
+                    src={`/api/place-photo?ref=${encodeURIComponent(vibePath)}`}
+                    alt=""
+                    className="h-full w-full object-cover"
+                  />
+                );
+              }
+              const objectPath = vibePath.startsWith("user-photos/")
+                ? vibePath.slice("user-photos/".length)
+                : vibePath;
+              return (
+                <img
+                  src={userPhotoProxyUrl(objectPath)}
+                  alt=""
+                  className="h-full w-full object-cover"
+                />
+              );
+            }
+            const googleRef = place.google_photo_ref?.trim();
+            return googleRef ? (
               <img
-                src={`/api/place-photo?ref=${encodeURIComponent(ref)}`}
+                src={`/api/places/${place.id}/photo`}
                 alt=""
                 className="h-full w-full object-cover"
               />

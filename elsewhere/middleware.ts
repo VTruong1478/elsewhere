@@ -4,6 +4,16 @@ import { NextResponse, type NextRequest } from 'next/server';
 const PUBLIC_PATHS = ['/auth', '/login', '/signup', '/auth/callback', '/', '/feed', '/api'];
 
 function isPublicPath(pathname: string): boolean {
+  // Place detail is public so logged-out users can open a spot from the feed.
+  // Submitting a new place or rating stays protected.
+  if (
+    pathname.startsWith("/places/") &&
+    !pathname.startsWith("/places/new") &&
+    !pathname.includes("/rate")
+  ) {
+    return true;
+  }
+
   return PUBLIC_PATHS.some(
     (path) => pathname === path || pathname.startsWith(`${path}/`),
   );
@@ -37,7 +47,7 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (!isPublicPath(request.nextUrl.pathname) && !user) {
-    const loginUrl = new URL('/auth', request.url);
+    const loginUrl = new URL('/login', request.url);
     return NextResponse.redirect(loginUrl);
   }
 
