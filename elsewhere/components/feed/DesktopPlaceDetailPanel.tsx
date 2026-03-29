@@ -1,3 +1,5 @@
+// DesktopPlaceDetailPanel.tsx
+
 "use client";
 
 import type { PointerEvent as ReactPointerEvent } from "react";
@@ -918,7 +920,11 @@ export function DesktopPlaceDetailPanel({
                             disabled={photoViewerIndex <= 0}
                             onClick={() => goPhotoViewerStep(-1)}
                           >
-                            <ChevronLeft size={24} strokeWidth={2} aria-hidden />
+                            <ChevronLeft
+                              size={24}
+                              strokeWidth={2}
+                              aria-hidden
+                            />
                           </Button>
                         </div>
                       ) : (
@@ -970,7 +976,11 @@ export function DesktopPlaceDetailPanel({
                             disabled={photoViewerIndex >= photoUrls.length - 1}
                             onClick={() => goPhotoViewerStep(1)}
                           >
-                            <ChevronRight size={24} strokeWidth={2} aria-hidden />
+                            <ChevronRight
+                              size={24}
+                              strokeWidth={2}
+                              aria-hidden
+                            />
                           </Button>
                         </div>
                       ) : (
