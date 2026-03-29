@@ -9,7 +9,12 @@
     "lint": "eslint",
     "seed-places": "ts-node scripts/seed-places.ts",
     "backfill:google": "ts-node scripts/backfill-google-place-and-photo.ts",
-    "fix:decatur": "ts-node scripts/fix-decatur-library.ts"
+    "fix:decatur": "ts-node scripts/fix-decatur-library.ts",
+    "vercel:login": "vercel login",
+    "vercel:link": "vercel link",
+    "vercel:env:pull": "vercel env pull .env.local",
+    "deploy:preview": "vercel",
+    "deploy:prod": "vercel --prod"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",
@@ -32,6 +37,7 @@
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.15",
     "ts-node": "^10.9.2",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vercel": "^50.37.3"
   }
 }
