@@ -71,11 +71,6 @@ export default function LoginPage() {
     e.preventDefault();
     setError(null);
 
-    if (!IS_DEV) {
-      setError("Email and password login is only available in development.");
-      return;
-    }
-
     setIsLoadingEmail(true);
     const supabase = createClient();
     const { error: signInError } = await supabase.auth.signInWithPassword({

@@ -67,25 +67,20 @@ export default function SignupPage() {
   const [isLoadingGoogle, setIsLoadingGoogle] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleEmailSignIn(e: React.FormEvent) {
+  async function handleEmailSignUp(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
 
-    if (!IS_DEV) {
-      setError("Email and password login is only available in development.");
-      return;
-    }
-
     setIsLoadingEmail(true);
     const supabase = createClient();
-    const { error: signInError } = await supabase.auth.signInWithPassword({
+    const { error: signUpError } = await supabase.auth.signUp({
       email,
       password,
     });
     setIsLoadingEmail(false);
 
-    if (signInError) {
-      setError(signInError.message);
+    if (signUpError) {
+      setError(signUpError.message);
       return;
     }
 
@@ -117,7 +112,7 @@ export default function SignupPage() {
       <p className="text-ui-label-xl text-text-secondary">
         Create your account to unlock all features.
       </p>
-      <form onSubmit={handleEmailSignIn} className="flex flex-col gap-16">
+      <form onSubmit={handleEmailSignUp} className="flex flex-col gap-16">
         <Input
           variant="field"
           id="email"
