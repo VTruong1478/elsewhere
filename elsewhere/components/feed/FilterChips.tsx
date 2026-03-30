@@ -4,6 +4,10 @@ import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { FEED_FILTER_OPTIONS, type FeedFilter } from "@/types/feed";
 import { Pill } from "@/components/ui/Pill";
+import {
+  captureFiltersApplied,
+  type AnalyticsSource,
+} from "@/lib/analytics";
 
 export function FilterChips() {
   const router = useRouter();
@@ -37,8 +41,13 @@ export function FilterChips() {
   }, []);
 
   const basePath = pathname?.startsWith("/map") ? "/map" : "/feed";
+  const filterSource: AnalyticsSource = basePath === "/map" ? "map" : "feed";
 
   function selectFilter(value: FeedFilter) {
+    captureFiltersApplied({
+      source: filterSource,
+      filter: value || "all",
+    });
     const next = new URLSearchParams(searchParams.toString());
     if (value) {
       next.set("filter", value);

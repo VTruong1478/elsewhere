@@ -11,6 +11,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bookmark, ChevronLeft, ChevronRight, X } from "lucide-react";
@@ -23,6 +24,14 @@ import { PlaceDetailCta } from "@/components/places/PlaceDetailCta";
 import { deriveOpeningState, hasOpenLate } from "@/lib/opening-hours";
 import { normalizePlaceId } from "@/lib/placeId";
 import { fetchPlaceDetail, placeDetailQueryKey } from "@/lib/placeDetailQuery";
+import {
+  analyticsSourceFromPathname,
+  captureEvent,
+  detailPlaceHasPhotos,
+  feedItemHasPhotos,
+} from "@/lib/analytics";
+import { ensureAuthForGatedAction } from "@/lib/authGate";
+import { tryCaptureGatedActionCompleted } from "@/lib/gatedAction";
 
 type OpeningHoursType = Parameters<typeof deriveOpeningState>[0];
 
@@ -195,6 +204,8 @@ export function DesktopPlaceDetailPanel({
   onDismiss,
   previewFeedItem = null,
 }: DesktopPlaceDetailPanelProps) {
+  const router = useRouter();
+  const pathname = usePathname();
   const normalizedId = useMemo(() => normalizePlaceId(placeId), [placeId]);
   const previewMatches = useMemo(
     () =>
@@ -536,6 +547,25 @@ export function DesktopPlaceDetailPanel({
         },
       );
     },
+    onSuccess: () => {
+      if (!normalizedId) return;
+      tryCaptureGatedActionCompleted({
+        action_type: "save_place",
+        place_id: normalizedId,
+      });
+      captureEvent("place_saved", {
+        source: "feed",
+        place_id: normalizedId,
+        place_name:
+          previewFeedItem?.name ?? detail?.place?.name ?? "",
+        place_type:
+          previewFeedItem?.place_type ?? detail?.place?.place_type ?? "",
+        has_photos:
+          previewMatches && previewFeedItem
+            ? feedItemHasPhotos(previewFeedItem)
+            : detailPlaceHasPhotos(detail?.place ?? null),
+      });
+    },
     onError: () => {
       setIsSaved(false);
     },
@@ -720,11 +750,28 @@ export function DesktopPlaceDetailPanel({
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (isSaved) {
-                        unsaveMutation.mutate();
-                      } else {
+                      void (async () => {
+                        if (isSaved) {
+                          unsaveMutation.mutate();
+                          return;
+                        }
+                        const returnPath =
+                          typeof window !== "undefined"
+                            ? `${window.location.pathname}${window.location.search}`
+                            : "/feed";
+                        if (
+                          !(await ensureAuthForGatedAction(router.push, {
+                            action_type: "save_place",
+                            source: analyticsSourceFromPathname(pathname),
+                            place_id: normalizedId!,
+                            place_name: place.name,
+                            returnPath,
+                          }))
+                        ) {
+                          return;
+                        }
                         saveMutation.mutate();
-                      }
+                      })();
                     }}
                     className="shrink-0"
                     disabled={
@@ -878,6 +925,15 @@ export function DesktopPlaceDetailPanel({
           className="pointer-events-auto"
           userHasRated={userHasRated}
           rateHref={`/places/${placeId}/rate?name=${encodeURIComponent(place?.name ?? "")}`}
+          rateGate={
+            normalizedId
+              ? {
+                  place_id: normalizedId,
+                  place_name: place?.name ?? "",
+                  source: analyticsSourceFromPathname(pathname),
+                }
+              : undefined
+          }
           onShare={async () => {
             const url = `${window.location.origin}/places/${placeId}`;
             if (navigator.share) {

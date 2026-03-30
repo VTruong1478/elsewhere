@@ -3,6 +3,7 @@
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { usePathname, useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bookmark, X } from "lucide-react";
 import type { FeedItem } from "@/types/feed";
@@ -16,6 +17,14 @@ import { deriveOpeningState, hasOpenLate } from "@/lib/opening-hours";
 import { normalizePlaceId } from "@/lib/placeId";
 import { fetchPlaceDetail, placeDetailQueryKey } from "@/lib/placeDetailQuery";
 import { usePlaceStore } from "@/store/usePlaceStore";
+import {
+  analyticsSourceFromPathname,
+  captureEvent,
+  detailPlaceHasPhotos,
+  feedItemHasPhotos,
+} from "@/lib/analytics";
+import { ensureAuthForGatedAction } from "@/lib/authGate";
+import { tryCaptureGatedActionCompleted } from "@/lib/gatedAction";
 
 type OpeningHoursType = Parameters<typeof deriveOpeningState>[0];
 
@@ -190,6 +199,8 @@ export function PlaceDetailMobile({
   previewFeedItem = null,
 }: PlaceDetailMobileProps) {
   const DETAIL_MAP_ZOOM = 15;
+  const pathname = usePathname();
+  const router = useRouter();
   const { setSelectedPlaceId, setHoveredPlaceId } = usePlaceStore();
 
   // Only clear global selection when leaving the full-screen place detail flow
@@ -810,6 +821,25 @@ export function PlaceDetailMobile({
         },
       );
     },
+    onSuccess: () => {
+      if (!normalizedId) return;
+      tryCaptureGatedActionCompleted({
+        action_type: "save_place",
+        place_id: normalizedId,
+      });
+      captureEvent("place_saved", {
+        source: analyticsSourceFromPathname(pathname),
+        place_id: normalizedId,
+        place_name:
+          previewFeedItem?.name ?? detail?.place?.name ?? "",
+        place_type:
+          previewFeedItem?.place_type ?? detail?.place?.place_type ?? "",
+        has_photos:
+          previewMatches && previewFeedItem
+            ? feedItemHasPhotos(previewFeedItem)
+            : detailPlaceHasPhotos(detail?.place ?? null),
+      });
+    },
     onError: () => {
       setIsSaved(false);
     },
@@ -1094,11 +1124,28 @@ export function PlaceDetailMobile({
                       data-sheet-drag-ignore
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (isSaved) {
-                          unsaveMutation.mutate();
-                        } else {
+                        void (async () => {
+                          if (isSaved) {
+                            unsaveMutation.mutate();
+                            return;
+                          }
+                          const returnPath =
+                            typeof window !== "undefined"
+                              ? `${window.location.pathname}${window.location.search}`
+                              : "/feed";
+                          if (
+                            !(await ensureAuthForGatedAction(router.push, {
+                              action_type: "save_place",
+                              source: analyticsSourceFromPathname(pathname),
+                              place_id: normalizedId!,
+                              place_name: place.name,
+                              returnPath,
+                            }))
+                          ) {
+                            return;
+                          }
                           saveMutation.mutate();
-                        }
+                        })();
                       }}
                       className="shrink-0"
                       disabled={
@@ -1291,6 +1338,15 @@ export function PlaceDetailMobile({
         className={!renderMap ? "pointer-events-auto" : ""}
         userHasRated={userHasRated}
         rateHref={`/places/${placeId}/rate?name=${encodeURIComponent(place?.name ?? "")}`}
+        rateGate={
+          normalizedId
+            ? {
+                place_id: normalizedId,
+                place_name: place?.name ?? "",
+                source: analyticsSourceFromPathname(pathname),
+              }
+            : undefined
+        }
         onShare={async () => {
           const url = `${window.location.origin}/places/${placeId}`;
           if (navigator.share) {

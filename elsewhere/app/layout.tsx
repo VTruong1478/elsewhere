@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Lora, DM_Sans } from "next/font/google";
 import "./globals.css";
+import { Providers } from "./providers";
 import { QueryClientProvider } from "@/components/providers/QueryClientProvider";
 
 const lora = Lora({
@@ -39,9 +40,11 @@ export default function RootLayout({
         suppressHydrationWarning
       >
         {/* Extra boundary: Chrome mobile injects __gchrome_* on nested nodes, not only body */}
-        <div suppressHydrationWarning className="min-h-0">
-          <QueryClientProvider>{children}</QueryClientProvider>
-        </div>
+        <Providers>
+          <div suppressHydrationWarning className="min-h-0">
+            <QueryClientProvider>{children}</QueryClientProvider>
+          </div>
+        </Providers>
       </body>
     </html>
   );

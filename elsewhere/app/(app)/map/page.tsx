@@ -29,6 +29,7 @@ import {
 import { fetchPlaceDetail, placeDetailQueryKey } from "@/lib/placeDetailQuery";
 import { normalizePlaceId, samePlaceId } from "@/lib/placeId";
 import { useUserLocation } from "@/hooks/useUserLocation";
+import { captureFeedLoaded } from "@/lib/analytics";
 
 const MAP_SEARCH_DEBOUNCE_MS = 300;
 
@@ -217,6 +218,22 @@ function MapContent() {
   const selectedPlace = selectedPlaceId
     ? places.find((p) => samePlaceId(p.id, selectedPlaceId))
     : null;
+
+  useEffect(() => {
+    if (!query.isSuccess || !feedRequest.feedQueryEnabled) return;
+    captureFeedLoaded({
+      source: "map",
+      result_count: places.length,
+      has_query: Boolean(debouncedMapQ.trim()),
+      filter: filter || "all",
+    });
+  }, [
+    query.isSuccess,
+    feedRequest.feedQueryEnabled,
+    places.length,
+    debouncedMapQ,
+    filter,
+  ]);
 
   useEffect(() => {
     if (mapSearchPending) {

@@ -19,6 +19,8 @@ import { TextArea } from "@/components/ui/TextArea";
 import { userPhotoProxyUrl } from "@/lib/userPhotoProxyUrl";
 import { normalizePlaceId } from "@/lib/placeId";
 import { fetchPlaceDetail, placeDetailQueryKey } from "@/lib/placeDetailQuery";
+import { captureEvent } from "@/lib/analytics";
+import { tryCaptureGatedActionCompleted } from "@/lib/gatedAction";
 
 const NOISE_OPTIONS = ["silent", "quiet", "vibrant"] as const;
 const VIBE_OPTIONS = ["focused", "casual", "social"] as const;
@@ -140,6 +142,7 @@ export function RatingForm({
   const router = useRouter();
   const queryClient = useQueryClient();
   const normalizedPlaceId = useMemo(() => normalizePlaceId(placeId), [placeId]);
+  const ratingStartedSentRef = useRef(false);
   const { data: detail, isFetched: detailFetched } = useQuery({
     queryKey: placeDetailQueryKey(normalizedPlaceId ?? "__invalid__"),
     queryFn: () => fetchPlaceDetail(normalizedPlaceId!),
@@ -208,6 +211,23 @@ export function RatingForm({
 
   const isEditMode = Boolean(detailFetched && detail?.my_rating);
 
+  function ratingHasPhotosNow(): boolean {
+    if (photoFile) return true;
+    if (initialPhotoPathFromServer && !photoRemovedByUser) return true;
+    return false;
+  }
+
+  function ensureRatingStarted() {
+    if (ratingStartedSentRef.current) return;
+    ratingStartedSentRef.current = true;
+    captureEvent("rating_started", {
+      place_id: normalizedPlaceId ?? placeId,
+      place_name: _placeName,
+      place_type: detail?.place?.place_type,
+      has_photos: ratingHasPhotosNow(),
+    });
+  }
+
   const mutation = useMutation({
     mutationFn: async ({
       payload,
@@ -239,9 +259,33 @@ export function RatingForm({
         if (!patchRes.ok) {
           throw new Error("Failed to save photo to rating");
         }
+        captureEvent("photo_uploaded", {
+          place_id: placeId,
+          place_name: _placeName,
+          place_type: detail?.place?.place_type,
+          has_photos: true,
+        });
+        tryCaptureGatedActionCompleted({
+          action_type: "upload_photo",
+          place_id: normalizedPlaceId ?? placeId,
+        });
       }
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
+      const hadPhoto =
+        variables.photo != null ||
+        (variables.payload.photo_path != null &&
+          String(variables.payload.photo_path).trim() !== "");
+      captureEvent("rating_submitted", {
+        place_id: normalizedPlaceId ?? placeId,
+        place_name: _placeName,
+        place_type: detail?.place?.place_type,
+        has_photos: hadPhoto,
+      });
+      tryCaptureGatedActionCompleted({
+        action_type: "rate_place",
+        place_id: normalizedPlaceId ?? placeId,
+      });
       queryClient.invalidateQueries({ queryKey: ["feed"] });
       queryClient.invalidateQueries({ queryKey: ["saved-places"] });
       if (normalizedPlaceId) {
@@ -273,6 +317,7 @@ export function RatingForm({
       if (file.size > 5 * 1024 * 1024) {
         return;
       }
+      ensureRatingStarted();
       setPhotoRemovedByUser(false);
       setPhotoFile(file);
       setLocalPhotoBlobUrl(URL.createObjectURL(file));
@@ -324,6 +369,7 @@ export function RatingForm({
     options,
     value,
     onChange,
+    onFirstInteraction,
   }: {
     label: string;
     required?: boolean;
@@ -331,6 +377,7 @@ export function RatingForm({
     options: readonly T[];
     value: T | null;
     onChange: (v: T) => void;
+    onFirstInteraction?: () => void;
   }) {
     return (
       <section className="space-y-8">
@@ -351,7 +398,10 @@ export function RatingForm({
                 <button
                   key={opt}
                   type="button"
-                  onClick={() => onChange(opt)}
+                  onClick={() => {
+                    onFirstInteraction?.();
+                    onChange(opt);
+                  }}
                   className="relative rounded-radius-md focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                 >
                   <Pill
@@ -430,6 +480,7 @@ export function RatingForm({
         options: NOISE_OPTIONS,
         value: noise,
         onChange: setNoise,
+        onFirstInteraction: ensureRatingStarted,
       })}
 
       {renderOptionRow<VibeValue>({
@@ -439,6 +490,7 @@ export function RatingForm({
         options: VIBE_OPTIONS,
         value: vibe,
         onChange: setVibe,
+        onFirstInteraction: ensureRatingStarted,
       })}
 
       {renderOptionRow<TablesValue>({
@@ -448,6 +500,7 @@ export function RatingForm({
         options: TABLES_OPTIONS,
         value: tables,
         onChange: setTables,
+        onFirstInteraction: ensureRatingStarted,
       })}
 
       {renderOptionRow<OutletsValue>({
@@ -457,6 +510,7 @@ export function RatingForm({
         options: OUTLETS_OPTIONS,
         value: outlets,
         onChange: setOutlets,
+        onFirstInteraction: ensureRatingStarted,
       })}
 
       {/* Overall rating — 5 stars with half-star support (hover/drag to select) */}
@@ -482,6 +536,7 @@ export function RatingForm({
             updateRatingFromPosition(e.clientX, rect, setOverallRating);
           }}
           onPointerDown={(e) => {
+            ensureRatingStarted();
             e.currentTarget.setPointerCapture(e.pointerId);
             const rect = e.currentTarget.getBoundingClientRect();
             updateRatingFromPosition(e.clientX, rect, setOverallRating);

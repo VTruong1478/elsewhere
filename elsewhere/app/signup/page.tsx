@@ -1,13 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { MapPin } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { captureEvent } from "@/lib/analytics";
+import {
+  gatedActionTypeFromPath,
+  peekPendingGatedAction,
+  setOAuthAuthIntent,
+} from "@/lib/gatedAction";
+import { safeInternalPath } from "@/lib/safeNextPath";
 
 const IS_DEV = process.env.NODE_ENV === "development";
 
@@ -60,17 +67,37 @@ function AuthIllustration() {
   );
 }
 
-export default function SignupPage() {
+function SignupPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextSafe = safeInternalPath(searchParams.get("next"));
+  const gateShownForNextRef = useRef<string | null>(null);
+
   const [email, setEmail] = useState(IS_DEV ? "test@example.com" : "");
   const [password, setPassword] = useState(IS_DEV ? "testpass123" : "");
   const [isLoadingEmail, setIsLoadingEmail] = useState(false);
   const [isLoadingGoogle, setIsLoadingGoogle] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (!nextSafe) return;
+    if (peekPendingGatedAction()) return;
+    if (gateShownForNextRef.current === nextSafe) return;
+    gateShownForNextRef.current = nextSafe;
+    captureEvent("auth_gate_shown", {
+      action_type: gatedActionTypeFromPath(nextSafe),
+    });
+  }, [nextSafe]);
+
+  function loginHref() {
+    if (!nextSafe) return "/login";
+    return `/login?next=${encodeURIComponent(nextSafe)}`;
+  }
+
   async function handleEmailSignUp(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    captureEvent("sign_up_started", { method: "email" });
 
     setIsLoadingEmail(true);
     const supabase = createClient();
@@ -87,16 +114,22 @@ export default function SignupPage() {
 
     localStorage.setItem("hasVisited", "true");
     localStorage.removeItem("justLoggedOut");
-    router.push("/feed");
+    captureEvent("sign_up_completed", { method: "email" });
+    router.push(nextSafe ?? "/feed");
   }
 
   async function handleGoogleSignIn() {
     setError(null);
+    captureEvent("sign_up_started", { method: "oauth_google" });
+    setOAuthAuthIntent("signup");
     setIsLoadingGoogle(true);
     const supabase = createClient();
+    const redirectTo = nextSafe
+      ? `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextSafe)}`
+      : `${window.location.origin}/auth/callback`;
     const { error: signInError } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
+      options: { redirectTo },
     });
     setIsLoadingGoogle(false);
     if (signInError) {
@@ -175,7 +208,7 @@ export default function SignupPage() {
       <Button
         type="button"
         variant="secondary"
-        onClick={handleGoogleSignIn}
+        onClick={() => void handleGoogleSignIn()}
         disabled={isLoadingGoogle}
         className="w-full !bg-surface disabled:opacity-50"
       >
@@ -193,7 +226,7 @@ export default function SignupPage() {
 
       <button
         type="button"
-        onClick={() => router.push("/login")}
+        onClick={() => router.push(loginHref())}
         className="mx-auto mt-auto pb-16 text-body-l text-accent text-link"
       >
         Already have an account? Log in
@@ -259,5 +292,15 @@ export default function SignupPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense
+      fallback={<div className="min-h-screen bg-background" aria-hidden />}
+    >
+      <SignupPageInner />
+    </Suspense>
   );
 }

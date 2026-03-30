@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { distanceMetersBetween } from "@/lib/locationRegion";
 import type { UserLocationState } from "@/lib/feedLocationContext";
+import { captureEvent } from "@/lib/analytics";
 
 const COORDS_CACHE_KEY = "elsewhere:lastCoords";
 const MEANINGFUL_DISTANCE_METERS = 200;
@@ -48,15 +49,32 @@ export function useUserLocation(): UserLocationState {
     }
 
     let cancelled = false;
+    let deniedEventSent = false;
+    function reportPermissionDenied() {
+      if (deniedEventSent) return;
+      deniedEventSent = true;
+      captureEvent("location_permission_denied");
+    }
+
+    if (!cachedCoords) {
+      captureEvent("location_prompt_shown");
+    }
+
     const timeoutId = window.setTimeout(() => {
       if (cancelled) return;
-      if (!cachedCoords) setState({ status: "denied" });
+      if (!cachedCoords) {
+        reportPermissionDenied();
+        setState({ status: "denied" });
+      }
     }, LOCATION_TIMEOUT_MS);
 
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         if (cancelled) return;
         window.clearTimeout(timeoutId);
+        if (!cachedCoords) {
+          captureEvent("location_permission_granted");
+        }
         const fresh = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         try {
           window.sessionStorage.setItem(
@@ -82,7 +100,10 @@ export function useUserLocation(): UserLocationState {
       () => {
         if (cancelled) return;
         window.clearTimeout(timeoutId);
-        if (!cachedCoords) setState({ status: "denied" });
+        if (!cachedCoords) {
+          reportPermissionDenied();
+          setState({ status: "denied" });
+        }
       },
       { timeout: LOCATION_TIMEOUT_MS, maximumAge: 0 },
     );

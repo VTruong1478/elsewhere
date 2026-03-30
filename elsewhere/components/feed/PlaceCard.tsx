@@ -1,8 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useLayoutEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Bookmark, Check } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { FeedItem } from "@/types/feed";
@@ -13,6 +12,14 @@ import { MetricTile } from "@/components/ui/MetricTile";
 import { Pill } from "@/components/ui/Pill";
 import { StatusDot } from "@/components/ui/StatusDot";
 import { userPhotoProxyUrl } from "@/lib/userPhotoProxyUrl";
+import {
+  captureEvent,
+  capturePlaceOpened,
+  feedItemHasPhotos,
+  type AnalyticsSource,
+} from "@/lib/analytics";
+import { ensureAuthForGatedAction } from "@/lib/authGate";
+import { tryCaptureGatedActionCompleted } from "@/lib/gatedAction";
 
 type StatusKind = "open" | "closing-soon" | "closed";
 
@@ -40,7 +47,12 @@ function getOpenStatus(
 export function PlaceCard({ place }: { place: FeedItem }) {
   const { setSelectedPlaceId } = usePlaceStore();
   const router = useRouter();
+  const pathname = usePathname();
   const queryClient = useQueryClient();
+
+  const listSource: AnalyticsSource = pathname?.startsWith("/saved")
+    ? "saved"
+    : "feed";
 
   // Match server + first client paint (false), then sync viewport — avoids hydration mismatch
   // from reading window in useState initializer (server false vs mobile client true).
@@ -86,6 +98,19 @@ export function PlaceCard({ place }: { place: FeedItem }) {
           return [{ ...place, is_favorited: true }, ...prev];
         },
       );
+    },
+    onSuccess: () => {
+      tryCaptureGatedActionCompleted({
+        action_type: "save_place",
+        place_id: place.id,
+      });
+      captureEvent("place_saved", {
+        source: listSource,
+        place_id: place.id,
+        place_name: place.name,
+        place_type: place.place_type,
+        has_photos: feedItemHasPhotos(place),
+      });
     },
     onError: () => {
       setIsSaved(false);
@@ -146,18 +171,38 @@ export function PlaceCard({ place }: { place: FeedItem }) {
     place.open_late,
   );
 
+  const rateHref = `/places/${place.id}/rate?name=${encodeURIComponent(place.name)}`;
+  const returnPathForSave =
+    typeof window !== "undefined"
+      ? `${window.location.pathname}${window.location.search}`
+      : "/feed";
+
   return (
     <article
       data-place-id={place.id}
       role="button"
       tabIndex={0}
       onClick={() => {
+        capturePlaceOpened({
+          source: listSource,
+          place_id: place.id,
+          place_name: place.name,
+          place_type: place.place_type,
+          has_photos: feedItemHasPhotos(place),
+        });
         setSelectedPlaceId(place.id);
         if (isMobileOrTablet) router.push(`/places/${place.id}`);
       }}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
+          capturePlaceOpened({
+            source: listSource,
+            place_id: place.id,
+            place_name: place.name,
+            place_type: place.place_type,
+            has_photos: feedItemHasPhotos(place),
+          });
           setSelectedPlaceId(place.id);
           if (isMobileOrTablet) router.push(`/places/${place.id}`);
         }
@@ -233,11 +278,24 @@ export function PlaceCard({ place }: { place: FeedItem }) {
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              if (isSaved) {
-                unsaveMutation.mutate();
-              } else {
+              void (async () => {
+                if (isSaved) {
+                  unsaveMutation.mutate();
+                  return;
+                }
+                if (
+                  !(await ensureAuthForGatedAction(router.push, {
+                    action_type: "save_place",
+                    source: listSource,
+                    place_id: place.id,
+                    place_name: place.name,
+                    returnPath: returnPathForSave,
+                  }))
+                ) {
+                  return;
+                }
                 saveMutation.mutate();
-              }
+              })();
             }}
             className="absolute bottom-12 right-12 z-10 shadow-map"
             disabled={saveMutation.isPending || unsaveMutation.isPending}
@@ -301,12 +359,27 @@ export function PlaceCard({ place }: { place: FeedItem }) {
             />
           )}
         </div>
-        <Link
-          href={`/places/${place.id}/rate?name=${encodeURIComponent(
-            place.name,
-          )}`}
-          onClick={(e) => e.stopPropagation()}
+        <a
+          href={rateHref}
           className="inline-flex"
+          onClick={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            void (async () => {
+              if (
+                !(await ensureAuthForGatedAction(router.push, {
+                  action_type: "rate_place",
+                  source: listSource,
+                  place_id: place.id,
+                  place_name: place.name,
+                  returnPath: rateHref,
+                }))
+              ) {
+                return;
+              }
+              router.push(rateHref);
+            })();
+          }}
         >
           <Button variant={isRated ? "secondary" : "primary"} type="button">
             {isRated ? (
@@ -318,7 +391,7 @@ export function PlaceCard({ place }: { place: FeedItem }) {
               "Rate"
             )}
           </Button>
-        </Link>
+        </a>
       </div>
     </article>
   );

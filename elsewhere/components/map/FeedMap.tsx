@@ -13,6 +13,7 @@ import { Locate } from "lucide-react";
 import type { FeedItem } from "@/types/feed";
 import { samePlaceId } from "@/lib/placeId";
 import { usePlaceStore } from "@/store/usePlaceStore";
+import { capturePlaceOpened, feedItemHasPhotos } from "@/lib/analytics";
 
 const NOVA_CENTER: [number, number] = [-77.1941, 38.8304];
 
@@ -556,6 +557,13 @@ export function FeedMap({
               return;
             }
           }
+          capturePlaceOpened({
+            source: "map",
+            place_id: place.id,
+            place_name: place.name,
+            place_type: place.place_type,
+            has_photos: feedItemHasPhotos(place),
+          });
           onSelectPlace(place.id);
         });
 

@@ -1,12 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { MapPin } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { captureEvent } from "@/lib/analytics";
+import {
+  gatedActionTypeFromPath,
+  peekPendingGatedAction,
+  setOAuthAuthIntent,
+} from "@/lib/gatedAction";
+import { safeInternalPath } from "@/lib/safeNextPath";
 
 const IS_DEV = process.env.NODE_ENV === "development";
 
@@ -59,17 +66,37 @@ function AuthIllustration() {
   );
 }
 
-export default function LoginPage() {
+function LoginPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextSafe = safeInternalPath(searchParams.get("next"));
+  const gateShownForNextRef = useRef<string | null>(null);
+
   const [email, setEmail] = useState(IS_DEV ? "test@example.com" : "");
   const [password, setPassword] = useState(IS_DEV ? "testpass123" : "");
   const [isLoadingEmail, setIsLoadingEmail] = useState(false);
   const [isLoadingGoogle, setIsLoadingGoogle] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (!nextSafe) return;
+    if (peekPendingGatedAction()) return;
+    if (gateShownForNextRef.current === nextSafe) return;
+    gateShownForNextRef.current = nextSafe;
+    captureEvent("auth_gate_shown", {
+      action_type: gatedActionTypeFromPath(nextSafe),
+    });
+  }, [nextSafe]);
+
+  function signupHref() {
+    if (!nextSafe) return "/signup";
+    return `/signup?next=${encodeURIComponent(nextSafe)}`;
+  }
+
   async function handleEmailSignIn(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    captureEvent("login_started", { method: "email" });
 
     setIsLoadingEmail(true);
     const supabase = createClient();
@@ -86,16 +113,22 @@ export default function LoginPage() {
 
     localStorage.setItem("hasVisited", "true");
     localStorage.removeItem("justLoggedOut");
-    router.push("/feed");
+    captureEvent("login_completed", { method: "email" });
+    router.push(nextSafe ?? "/feed");
   }
 
   async function handleGoogleSignIn() {
     setError(null);
+    captureEvent("login_started", { method: "oauth_google" });
+    setOAuthAuthIntent("login");
     setIsLoadingGoogle(true);
     const supabase = createClient();
+    const redirectTo = nextSafe
+      ? `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextSafe)}`
+      : `${window.location.origin}/auth/callback`;
     const { error: signInError } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
+      options: { redirectTo },
     });
     setIsLoadingGoogle(false);
     if (signInError) {
@@ -149,7 +182,7 @@ export default function LoginPage() {
       <Button
         type="button"
         variant="secondary"
-        onClick={handleGoogleSignIn}
+        onClick={() => void handleGoogleSignIn()}
         disabled={isLoadingGoogle}
         className="w-full !bg-surface disabled:opacity-50"
       >
@@ -167,10 +200,10 @@ export default function LoginPage() {
 
       <button
         type="button"
-        onClick={() => router.push("/signup")}
+        onClick={() => router.push(signupHref())}
         className="mx-auto mt-auto pb-16 text-body-l text-accent text-link"
       >
-        Don't have an account? Sign up
+        Don&apos;t have an account? Sign up
       </button>
 
       {error && <p className="text-body-s text-status-low">{error}</p>}
@@ -233,5 +266,15 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={<div className="min-h-screen bg-background" aria-hidden />}
+    >
+      <LoginPageInner />
+    </Suspense>
   );
 }

@@ -23,6 +23,7 @@
     "lucide-react": "^0.460.0",
     "mapbox-gl": "^3.20.0",
     "next": "16.1.6",
+    "posthog-js": "^1.364.2",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "server-only": "^0.0.1",

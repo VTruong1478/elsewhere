@@ -3,9 +3,19 @@
 import { useRouter } from "next/navigation";
 import { Check, Navigation, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { ensureAuthForGatedAction } from "@/lib/authGate";
+import type { AnalyticsSource } from "@/lib/analytics";
+
+export type RateGateContext = {
+  place_id: string;
+  place_name: string;
+  source: AnalyticsSource;
+};
 
 export type PlaceDetailCtaProps = {
   rateHref: string;
+  /** When set, Rate navigations require auth; logged-out users are sent to login with resume URL. */
+  rateGate?: RateGateContext;
   /** When true: surface bg + border (secondarySurface), "Rated" + check — same idea as PlaceCard's rated state. */
   userHasRated?: boolean;
   /** Defaults to "Rate this Place" (only when userHasRated is false) */
@@ -27,6 +37,7 @@ export type PlaceDetailCtaProps = {
  */
 export function PlaceDetailCta({
   rateHref,
+  rateGate,
   userHasRated = false,
   rateLabel = "Rate this Place",
   onShare,
@@ -35,6 +46,20 @@ export function PlaceDetailCta({
   dock = "viewport",
 }: PlaceDetailCtaProps) {
   const router = useRouter();
+
+  async function goToRate() {
+    if (rateGate) {
+      const ok = await ensureAuthForGatedAction(router.push, {
+        action_type: "rate_place",
+        source: rateGate.source,
+        place_id: rateGate.place_id,
+        place_name: rateGate.place_name,
+        returnPath: rateHref,
+      });
+      if (!ok) return;
+    }
+    router.push(rateHref);
+  }
 
   const dockClass =
     dock === "panel"
@@ -47,7 +72,8 @@ export function PlaceDetailCta({
         <Button
           className="w-full shadow-map"
           variant={userHasRated ? "secondarySurface" : "primary"}
-          onClick={() => router.push(rateHref)}
+          type="button"
+          onClick={() => void goToRate()}
         >
           {userHasRated ? (
             <span className="flex items-center gap-8">

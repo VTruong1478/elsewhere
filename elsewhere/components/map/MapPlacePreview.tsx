@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Bookmark, Check } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { FeedItem } from "@/types/feed";
@@ -10,6 +10,9 @@ import { userPhotoProxyUrl } from "@/lib/userPhotoProxyUrl";
 import { Button } from "@/components/ui/Button";
 import { MatchRing } from "@/components/ui/MatchRing";
 import { StatusDot } from "@/components/ui/StatusDot";
+import { captureEvent, feedItemHasPhotos } from "@/lib/analytics";
+import { ensureAuthForGatedAction } from "@/lib/authGate";
+import { tryCaptureGatedActionCompleted } from "@/lib/gatedAction";
 
 type StatusKind = "open" | "closing-soon" | "closed";
 
@@ -35,7 +38,13 @@ function getOpenStatus(
 }
 
 export function MapPlacePreview({ place }: { place: FeedItem }) {
+  const router = useRouter();
   const queryClient = useQueryClient();
+  const rateHref = `/places/${place.id}/rate?name=${encodeURIComponent(place.name)}`;
+  const returnPathForSave =
+    typeof window !== "undefined"
+      ? `${window.location.pathname}${window.location.search}`
+      : "/map";
   const isRated = !!place.user_has_rated;
   const [isSaved, setIsSaved] = useState(!!place.is_favorited);
 
@@ -60,6 +69,19 @@ export function MapPlacePreview({ place }: { place: FeedItem }) {
       }
     },
     onMutate: () => setIsSaved(true),
+    onSuccess: () => {
+      tryCaptureGatedActionCompleted({
+        action_type: "save_place",
+        place_id: place.id,
+      });
+      captureEvent("place_saved", {
+        source: "map",
+        place_id: place.id,
+        place_name: place.name,
+        place_type: place.place_type,
+        has_photos: feedItemHasPhotos(place),
+      });
+    },
     onError: () => setIsSaved(false),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["saved-places"] });
@@ -167,11 +189,26 @@ export function MapPlacePreview({ place }: { place: FeedItem }) {
           </div>
         )}
         <div className="mt-8 flex gap-8">
-          <Link
-            href={`/places/${place.id}/rate?name=${encodeURIComponent(
-              place.name,
-            )}`}
+          <a
+            href={rateHref}
             className="inline-flex"
+            onClick={(e) => {
+              e.preventDefault();
+              void (async () => {
+                if (
+                  !(await ensureAuthForGatedAction(router.push, {
+                    action_type: "rate_place",
+                    source: "map",
+                    place_id: place.id,
+                    place_name: place.name,
+                    returnPath: rateHref,
+                  }))
+                ) {
+                  return;
+                }
+                router.push(rateHref);
+              })();
+            }}
           >
             <Button
               variant="primary"
@@ -187,13 +224,29 @@ export function MapPlacePreview({ place }: { place: FeedItem }) {
                 "Rate"
               )}
             </Button>
-          </Link>
+          </a>
           <button
             type="button"
             onClick={(e) => {
               e.preventDefault();
-              if (isSaved) unsaveMutation.mutate();
-              else saveMutation.mutate();
+              void (async () => {
+                if (isSaved) {
+                  unsaveMutation.mutate();
+                  return;
+                }
+                if (
+                  !(await ensureAuthForGatedAction(router.push, {
+                    action_type: "save_place",
+                    source: "map",
+                    place_id: place.id,
+                    place_name: place.name,
+                    returnPath: returnPathForSave,
+                  }))
+                ) {
+                  return;
+                }
+                saveMutation.mutate();
+              })();
             }}
             disabled={saveMutation.isPending || unsaveMutation.isPending}
             className="flex h-[44px] w-[44px] items-center justify-center rounded-radius-sm border border-surface-alt bg-surface text-primary focus:outline-none focus:ring-2 focus:ring-accent disabled:opacity-50"

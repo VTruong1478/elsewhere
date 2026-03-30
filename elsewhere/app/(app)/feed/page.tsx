@@ -21,6 +21,7 @@ import {
 } from "@/lib/feedLocationContext";
 import { useUserLocation } from "@/hooks/useUserLocation";
 import { samePlaceId } from "@/lib/placeId";
+import { captureFeedLoaded } from "@/lib/analytics";
 
 function fetchFeed(params: {
   lat: number;
@@ -126,6 +127,22 @@ function FeedContent() {
     (id: string) => setSelectedPlaceId(id),
     [setSelectedPlaceId],
   );
+
+  useEffect(() => {
+    if (!query.isSuccess || !locationCtx.feedQueryEnabled) return;
+    captureFeedLoaded({
+      source: "feed",
+      result_count: places.length,
+      has_query: Boolean(q.trim()),
+      filter: filter || "all",
+    });
+  }, [
+    query.isSuccess,
+    locationCtx.feedQueryEnabled,
+    places.length,
+    q,
+    filter,
+  ]);
 
   useEffect(() => {
     if (!selectedPlaceId) return;
