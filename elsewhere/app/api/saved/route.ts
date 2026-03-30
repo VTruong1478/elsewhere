@@ -233,6 +233,35 @@ export async function POST(request: NextRequest) {
   }
 
   const serviceClient = createServiceRoleClient();
+
+  // saved.user_id FK → profiles(id) (not auth.users). Users who never hit a profile write
+  // can still have a valid session — inserts would fail with FK violation without this row.
+  const { data: existingProfile } = await serviceClient
+    .from("profiles")
+    .select("id")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (!existingProfile) {
+    const { error: profileError } = await serviceClient
+      .from("profiles")
+      .insert({ id: user.id });
+    if (profileError) {
+      if (profileError.code !== "23505") {
+        console.error("[saved] profile bootstrap error:", profileError);
+        return NextResponse.json(
+          {
+            error:
+              profileError.message ??
+              "Could not prepare your account to save places",
+          },
+          { status: 500 },
+        );
+      }
+      // 23505: concurrent insert won the race — safe to continue
+    }
+  }
+
   const { data: place, error: placeError } = await serviceClient
     .from("places")
     .select("id, is_active")

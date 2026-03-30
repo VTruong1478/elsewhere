@@ -776,6 +776,7 @@ export function PlaceDetailMobile({
     mutationFn: async () => {
       const res = await fetch("/api/saved", {
         method: "POST",
+        credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ place_id: normalizedId! }),
       });
@@ -821,6 +822,7 @@ export function PlaceDetailMobile({
     mutationFn: async () => {
       const res = await fetch(`/api/saved/${normalizedId!}`, {
         method: "DELETE",
+        credentials: "same-origin",
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));

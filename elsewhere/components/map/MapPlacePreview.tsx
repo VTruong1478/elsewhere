@@ -48,6 +48,7 @@ export function MapPlacePreview({ place }: { place: FeedItem }) {
     mutationFn: async () => {
       const res = await fetch("/api/saved", {
         method: "POST",
+        credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ place_id: place.id }),
       });
@@ -68,7 +69,10 @@ export function MapPlacePreview({ place }: { place: FeedItem }) {
 
   const unsaveMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch(`/api/saved/${place.id}`, { method: "DELETE" });
+      const res = await fetch(`/api/saved/${place.id}`, {
+        method: "DELETE",
+        credentials: "same-origin",
+      });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(
