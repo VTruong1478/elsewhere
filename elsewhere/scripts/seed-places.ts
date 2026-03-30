@@ -67,6 +67,9 @@ const NOVA_AREAS = [
   "McLean VA",
   "Herndon VA",
   "Falls Church VA",
+  "Sterling VA",
+  "Ashburn VA",
+  "Leesburg VA",
 ] as const;
 
 type PlaceType = "cafe" | "library";
