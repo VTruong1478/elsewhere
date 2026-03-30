@@ -65,6 +65,7 @@ export function PlaceCard({ place }: { place: FeedItem }) {
     mutationFn: async () => {
       const res = await fetch("/api/saved", {
         method: "POST",
+        credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ place_id: place.id }),
       });
@@ -91,13 +92,15 @@ export function PlaceCard({ place }: { place: FeedItem }) {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["saved-places"] });
+      queryClient.invalidateQueries({ queryKey: ["feed"] });
     },
   });
 
   const unsaveMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch(`/api/saved/${place.id}`, {
+      const res = await fetch(`/api/saved/${encodeURIComponent(place.id)}`, {
         method: "DELETE",
+        credentials: "same-origin",
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -119,6 +122,7 @@ export function PlaceCard({ place }: { place: FeedItem }) {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["saved-places"] });
+      queryClient.invalidateQueries({ queryKey: ["feed"] });
     },
   });
 

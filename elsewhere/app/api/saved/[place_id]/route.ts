@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceRoleClient } from "@/lib/supabase/service-role";
 
 export async function DELETE(
   _request: NextRequest,
@@ -19,7 +20,8 @@ export async function DELETE(
     );
   }
 
-  const { data, error } = await supabase
+  const serviceClient = createServiceRoleClient();
+  const { data, error } = await serviceClient
     .from("saved")
     .delete()
     .eq("user_id", user.id)

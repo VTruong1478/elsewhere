@@ -1,6 +1,6 @@
 "use client";
 
-import { Search } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import styles from "./SearchBar.module.css";
@@ -88,6 +88,22 @@ export function SearchBar({ value: controlledValue, onValueChange }: SearchBarPr
     };
   }, [value, urlQ, updateQuery, isControlled]);
 
+  const clearSearch = useCallback(() => {
+    if (isControlled) {
+      onValueChange!("");
+      return;
+    }
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current);
+      debounceTimeoutRef.current = null;
+    }
+    skipNextUrlSyncRef.current = true;
+    setValue("");
+    updateQuery("");
+  }, [isControlled, onValueChange, updateQuery]);
+
+  const showClear = displayValue.trim().length > 0;
+
   return (
     <form
       className="flex items-center gap-2 rounded-radius-md  bg-surface outline-none"
@@ -112,9 +128,19 @@ export function SearchBar({ value: controlledValue, onValueChange }: SearchBarPr
         value={displayValue}
         onChange={(e) => setDisplayValue(e.target.value)}
         placeholder="Search places to work"
-        className={`${styles.searchInput} min-w-0 flex-1 bg-transparent py-12 pr-4 text-body-m text-text placeholder:text-text-tertiary focus:outline-none focus:ring-0`}
+        className={`${styles.searchInput} min-w-0 flex-1 bg-transparent py-12 text-body-m text-text placeholder:text-text-tertiary focus:outline-none focus:ring-0 ${showClear ? "pr-8" : "pr-16"}`}
         aria-label="Search places"
       />
+      {showClear ? (
+        <button
+          type="button"
+          onClick={clearSearch}
+          className="mr-16 shrink-0 rounded-radius-sm p-12 text-text-tertiary transition-colors hover:text-text focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-0"
+          aria-label="Clear search"
+        >
+          <X size={20} aria-hidden />
+        </button>
+      ) : null}
     </form>
   );
 }

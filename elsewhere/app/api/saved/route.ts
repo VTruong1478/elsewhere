@@ -250,9 +250,14 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { error: insertError } = await supabase
+  // Use service role so the write succeeds regardless of RLS quirks in API routes;
+  // `user.id` is already verified via the session client above.
+  const { error: insertError } = await serviceClient
     .from("saved")
-    .upsert({ user_id: user.id, place_id }, { onConflict: "user_id,place_id" });
+    .upsert(
+      { user_id: user.id, place_id },
+      { onConflict: "user_id,place_id" },
+    );
 
   if (insertError) {
     console.error("[saved] insert error:", insertError);

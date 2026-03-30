@@ -126,6 +126,20 @@ function MapContent() {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [mobileSelectionOffsetPx, setMobileSelectionOffsetPx] = useState(0);
 
+  /** Tailwind `lg` (1024px): mount exactly one FeedMap — mobile vs desktop branch. */
+  const [isLg, setIsLg] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      window.matchMedia("(min-width: 1024px)").matches,
+  );
+  useLayoutEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const sync = () => setIsLg(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
   const feedRequest = getFeedRequestCoords(locationState);
 
   const query = useQuery({
@@ -137,7 +151,6 @@ function MapContent() {
       feedRequest.feedRadiusMiles,
       debouncedMapQ,
       filter,
-      // eslint-disable-next-line react-hooks/refs
       radiusMilesRef.current,
     ],
     queryFn: () =>
@@ -210,15 +223,23 @@ function MapContent() {
       setMapPanelState("default");
       return;
     }
-    if (debouncedMapQ.trim().length === 0) {
-      setMapPanelState("default");
-      return;
-    }
     if (query.isFetching) {
       setMapPanelState("default");
       return;
     }
-    if (query.isSuccess && places.length === 0) {
+    const searchNoResults =
+      debouncedMapQ.trim().length > 0 &&
+      query.isSuccess &&
+      places.length === 0;
+    /** Filter chip with zero matches: show same empty card as search (incl. add-place modal) below `lg`. */
+    const filterNoResultsMobile =
+      !isLg &&
+      filter.trim() !== "" &&
+      feedRequest.feedQueryEnabled &&
+      query.isSuccess &&
+      places.length === 0;
+
+    if (searchNoResults || filterNoResultsMobile) {
       setMapPanelState("map_search_no_results");
     } else {
       setMapPanelState("default");
@@ -226,6 +247,9 @@ function MapContent() {
   }, [
     mapSearchPending,
     debouncedMapQ,
+    filter,
+    isLg,
+    feedRequest.feedQueryEnabled,
     query.isFetching,
     query.isSuccess,
     places.length,
@@ -265,16 +289,6 @@ function MapContent() {
     () => setSelectedPlaceId(null),
     [setSelectedPlaceId],
   );
-
-  /** Tailwind `lg` (1024px): mount exactly one FeedMap — mobile vs desktop branch. */
-  const [isLg, setIsLg] = useState(false);
-  useLayoutEffect(() => {
-    const mq = window.matchMedia("(min-width: 1024px)");
-    const sync = () => setIsLg(mq.matches);
-    sync();
-    mq.addEventListener("change", sync);
-    return () => mq.removeEventListener("change", sync);
-  }, []);
 
   const feedMapSharedProps = {
     places,
