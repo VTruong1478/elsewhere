@@ -26,7 +26,8 @@ import { normalizePlaceId } from "@/lib/placeId";
 import { fetchPlaceDetail, placeDetailQueryKey } from "@/lib/placeDetailQuery";
 import {
   analyticsSourceFromPathname,
-  captureEvent,
+  buildRateHref,
+  capturePlaceSaved,
   detailPlaceHasPhotos,
   feedItemHasPhotos,
 } from "@/lib/analytics";
@@ -553,18 +554,19 @@ export function DesktopPlaceDetailPanel({
         action_type: "save_place",
         place_id: normalizedId,
       });
-      captureEvent("place_saved", {
-        source: "feed",
-        place_id: normalizedId,
-        place_name:
-          previewFeedItem?.name ?? detail?.place?.name ?? "",
-        place_type:
-          previewFeedItem?.place_type ?? detail?.place?.place_type ?? "",
-        has_photos:
-          previewMatches && previewFeedItem
-            ? feedItemHasPhotos(previewFeedItem)
-            : detailPlaceHasPhotos(detail?.place ?? null),
-      });
+      capturePlaceSaved(
+        {
+          id: normalizedId,
+          name: previewFeedItem?.name ?? detail?.place?.name ?? "",
+          place_type:
+            previewFeedItem?.place_type ?? detail?.place?.place_type,
+          has_photos:
+            previewMatches && previewFeedItem
+              ? feedItemHasPhotos(previewFeedItem)
+              : detailPlaceHasPhotos(detail?.place ?? null),
+        },
+        analyticsSourceFromPathname(pathname),
+      );
     },
     onError: () => {
       setIsSaved(false);
@@ -765,6 +767,14 @@ export function DesktopPlaceDetailPanel({
                             source: analyticsSourceFromPathname(pathname),
                             place_id: normalizedId!,
                             place_name: place.name,
+                            place_type:
+                              previewFeedItem?.place_type ??
+                              place.place_type ??
+                              undefined,
+                            has_photos:
+                              previewMatches && previewFeedItem
+                                ? feedItemHasPhotos(previewFeedItem)
+                                : detailPlaceHasPhotos(detail?.place ?? null),
                             returnPath,
                           }))
                         ) {
@@ -924,13 +934,25 @@ export function DesktopPlaceDetailPanel({
           dock="panel"
           className="pointer-events-auto"
           userHasRated={userHasRated}
-          rateHref={`/places/${placeId}/rate?name=${encodeURIComponent(place?.name ?? "")}`}
+          rateHref={buildRateHref(
+            normalizedId ?? placeId,
+            place?.name ?? "This place",
+            analyticsSourceFromPathname(pathname),
+          )}
           rateGate={
             normalizedId
               ? {
                   place_id: normalizedId,
                   place_name: place?.name ?? "",
                   source: analyticsSourceFromPathname(pathname),
+                  place_type:
+                    previewFeedItem?.place_type ??
+                    detail?.place?.place_type ??
+                    undefined,
+                  has_photos:
+                    previewMatches && previewFeedItem
+                      ? feedItemHasPhotos(previewFeedItem)
+                      : detailPlaceHasPhotos(detail?.place ?? null),
                 }
               : undefined
           }

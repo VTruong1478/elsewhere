@@ -10,6 +10,8 @@ export type RateGateContext = {
   place_id: string;
   place_name: string;
   source: AnalyticsSource;
+  place_type?: string;
+  has_photos?: boolean;
 };
 
 export type PlaceDetailCtaProps = {
@@ -54,6 +56,8 @@ export function PlaceDetailCta({
         source: rateGate.source,
         place_id: rateGate.place_id,
         place_name: rateGate.place_name,
+        place_type: rateGate.place_type,
+        has_photos: rateGate.has_photos,
         returnPath: rateHref,
       });
       if (!ok) return;

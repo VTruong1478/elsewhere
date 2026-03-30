@@ -1,15 +1,17 @@
 import { RatingForm } from "@/components/rating/RatingForm";
 import { RatePageBackButton } from "@/components/rating/RatePageBackButton";
+import { parseAnalyticsSource } from "@/lib/analytics";
 
 interface PageProps {
   params: Promise<{ id: string }>;
-  searchParams?: Promise<{ name?: string }>;
+  searchParams?: Promise<{ name?: string; source?: string }>;
 }
 
 export default async function PlaceRatePage(props: PageProps) {
   const { id } = await props.params;
   const sp = (await props.searchParams) ?? {};
   const placeName = sp.name ?? "This place";
+  const rateSource = parseAnalyticsSource(sp.source) ?? "feed";
 
   return (
     <div className="w-full bg-background px-16 pb-32 pt-16 lg:pb-32">
@@ -23,7 +25,7 @@ export default async function PlaceRatePage(props: PageProps) {
           </div>
         </header>
 
-        <RatingForm placeId={id} placeName={placeName} />
+        <RatingForm placeId={id} placeName={placeName} source={rateSource} />
       </div>
     </div>
   );

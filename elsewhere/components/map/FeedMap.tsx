@@ -557,13 +557,7 @@ export function FeedMap({
               return;
             }
           }
-          capturePlaceOpened({
-            source: "map",
-            place_id: place.id,
-            place_name: place.name,
-            place_type: place.place_type,
-            has_photos: feedItemHasPhotos(place),
-          });
+          capturePlaceOpened(place, "map");
           onSelectPlace(place.id);
         });
 

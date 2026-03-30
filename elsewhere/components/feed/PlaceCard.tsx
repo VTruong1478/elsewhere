@@ -13,8 +13,9 @@ import { Pill } from "@/components/ui/Pill";
 import { StatusDot } from "@/components/ui/StatusDot";
 import { userPhotoProxyUrl } from "@/lib/userPhotoProxyUrl";
 import {
-  captureEvent,
+  buildRateHref,
   capturePlaceOpened,
+  capturePlaceSaved,
   feedItemHasPhotos,
   type AnalyticsSource,
 } from "@/lib/analytics";
@@ -104,13 +105,15 @@ export function PlaceCard({ place }: { place: FeedItem }) {
         action_type: "save_place",
         place_id: place.id,
       });
-      captureEvent("place_saved", {
-        source: listSource,
-        place_id: place.id,
-        place_name: place.name,
-        place_type: place.place_type,
-        has_photos: feedItemHasPhotos(place),
-      });
+      capturePlaceSaved(
+        {
+          id: place.id,
+          name: place.name,
+          place_type: place.place_type,
+          has_photos: feedItemHasPhotos(place),
+        },
+        listSource,
+      );
     },
     onError: () => {
       setIsSaved(false);
@@ -171,7 +174,7 @@ export function PlaceCard({ place }: { place: FeedItem }) {
     place.open_late,
   );
 
-  const rateHref = `/places/${place.id}/rate?name=${encodeURIComponent(place.name)}`;
+  const rateHref = buildRateHref(place.id, place.name, listSource);
   const returnPathForSave =
     typeof window !== "undefined"
       ? `${window.location.pathname}${window.location.search}`
@@ -183,26 +186,14 @@ export function PlaceCard({ place }: { place: FeedItem }) {
       role="button"
       tabIndex={0}
       onClick={() => {
-        capturePlaceOpened({
-          source: listSource,
-          place_id: place.id,
-          place_name: place.name,
-          place_type: place.place_type,
-          has_photos: feedItemHasPhotos(place),
-        });
+        capturePlaceOpened(place, listSource);
         setSelectedPlaceId(place.id);
         if (isMobileOrTablet) router.push(`/places/${place.id}`);
       }}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
-          capturePlaceOpened({
-            source: listSource,
-            place_id: place.id,
-            place_name: place.name,
-            place_type: place.place_type,
-            has_photos: feedItemHasPhotos(place),
-          });
+          capturePlaceOpened(place, listSource);
           setSelectedPlaceId(place.id);
           if (isMobileOrTablet) router.push(`/places/${place.id}`);
         }
@@ -289,6 +280,8 @@ export function PlaceCard({ place }: { place: FeedItem }) {
                     source: listSource,
                     place_id: place.id,
                     place_name: place.name,
+                    place_type: place.place_type ?? undefined,
+                    has_photos: feedItemHasPhotos(place),
                     returnPath: returnPathForSave,
                   }))
                 ) {
@@ -372,6 +365,8 @@ export function PlaceCard({ place }: { place: FeedItem }) {
                   source: listSource,
                   place_id: place.id,
                   place_name: place.name,
+                  place_type: place.place_type ?? undefined,
+                  has_photos: feedItemHasPhotos(place),
                   returnPath: rateHref,
                 }))
               ) {

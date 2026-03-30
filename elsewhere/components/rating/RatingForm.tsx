@@ -19,7 +19,10 @@ import { TextArea } from "@/components/ui/TextArea";
 import { userPhotoProxyUrl } from "@/lib/userPhotoProxyUrl";
 import { normalizePlaceId } from "@/lib/placeId";
 import { fetchPlaceDetail, placeDetailQueryKey } from "@/lib/placeDetailQuery";
-import { captureEvent } from "@/lib/analytics";
+import {
+  type AnalyticsSource,
+  captureRatingFunnelEvent,
+} from "@/lib/analytics";
 import { tryCaptureGatedActionCompleted } from "@/lib/gatedAction";
 
 const NOISE_OPTIONS = ["silent", "quiet", "vibrant"] as const;
@@ -135,13 +138,17 @@ function updateRatingFromPosition(
 export function RatingForm({
   placeId,
   placeName: _placeName,
+  source,
 }: {
   placeId: string;
   placeName: string;
+  /** Entry surface for the rating flow (from `?source=`); locked on first render for funnel events. */
+  source: AnalyticsSource;
 }) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const normalizedPlaceId = useMemo(() => normalizePlaceId(placeId), [placeId]);
+  const [ratingFlowSource] = useState<AnalyticsSource>(() => source);
   const ratingStartedSentRef = useRef(false);
   const { data: detail, isFetched: detailFetched } = useQuery({
     queryKey: placeDetailQueryKey(normalizedPlaceId ?? "__invalid__"),
@@ -217,15 +224,28 @@ export function RatingForm({
     return false;
   }
 
+  function ratingFunnelPlaceSnapshot(hasPhotos: boolean): {
+    id: string;
+    name: string;
+    place_type: string;
+    has_photos: boolean;
+  } {
+    return {
+      id: normalizedPlaceId ?? placeId,
+      name: _placeName,
+      place_type: detail?.place?.place_type?.trim() ?? "",
+      has_photos: hasPhotos,
+    };
+  }
+
   function ensureRatingStarted() {
     if (ratingStartedSentRef.current) return;
     ratingStartedSentRef.current = true;
-    captureEvent("rating_started", {
-      place_id: normalizedPlaceId ?? placeId,
-      place_name: _placeName,
-      place_type: detail?.place?.place_type,
-      has_photos: ratingHasPhotosNow(),
-    });
+    captureRatingFunnelEvent(
+      "rating_started",
+      ratingFunnelPlaceSnapshot(ratingHasPhotosNow()),
+      ratingFlowSource,
+    );
   }
 
   const mutation = useMutation({
@@ -259,12 +279,11 @@ export function RatingForm({
         if (!patchRes.ok) {
           throw new Error("Failed to save photo to rating");
         }
-        captureEvent("photo_uploaded", {
-          place_id: placeId,
-          place_name: _placeName,
-          place_type: detail?.place?.place_type,
-          has_photos: true,
-        });
+        captureRatingFunnelEvent(
+          "photo_uploaded",
+          ratingFunnelPlaceSnapshot(true),
+          ratingFlowSource,
+        );
         tryCaptureGatedActionCompleted({
           action_type: "upload_photo",
           place_id: normalizedPlaceId ?? placeId,
@@ -276,12 +295,11 @@ export function RatingForm({
         variables.photo != null ||
         (variables.payload.photo_path != null &&
           String(variables.payload.photo_path).trim() !== "");
-      captureEvent("rating_submitted", {
-        place_id: normalizedPlaceId ?? placeId,
-        place_name: _placeName,
-        place_type: detail?.place?.place_type,
-        has_photos: hadPhoto,
-      });
+      captureRatingFunnelEvent(
+        "rating_submitted",
+        ratingFunnelPlaceSnapshot(hadPhoto),
+        ratingFlowSource,
+      );
       tryCaptureGatedActionCompleted({
         action_type: "rate_place",
         place_id: normalizedPlaceId ?? placeId,

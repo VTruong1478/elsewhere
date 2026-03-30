@@ -4,8 +4,7 @@ import type { AnalyticsSource } from "@/lib/analytics";
 export type GatedActionType =
   | "save_place"
   | "rate_place"
-  | "upload_photo"
-  | "other";
+  | "upload_photo";
 
 const PENDING_KEY = "elsewhere:pendingGatedAction";
 const OAUTH_INTENT_KEY = "elsewhere:oauthAuthIntent";
@@ -17,6 +16,8 @@ export type PendingGatedAction = {
   place_id?: string;
   place_name?: string;
   source?: AnalyticsSource;
+  place_type?: string;
+  has_photos?: boolean;
 };
 
 export function persistPendingGatedAction(p: PendingGatedAction): void {
@@ -48,12 +49,6 @@ export function clearPendingGatedAction(): void {
   }
 }
 
-/** Derive action_type from a return path (e.g. middleware ?next=). */
-export function gatedActionTypeFromPath(path: string): GatedActionType {
-  if (path.includes("/rate")) return "rate_place";
-  return "other";
-}
-
 export function tryCaptureGatedActionCompleted(opts: {
   action_type: GatedActionType;
   place_id: string;
@@ -67,6 +62,12 @@ export function tryCaptureGatedActionCompleted(opts: {
     source: pending.source,
     place_id: pending.place_id,
     place_name: pending.place_name,
+    ...(pending.place_type != null && pending.place_type !== ""
+      ? { place_type: pending.place_type }
+      : {}),
+    ...(pending.has_photos !== undefined
+      ? { has_photos: pending.has_photos }
+      : {}),
   });
   clearPendingGatedAction();
 }

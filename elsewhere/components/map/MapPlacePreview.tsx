@@ -10,7 +10,11 @@ import { userPhotoProxyUrl } from "@/lib/userPhotoProxyUrl";
 import { Button } from "@/components/ui/Button";
 import { MatchRing } from "@/components/ui/MatchRing";
 import { StatusDot } from "@/components/ui/StatusDot";
-import { captureEvent, feedItemHasPhotos } from "@/lib/analytics";
+import {
+  buildRateHref,
+  capturePlaceSaved,
+  feedItemHasPhotos,
+} from "@/lib/analytics";
 import { ensureAuthForGatedAction } from "@/lib/authGate";
 import { tryCaptureGatedActionCompleted } from "@/lib/gatedAction";
 
@@ -40,7 +44,7 @@ function getOpenStatus(
 export function MapPlacePreview({ place }: { place: FeedItem }) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const rateHref = `/places/${place.id}/rate?name=${encodeURIComponent(place.name)}`;
+  const rateHref = buildRateHref(place.id, place.name, "map");
   const returnPathForSave =
     typeof window !== "undefined"
       ? `${window.location.pathname}${window.location.search}`
@@ -74,13 +78,7 @@ export function MapPlacePreview({ place }: { place: FeedItem }) {
         action_type: "save_place",
         place_id: place.id,
       });
-      captureEvent("place_saved", {
-        source: "map",
-        place_id: place.id,
-        place_name: place.name,
-        place_type: place.place_type,
-        has_photos: feedItemHasPhotos(place),
-      });
+      capturePlaceSaved(place, "map");
     },
     onError: () => setIsSaved(false),
     onSettled: () => {
@@ -201,6 +199,8 @@ export function MapPlacePreview({ place }: { place: FeedItem }) {
                     source: "map",
                     place_id: place.id,
                     place_name: place.name,
+                    place_type: place.place_type ?? undefined,
+                    has_photos: feedItemHasPhotos(place),
                     returnPath: rateHref,
                   }))
                 ) {
@@ -240,6 +240,8 @@ export function MapPlacePreview({ place }: { place: FeedItem }) {
                     source: "map",
                     place_id: place.id,
                     place_name: place.name,
+                    place_type: place.place_type ?? undefined,
+                    has_photos: feedItemHasPhotos(place),
                     returnPath: returnPathForSave,
                   }))
                 ) {

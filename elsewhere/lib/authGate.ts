@@ -7,17 +7,23 @@ import { persistPendingGatedAction } from "@/lib/gatedAction";
 export type GateContext = {
   action_type: GatedActionType;
   source: AnalyticsSource;
-  place_id?: string;
-  place_name?: string;
+  place_id: string;
+  place_name: string;
+  place_type?: string;
+  has_photos?: boolean;
   returnPath: string;
 };
 
-const gateProps = (ctx: GateContext) =>
+const gateProps = (ctx: GateContext): Record<string, unknown> =>
   ({
     action_type: ctx.action_type,
     source: ctx.source,
     place_id: ctx.place_id,
     place_name: ctx.place_name,
+    ...(ctx.place_type != null && ctx.place_type !== ""
+      ? { place_type: ctx.place_type }
+      : {}),
+    ...(ctx.has_photos !== undefined ? { has_photos: ctx.has_photos } : {}),
   }) as Record<string, unknown>;
 
 /**
@@ -42,6 +48,8 @@ export async function ensureAuthForGatedAction(
     place_id: ctx.place_id,
     place_name: ctx.place_name,
     source: ctx.source,
+    place_type: ctx.place_type,
+    has_photos: ctx.has_photos,
   });
 
   const next = encodeURIComponent(ctx.returnPath);

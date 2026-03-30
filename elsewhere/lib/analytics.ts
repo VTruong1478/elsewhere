@@ -3,10 +3,10 @@ import type { FeedItem } from "@/types/feed";
 
 export type AnalyticsSource = "feed" | "map" | "saved";
 
-export type PlaceEventProps = {
-  source?: AnalyticsSource;
-  place_id?: string;
-  place_name?: string;
+export type PlaceAnalyticsPayload = {
+  source: AnalyticsSource;
+  place_id: string;
+  place_name: string;
   place_type?: string;
   has_photos?: boolean;
 };
@@ -15,6 +15,79 @@ function isPostHogConfigured(): boolean {
   return Boolean(
     typeof window !== "undefined" && process.env.NEXT_PUBLIC_POSTHOG_KEY,
   );
+}
+
+/** Parse `source` query param on rate page or similar. */
+export function parseAnalyticsSource(
+  raw: string | null | undefined,
+): AnalyticsSource | null {
+  if (raw === "feed" || raw === "map" || raw === "saved") return raw;
+  return null;
+}
+
+export function buildRateHref(
+  placeId: string,
+  placeName: string,
+  source: AnalyticsSource,
+): string {
+  const sp = new URLSearchParams();
+  sp.set("name", placeName);
+  sp.set("source", source);
+  return `/places/${placeId}/rate?${sp.toString()}`;
+}
+
+export function getPlaceAnalyticsPayload(
+  place: {
+    id: string;
+    name: string;
+    place_type?: string;
+    has_photos?: boolean;
+  },
+  source: AnalyticsSource,
+): PlaceAnalyticsPayload {
+  return {
+    source,
+    place_id: place.id,
+    place_name: place.name,
+    ...(place.place_type != null && place.place_type !== ""
+      ? { place_type: place.place_type }
+      : {}),
+    ...(place.has_photos !== undefined ? { has_photos: place.has_photos } : {}),
+  };
+}
+
+export function getPlaceAnalyticsPayloadFromFeedItem(
+  place: FeedItem,
+  source: AnalyticsSource,
+): PlaceAnalyticsPayload {
+  return getPlaceAnalyticsPayload(
+    {
+      id: place.id,
+      name: place.name,
+      place_type: place.place_type,
+      has_photos: feedItemHasPhotos(place),
+    },
+    source,
+  );
+}
+
+/** Rating / contribution events: fixed shape every time (avoids funnel gaps). */
+export function getRatingPlaceAnalyticsPayload(
+  place: {
+    id: string;
+    name: string;
+    place_type: string;
+    has_photos: boolean;
+  },
+  source: AnalyticsSource,
+): PlaceAnalyticsPayload {
+  return {
+    source,
+    place_id: place.id,
+    place_name: place.name,
+    place_type: place.place_type,
+    has_photos: place.has_photos,
+  };
 }
 
 /** True if the feed card / list item shows a hero or place photo. */
@@ -57,8 +130,48 @@ export function captureEvent(
   posthog.capture(event, properties);
 }
 
-export function capturePlaceOpened(props: PlaceEventProps): void {
-  captureEvent("place_opened", stripUndefined(props as Record<string, unknown>));
+export function capturePlaceOpened(
+  place: FeedItem,
+  source: AnalyticsSource,
+): void {
+  captureEvent(
+    "place_opened",
+    stripUndefined(getPlaceAnalyticsPayloadFromFeedItem(place, source) as Record<string, unknown>),
+  );
+}
+
+export function capturePlaceSaved(
+  place: {
+    id: string;
+    name: string;
+    place_type?: string;
+    has_photos?: boolean;
+  },
+  source: AnalyticsSource,
+): void {
+  captureEvent(
+    "place_saved",
+    stripUndefined(getPlaceAnalyticsPayload(place, source) as Record<string, unknown>),
+  );
+}
+
+/** Rating funnel events — same payload shape as `getRatingPlaceAnalyticsPayload`. */
+export function captureRatingFunnelEvent(
+  eventName: "rating_started" | "photo_uploaded" | "rating_submitted",
+  place: {
+    id: string;
+    name: string;
+    place_type: string;
+    has_photos: boolean;
+  },
+  source: AnalyticsSource,
+): void {
+  captureEvent(
+    eventName,
+    stripUndefined(
+      getRatingPlaceAnalyticsPayload(place, source) as Record<string, unknown>,
+    ),
+  );
 }
 
 export function captureFiltersApplied(props: {

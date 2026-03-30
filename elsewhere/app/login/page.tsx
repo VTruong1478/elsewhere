@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useState } from "react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { MapPin } from "lucide-react";
@@ -9,11 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { captureEvent } from "@/lib/analytics";
-import {
-  gatedActionTypeFromPath,
-  peekPendingGatedAction,
-  setOAuthAuthIntent,
-} from "@/lib/gatedAction";
+import { setOAuthAuthIntent } from "@/lib/gatedAction";
 import { safeInternalPath } from "@/lib/safeNextPath";
 
 const IS_DEV = process.env.NODE_ENV === "development";
@@ -71,23 +67,12 @@ function LoginPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const nextSafe = safeInternalPath(searchParams.get("next"));
-  const gateShownForNextRef = useRef<string | null>(null);
 
   const [email, setEmail] = useState(IS_DEV ? "test@example.com" : "");
   const [password, setPassword] = useState(IS_DEV ? "testpass123" : "");
   const [isLoadingEmail, setIsLoadingEmail] = useState(false);
   const [isLoadingGoogle, setIsLoadingGoogle] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!nextSafe) return;
-    if (peekPendingGatedAction()) return;
-    if (gateShownForNextRef.current === nextSafe) return;
-    gateShownForNextRef.current = nextSafe;
-    captureEvent("auth_gate_shown", {
-      action_type: gatedActionTypeFromPath(nextSafe),
-    });
-  }, [nextSafe]);
 
   function signupHref() {
     if (!nextSafe) return "/signup";
