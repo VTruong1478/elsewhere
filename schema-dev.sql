@@ -140,18 +140,22 @@ BEGIN
     place_id,
     rating_count,
     noise_silent, noise_quiet, noise_vibrant,
-    tables_limited, tables_mixed, tables_ideal,
-    outlets_none, outlets_limited, outlets_ample,
-    vibe_focus, vibe_mixed, vibe_social,
-    updated_at
+    tables_limited, tables_mixed,
+    outlets_ample, vibe_social,
+    updated_at,
+    vibe_focused, vibe_casual,
+    tables_plentiful, outlets_scarce, outlets_some,
+    avg_overall_rating
   ) VALUES (
     NEW.id,
     0,
     0, 0, 0,
+    0, 0,
+    0, 0,
+    now(),
+    0, 0,
     0, 0, 0,
-    0, 0, 0,
-    0, 0, 0,
-    now()
+    NULL
   )
   ON CONFLICT (place_id) DO NOTHING;
   RETURN NEW;

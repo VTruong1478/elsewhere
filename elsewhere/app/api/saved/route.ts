@@ -99,7 +99,6 @@ export async function GET() {
     tables_limited: 0,
     tables_mixed: 0,
     tables_plentiful: 0,
-    tables_ideal: 0,
     outlets_scarce: 0,
     outlets_some: 0,
     outlets_ample: 0,
@@ -150,10 +149,7 @@ export async function GET() {
       noise_vibrant: (stats.noise_vibrant as number | bigint) ?? 0,
       tables_limited: (stats.tables_limited as number | bigint) ?? 0,
       tables_mixed: (stats.tables_mixed as number | bigint) ?? 0,
-      tables_plentiful:
-        (stats.tables_plentiful as number | bigint | undefined) ??
-        (stats.tables_ideal as number | bigint | undefined) ??
-        0,
+      tables_plentiful: (stats.tables_plentiful as number | bigint | undefined) ?? 0,
       outlets_scarce:
         (stats.outlets_scarce as number | bigint | undefined) ??
         (stats.outlets_none as number | bigint | undefined) ??
