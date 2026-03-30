@@ -137,7 +137,6 @@ export async function GET(request: NextRequest) {
     refLng: lng,
     filterChip: filter,
     favoritedPlaceIds: savedPlaceIds,
-    limit: 20,
   });
 
   if (q) {
