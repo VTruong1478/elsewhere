@@ -12,6 +12,9 @@ const PLACE_TYPE_OPTIONS = [
   { value: "library", label: "Library" },
   { value: "bookstore", label: "Bookstore" },
   { value: "coworking", label: "Coworking" },
+  { value: "diner", label: "Diner" },
+  { value: "restaurant", label: "Restaurant" },
+  { value: "bar", label: "Bar" },
   { value: "park", label: "Park" },
   { value: "other", label: "Other" },
 ] as const;

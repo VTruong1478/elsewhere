@@ -22,9 +22,6 @@ function getOpenStatus(
   closing_soon: boolean,
   open_late: boolean,
 ): { status: StatusKind; label: string } | null {
-  if (open_late && open_now) {
-    return { status: "open", label: "Open late" };
-  }
   if (closing_soon && closes_at) {
     return { status: "closing-soon", label: `Closing soon (${closes_at})` };
   }
@@ -33,6 +30,9 @@ function getOpenStatus(
   }
   if (!open_now) {
     return { status: "closed", label: "Closed" };
+  }
+  if (open_late && open_now) {
+    return { status: "open", label: "Open" };
   }
   return null;
 }

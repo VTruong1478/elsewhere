@@ -613,7 +613,7 @@ export function DesktopPlaceDetailPanel({
       if (openLate) {
         return {
           status: "open" as const,
-          label: "Open late",
+          label: closes ? `Open until ${closes}` : "Open",
           subLabel: `· ${ratingCount} ratings`,
         };
       }
@@ -643,7 +643,13 @@ export function DesktopPlaceDetailPanel({
         };
       }
       if (previewFeedItem.open_late) {
-        return { status: "open" as const, label: "Open late", subLabel: sub };
+        return {
+          status: "open" as const,
+          label: previewFeedItem.closes_at
+            ? `Open until ${previewFeedItem.closes_at}`
+            : "Open",
+          subLabel: sub,
+        };
       }
       return { status: "open" as const, label: "Open", subLabel: sub };
     }
