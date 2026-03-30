@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { MapPin } from "lucide-react";
+import posthog from "posthog-js";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -114,6 +115,12 @@ function SignupPageInner() {
 
     localStorage.setItem("hasVisited", "true");
     localStorage.removeItem("justLoggedOut");
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (user) {
+      posthog.identify(user.id);
+    }
     captureEvent("sign_up_completed", { method: "email" });
     router.push(nextSafe ?? "/feed");
   }
