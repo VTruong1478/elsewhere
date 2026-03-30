@@ -59,16 +59,15 @@ const FIELD_MASK = [
   "nextPageToken",
 ].join(",");
 
-// Uncomment with the full `buildSearchSpecs` return below when restoring all areas.
-// const NOVA_AREAS = [
-//   "Arlington VA",
-//   "Alexandria VA",
-//   "Fairfax VA",
-//   "Reston VA",
-//   "McLean VA",
-//   "Herndon VA",
-//   "Falls Church VA",
-// ] as const;
+const NOVA_AREAS = [
+  "Arlington VA",
+  "Alexandria VA",
+  "Fairfax VA",
+  "Reston VA",
+  "McLean VA",
+  "Herndon VA",
+  "Falls Church VA",
+] as const;
 
 type PlaceType = "cafe" | "library";
 
@@ -78,22 +77,19 @@ interface SearchSpec {
 }
 
 function buildSearchSpecs(): SearchSpec[] {
-  // Temporary: Fairfax cafes only. Uncomment the block below to restore full NoVA coverage.
-  return [{ query: "cafes in Fairfax VA", placeType: "cafe" }];
+  const broad: SearchSpec[] = [
+    { query: "cafes in Northern Virginia", placeType: "cafe" },
+    { query: "coffee shops in Northern Virginia", placeType: "cafe" },
+    { query: "public libraries in Northern Virginia", placeType: "library" },
+  ];
 
-  // const broad: SearchSpec[] = [
-  //   { query: "cafes in Northern Virginia", placeType: "cafe" },
-  //   { query: "coffee shops in Northern Virginia", placeType: "cafe" },
-  //   { query: "public libraries in Northern Virginia", placeType: "library" },
-  // ];
+  const perArea: SearchSpec[] = NOVA_AREAS.flatMap((area) => [
+    { query: `cafes in ${area}`, placeType: "cafe" as const },
+    { query: `coffee shops in ${area}`, placeType: "cafe" as const },
+    { query: `public libraries in ${area}`, placeType: "library" as const },
+  ]);
 
-  // const perArea: SearchSpec[] = NOVA_AREAS.flatMap((area) => [
-  //   { query: `cafes in ${area}`, placeType: "cafe" as const },
-  //   { query: `coffee shops in ${area}`, placeType: "cafe" as const },
-  //   { query: `public libraries in ${area}`, placeType: "library" as const },
-  // ]);
-
-  // return [...broad, ...perArea];
+  return [...broad, ...perArea];
 }
 
 interface LocalizedText {
