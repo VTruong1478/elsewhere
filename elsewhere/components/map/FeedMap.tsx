@@ -242,7 +242,10 @@ export function FeedMap({
   onZoomEndRef.current = onZoomEnd;
   /** After a pinch (2+ touches), ignore marker pointerup for a short window — avoids selecting a pin when lifting fingers from zoom. */
   const suppressMarkerTapUntilRef = useRef(0);
+  /** True once this gesture has seen 2+ fingers; stays true until all touches end (so the *first* finger's pointerup is suppressed). */
   const multiTouchGestureRef = useRef(false);
+  /** Map zoom at touch pointerdown on a marker — if zoom changed before pointerup, treat as pinch/pan not a tap. */
+  const markerTouchStartZoomRef = useRef<number | null>(null);
 
   const [legacyLocatePosition, setLegacyLocatePosition] = useState<{
     lat: number;
@@ -303,35 +306,37 @@ export function FeedMap({
 
     mapRef.current = map;
 
-    const container = map.getContainer();
-    const PINCH_MARKER_SUPPRESS_MS = 280;
+    // Window + capture: reliably see every finger (marker pointerup often fires while a 2nd finger is still down).
+    const PINCH_MARKER_SUPPRESS_MS = 320;
     const onTouchStart = (e: TouchEvent) => {
       if (e.touches.length >= 2) multiTouchGestureRef.current = true;
     };
     const onTouchEndLike = (e: TouchEvent) => {
-      if (e.touches.length === 0 && multiTouchGestureRef.current) {
-        suppressMarkerTapUntilRef.current =
-          performance.now() + PINCH_MARKER_SUPPRESS_MS;
+      if (e.touches.length === 0) {
+        if (multiTouchGestureRef.current) {
+          suppressMarkerTapUntilRef.current =
+            performance.now() + PINCH_MARKER_SUPPRESS_MS;
+        }
         multiTouchGestureRef.current = false;
       }
     };
-    container.addEventListener("touchstart", onTouchStart, {
+    window.addEventListener("touchstart", onTouchStart, {
       capture: true,
       passive: true,
     });
-    container.addEventListener("touchend", onTouchEndLike, {
+    window.addEventListener("touchend", onTouchEndLike, {
       capture: true,
       passive: true,
     });
-    container.addEventListener("touchcancel", onTouchEndLike, {
+    window.addEventListener("touchcancel", onTouchEndLike, {
       capture: true,
       passive: true,
     });
 
     return () => {
-      container.removeEventListener("touchstart", onTouchStart, true);
-      container.removeEventListener("touchend", onTouchEndLike, true);
-      container.removeEventListener("touchcancel", onTouchEndLike, true);
+      window.removeEventListener("touchstart", onTouchStart, true);
+      window.removeEventListener("touchend", onTouchEndLike, true);
+      window.removeEventListener("touchcancel", onTouchEndLike, true);
       markersRef.current.forEach((tm) => {
         clearRootSafely(tm.root);
         tm.marker.remove();
@@ -517,15 +522,39 @@ export function FeedMap({
           onPlaceMarkerHover?.(place.id);
         });
         el.addEventListener("mouseleave", () => setHoveredPlaceId(null));
+        el.addEventListener(
+          "pointerdown",
+          (e) => {
+            if (e.pointerType === "touch") {
+              markerTouchStartZoomRef.current = map.getZoom() ?? null;
+            }
+          },
+          { passive: true },
+        );
         // pointerup (not click): reliable on touch; stopPropagation avoids map canvas click.
         el.addEventListener("pointerup", (e) => {
           e.stopPropagation();
           if (e.pointerType === "mouse" && e.button !== 0) return;
-          if (
-            e.pointerType === "touch" &&
-            performance.now() < suppressMarkerTapUntilRef.current
-          ) {
-            return;
+          if (e.pointerType === "touch") {
+            // Pinch: first finger lifts while second is still down — suppress window isn't set yet.
+            if (multiTouchGestureRef.current) {
+              markerTouchStartZoomRef.current = null;
+              return;
+            }
+            if (performance.now() < suppressMarkerTapUntilRef.current) {
+              markerTouchStartZoomRef.current = null;
+              return;
+            }
+            const z0 = markerTouchStartZoomRef.current;
+            markerTouchStartZoomRef.current = null;
+            const z1 = map.getZoom();
+            if (
+              z0 != null &&
+              z1 != null &&
+              Math.abs(z1 - z0) > 0.05
+            ) {
+              return;
+            }
           }
           onSelectPlace(place.id);
         });

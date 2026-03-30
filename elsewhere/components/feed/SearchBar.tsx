@@ -16,7 +16,10 @@ export type SearchBarProps = {
   onValueChange?: (value: string) => void;
 };
 
-export function SearchBar({ value: controlledValue, onValueChange }: SearchBarProps = {}) {
+export function SearchBar({
+  value: controlledValue,
+  onValueChange,
+}: SearchBarProps = {}) {
   const isControlled = onValueChange != null;
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -135,7 +138,7 @@ export function SearchBar({ value: controlledValue, onValueChange }: SearchBarPr
         <button
           type="button"
           onClick={clearSearch}
-          className="mr-16 shrink-0 rounded-radius-sm p-12 text-text-tertiary transition-colors hover:text-text focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-0"
+          className="shrink-0 rounded-radius-sm p-12 text-text-tertiary transition-colors hover:text-text focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-0"
           aria-label="Clear search"
         >
           <X size={20} aria-hidden />
