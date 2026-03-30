@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "seed-places": "ts-node scripts/seed-places.ts",
+    "seed-fcpl-libraries": "ts-node scripts/seed-fcpl-libraries.ts",
     "backfill:google": "ts-node scripts/backfill-google-place-and-photo.ts",
     "fix:decatur": "ts-node scripts/fix-decatur-library.ts",
     "vercel:login": "vercel login",
