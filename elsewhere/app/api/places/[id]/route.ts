@@ -45,6 +45,7 @@ type MyRatingRow = {
   outlets: string;
   overall_rating: number;
   photo_path: string | null;
+  photo_paths: string[] | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -157,13 +158,22 @@ export async function GET(
       const { data: mine } = await serviceClient
         .from("ratings")
         .select(
-          "id, noise, vibe, tables, outlets, overall_rating, photo_path, notes, created_at, updated_at",
+          "id, noise, vibe, tables, outlets, overall_rating, photo_path, photo_paths, notes, created_at, updated_at",
         )
         .eq("place_id", placeId)
         .eq("user_id", user.id)
         .maybeSingle();
       if (mine && typeof mine === "object") {
         const m = mine as Record<string, unknown>;
+        const legacyPath =
+          m.photo_path == null ? null : String(m.photo_path as string);
+        const rawArr = m.photo_paths as string[] | null | undefined;
+        const pathsFromDb =
+          Array.isArray(rawArr) && rawArr.length > 0
+            ? rawArr.map((p) => String(p).trim()).filter(Boolean)
+            : legacyPath?.trim()
+              ? [legacyPath.trim()]
+              : [];
         my_rating = {
           id: String(m.id),
           noise: String(m.noise),
@@ -171,8 +181,8 @@ export async function GET(
           tables: String(m.tables),
           outlets: String(m.outlets),
           overall_rating: Number(m.overall_rating),
-          photo_path:
-            m.photo_path == null ? null : String(m.photo_path as string),
+          photo_path: pathsFromDb[0] ?? legacyPath,
+          photo_paths: pathsFromDb.length > 0 ? pathsFromDb : null,
           notes: m.notes == null ? null : String(m.notes as string),
           created_at: new Date(String(m.created_at)).toISOString(),
           updated_at: new Date(String(m.updated_at)).toISOString(),

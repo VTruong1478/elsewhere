@@ -8,6 +8,8 @@ const VIBE_VALUES = ["focused", "casual", "social"] as const;
 const TABLES_VALUES = ["limited", "mixed", "plentiful"] as const;
 const OUTLETS_VALUES = ["scarce", "some", "ample"] as const;
 const MAX_RATINGS_PER_DAY = 100;
+/** Cap for user-uploaded images attached to one rating (storage paths). */
+const MAX_RATING_PHOTOS = 6;
 
 function startOfTodayUTC(): string {
   const now = new Date();
@@ -20,6 +22,47 @@ function isValidOverallRating(v: unknown): v is number {
   if (typeof v !== "number" || !Number.isFinite(v)) return false;
   if (v < 0 || v > 5) return false;
   return v * 2 === Math.floor(v * 2);
+}
+
+/**
+ * Normalize and validate storage paths from the client.
+ * Accepts `photo_paths` array and/or legacy `photo_path` string.
+ */
+function sanitizeRatingPhotoPaths(
+  photo_paths: unknown,
+  photo_path: unknown,
+  userId: string,
+): { paths: string[]; error?: string } {
+  const raw: string[] = [];
+  if (Array.isArray(photo_paths)) {
+    for (const item of photo_paths) {
+      const s = String(item ?? "").trim();
+      if (s) raw.push(s);
+    }
+  } else if (photo_path != null && String(photo_path).trim() !== "") {
+    raw.push(String(photo_path).trim());
+  }
+
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const p of raw) {
+    if (!p.includes(userId)) {
+      return {
+        paths: [],
+        error: "Each photo path must belong to your account",
+      };
+    }
+    if (seen.has(p)) continue;
+    seen.add(p);
+    out.push(p);
+    if (out.length > MAX_RATING_PHOTOS) {
+      return {
+        paths: [],
+        error: `At most ${MAX_RATING_PHOTOS} photos per rating`,
+      };
+    }
+  }
+  return { paths: out };
 }
 
 export async function POST(
@@ -95,7 +138,7 @@ export async function POST(
     );
   }
 
-  const { noise, vibe, tables, outlets, overall_rating, photo_path, notes } =
+  const { noise, vibe, tables, outlets, overall_rating, photo_path, photo_paths, notes } =
     body as {
       noise?: string;
       vibe?: string;
@@ -103,6 +146,7 @@ export async function POST(
       outlets?: string;
       overall_rating?: unknown;
       photo_path?: string;
+      photo_paths?: unknown;
       notes?: string;
     };
 
@@ -154,14 +198,10 @@ export async function POST(
     );
   }
 
-  // 7. Validate photo_path contains user's id if provided
-  if (photo_path != null && photo_path !== "") {
-    if (!photo_path.includes(user.id)) {
-      return NextResponse.json(
-        { error: "photo_path must contain your user id" },
-        { status: 400 },
-      );
-    }
+  const { paths: ratingPhotoPaths, error: photoPathsError } =
+    sanitizeRatingPhotoPaths(photo_paths, photo_path, user.id);
+  if (photoPathsError) {
+    return NextResponse.json({ error: photoPathsError }, { status: 400 });
   }
 
   // 6. Upsert into ratings (user client so RLS applies)
@@ -174,7 +214,8 @@ export async function POST(
     outlets,
     overall_rating: Number(overall_rating),
     notes: notes ?? null,
-    photo_path: photo_path && photo_path.includes(user.id) ? photo_path : null,
+    photo_paths: ratingPhotoPaths,
+    photo_path: ratingPhotoPaths[0] ?? null,
     updated_at: new Date().toISOString(),
   };
 
@@ -198,8 +239,8 @@ export async function POST(
 
 /**
  * PATCH /api/places/[id]/rate
- * Body: { photo_path: string }
- * Updates photo_path on the user's rating for this place.
+ * Body: { photo_paths?: string[] } and/or legacy { photo_path?: string | null }
+ * Keeps photo_path and photo_paths in sync (photo_path = first element).
  */
 export async function PATCH(
   request: NextRequest,
@@ -219,7 +260,7 @@ export async function PATCH(
     );
   }
 
-  let body: { photo_path?: string };
+  let body: { photo_path?: string | null; photo_paths?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -229,18 +270,29 @@ export async function PATCH(
     );
   }
 
-  const photo_path = body.photo_path ?? null;
-  if (photo_path != null && photo_path !== "" && !photo_path.includes(user.id)) {
+  const hasPathsKey = Object.prototype.hasOwnProperty.call(body, "photo_paths");
+  const hasPathKey = Object.prototype.hasOwnProperty.call(body, "photo_path");
+  if (!hasPathsKey && !hasPathKey) {
     return NextResponse.json(
-      { error: "photo_path must contain your user id" },
+      { error: "Provide photo_paths and/or photo_path" },
       { status: 400 },
     );
+  }
+
+  const { paths, error: photoErr } = sanitizeRatingPhotoPaths(
+    hasPathsKey ? body.photo_paths : null,
+    hasPathsKey ? null : body.photo_path,
+    user.id,
+  );
+  if (photoErr) {
+    return NextResponse.json({ error: photoErr }, { status: 400 });
   }
 
   const { error } = await supabase
     .from("ratings")
     .update({
-      photo_path: photo_path && photo_path.includes(user.id) ? photo_path : null,
+      photo_paths: paths,
+      photo_path: paths[0] ?? null,
       updated_at: new Date().toISOString(),
     })
     .eq("place_id", placeId)

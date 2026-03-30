@@ -46,6 +46,8 @@ export type PlaceDetailResponse = {
     outlets: string;
     overall_rating: number;
     photo_path: string | null;
+    /** All uploaded image storage paths for this rating (preferred); `photo_path` is the first for legacy UI. */
+    photo_paths: string[] | null;
     notes: string | null;
     created_at: string;
     updated_at: string;

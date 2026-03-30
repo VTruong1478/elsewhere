@@ -30,6 +30,9 @@ const VIBE_OPTIONS = ["focused", "casual", "social"] as const;
 const TABLES_OPTIONS = ["limited", "mixed", "plentiful"] as const;
 const OUTLETS_OPTIONS = ["scarce", "some", "ample"] as const;
 
+/** Matches /api/places/[id]/rate MAX_RATING_PHOTOS */
+const MAX_RATING_PHOTOS = 6;
+
 type NoiseValue = (typeof NOISE_OPTIONS)[number];
 type VibeValue = (typeof VIBE_OPTIONS)[number];
 type TablesValue = (typeof TABLES_OPTIONS)[number];
@@ -43,6 +46,7 @@ type RatingPayload = {
   overall_rating: number;
   notes?: string | null;
   photo_path?: string | null;
+  photo_paths?: string[];
 };
 
 function isNoiseValue(v: string): v is NoiseValue {
@@ -61,6 +65,7 @@ function isOutletsValue(v: string): v is OutletsValue {
 async function submitRating(placeId: string, payload: RatingPayload) {
   const res = await fetch(`/api/places/${placeId}/rate`, {
     method: "POST",
+    credentials: "same-origin",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
@@ -163,30 +168,19 @@ export function RatingForm({
   const [outlets, setOutlets] = useState<OutletsValue | null>(null);
   const [overallRating, setOverallRating] = useState<number | null>(null);
   const [notes, setNotes] = useState("");
-  const [photoFile, setPhotoFile] = useState<File | null>(null);
-  /** Local preview URL for a newly selected file only (revoked on clear). */
-  const [localPhotoBlobUrl, setLocalPhotoBlobUrl] = useState<string | null>(
-    null,
-  );
-  /** Server photo path from `my_rating` — kept for POST so upsert does not clear photo before upload/PATCH. */
-  const [initialPhotoPathFromServer, setInitialPhotoPathFromServer] = useState<
-    string | null
-  >(null);
-  const [photoRemovedByUser, setPhotoRemovedByUser] = useState(false);
+  /** Storage paths already saved for this rating (subset user keeps). */
+  const [serverPaths, setServerPaths] = useState<string[]>([]);
+  /** New files to upload after POST (with blob URLs for preview). */
+  const [localPhotos, setLocalPhotos] = useState<
+    { file: File; url: string }[]
+  >([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const hydratedFromDetailRef = useRef(false);
+  const localPhotosRef = useRef<{ file: File; url: string }[]>([]);
 
-  const serverPhotoPublicUrl = useMemo(() => {
-    if (!initialPhotoPathFromServer?.trim()) return null;
-    return userPhotoProxyUrl(initialPhotoPathFromServer);
-  }, [initialPhotoPathFromServer]);
-
-  const displayPhotoUrl =
-    photoFile && localPhotoBlobUrl
-      ? localPhotoBlobUrl
-      : !photoRemovedByUser && serverPhotoPublicUrl
-        ? serverPhotoPublicUrl
-        : null;
+  useEffect(() => {
+    localPhotosRef.current = localPhotos;
+  }, [localPhotos]);
 
   useEffect(() => {
     if (!detail || hydratedFromDetailRef.current) return;
@@ -204,24 +198,27 @@ export function RatingForm({
     if (m.notes != null) {
       setNotes(String(m.notes));
     }
-    const path = m.photo_path?.trim();
-    setInitialPhotoPathFromServer(path && path.length > 0 ? path : null);
+    const fromApi =
+      Array.isArray(m.photo_paths) && m.photo_paths.length > 0
+        ? m.photo_paths.map((p) => String(p).trim()).filter(Boolean)
+        : m.photo_path?.trim()
+          ? [m.photo_path.trim()]
+          : [];
+    setServerPaths(fromApi);
+    setLocalPhotos([]);
     hydratedFromDetailRef.current = true;
   }, [detail]);
 
   useEffect(() => {
-    const url = localPhotoBlobUrl;
     return () => {
-      if (url) URL.revokeObjectURL(url);
+      localPhotosRef.current.forEach((p) => URL.revokeObjectURL(p.url));
     };
-  }, [localPhotoBlobUrl]);
+  }, []);
 
   const isEditMode = Boolean(detailFetched && detail?.my_rating);
 
   function ratingHasPhotosNow(): boolean {
-    if (photoFile) return true;
-    if (initialPhotoPathFromServer && !photoRemovedByUser) return true;
-    return false;
+    return serverPaths.length > 0 || localPhotos.length > 0;
   }
 
   function ratingFunnelPlaceSnapshot(hasPhotos: boolean): {
@@ -251,17 +248,20 @@ export function RatingForm({
   const mutation = useMutation({
     mutationFn: async ({
       payload,
-      photo,
+      newFiles,
     }: {
       payload: RatingPayload;
-      photo: File | null;
+      newFiles: File[];
     }) => {
       await submitRating(placeId, payload);
-      if (photo) {
+      if (newFiles.length === 0) return;
+      const paths = [...(payload.photo_paths ?? [])];
+      for (const file of newFiles) {
         const formData = new FormData();
-        formData.append("photo", photo);
+        formData.append("photo", file);
         const uploadRes = await fetch(`/api/places/${placeId}/upload-photo`, {
           method: "POST",
+          credentials: "same-origin",
           body: formData,
         });
         if (!uploadRes.ok) {
@@ -271,30 +271,32 @@ export function RatingForm({
           );
         }
         const { path } = (await uploadRes.json()) as { path: string };
-        const patchRes = await fetch(`/api/places/${placeId}/rate`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ photo_path: path }),
-        });
-        if (!patchRes.ok) {
-          throw new Error("Failed to save photo to rating");
-        }
-        captureRatingFunnelEvent(
-          "photo_uploaded",
-          ratingFunnelPlaceSnapshot(true),
-          ratingFlowSource,
-        );
-        tryCaptureGatedActionCompleted({
-          action_type: "upload_photo",
-          place_id: normalizedPlaceId ?? placeId,
-        });
+        paths.push(path);
       }
+      const patchRes = await fetch(`/api/places/${placeId}/rate`, {
+        method: "PATCH",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ photo_paths: paths }),
+      });
+      if (!patchRes.ok) {
+        throw new Error("Failed to save photos to rating");
+      }
+      captureRatingFunnelEvent(
+        "photo_uploaded",
+        ratingFunnelPlaceSnapshot(true),
+        ratingFlowSource,
+      );
+      tryCaptureGatedActionCompleted({
+        action_type: "upload_photo",
+        place_id: normalizedPlaceId ?? placeId,
+      });
     },
     onSuccess: (_data, variables) => {
       const hadPhoto =
-        variables.photo != null ||
-        (variables.payload.photo_path != null &&
-          String(variables.payload.photo_path).trim() !== "");
+        variables.newFiles.length > 0 ||
+        (variables.payload.photo_paths != null &&
+          variables.payload.photo_paths.length > 0);
       captureRatingFunnelEvent(
         "rating_submitted",
         ratingFunnelPlaceSnapshot(hadPhoto),
@@ -326,47 +328,53 @@ export function RatingForm({
     outlets != null &&
     overallRating != null;
 
-  function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (file) {
+  const photoCount = serverPaths.length + localPhotos.length;
+  const canAddMorePhotos = photoCount < MAX_RATING_PHOTOS;
+
+  function addPhotoFiles(fileList: FileList | null) {
+    if (!fileList?.length) return;
+    const remaining =
+      MAX_RATING_PHOTOS - serverPaths.length - localPhotos.length;
+    if (remaining <= 0) return;
+    ensureRatingStarted();
+    const accepted: { file: File; url: string }[] = [];
+    for (const file of Array.from(fileList)) {
+      if (accepted.length >= remaining) break;
       if (!["image/jpeg", "image/jpg", "image/webp"].includes(file.type)) {
-        return;
+        continue;
       }
       if (file.size > 5 * 1024 * 1024) {
-        return;
+        continue;
       }
-      ensureRatingStarted();
-      setPhotoRemovedByUser(false);
-      setPhotoFile(file);
-      setLocalPhotoBlobUrl(URL.createObjectURL(file));
+      accepted.push({ file, url: URL.createObjectURL(file) });
     }
+    if (accepted.length > 0) {
+      setLocalPhotos((prev) => [...prev, ...accepted]);
+    }
+  }
+
+  function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    addPhotoFiles(e.target.files);
     e.target.value = "";
   }
 
-  function clearPhoto() {
-    if (photoFile) {
-      setPhotoFile(null);
-      setLocalPhotoBlobUrl(null);
-      return;
-    }
-    if (initialPhotoPathFromServer && !photoRemovedByUser) {
-      setPhotoRemovedByUser(true);
-    }
+  function removeServerPath(index: number) {
+    setServerPaths((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function removeLocalPhoto(index: number) {
+    setLocalPhotos((prev) => {
+      const row = prev[index];
+      if (row) URL.revokeObjectURL(row.url);
+      return prev.filter((_, i) => i !== index);
+    });
   }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!isComplete || mutation.isPending || overallRating == null) return;
 
-    let photo_path: string | null = null;
-    if (photoRemovedByUser && !photoFile) {
-      photo_path = null;
-    } else if (photoFile) {
-      photo_path = initialPhotoPathFromServer;
-    } else {
-      photo_path = initialPhotoPathFromServer ?? null;
-    }
-
+    const pathsPayload = [...serverPaths];
     const payload: RatingPayload = {
       noise: noise!,
       vibe: vibe!,
@@ -374,10 +382,14 @@ export function RatingForm({
       outlets: outlets!,
       overall_rating: overallRating,
       notes: notes.trim() ? notes.trim() : null,
-      photo_path,
+      photo_paths: pathsPayload,
+      photo_path: pathsPayload[0] ?? null,
     };
 
-    mutation.mutate({ payload, photo: photoFile });
+    mutation.mutate({
+      payload,
+      newFiles: localPhotos.map((p) => p.file),
+    });
   }
 
   function renderOptionRow<T extends string>({
@@ -445,36 +457,14 @@ export function RatingForm({
         ref={fileInputRef}
         type="file"
         accept="image/jpeg,image/jpg,image/webp"
+        multiple
         className="hidden"
         onChange={handlePhotoChange}
       />
 
-      {/* Photo upload — dashed frame, camera in circle, copy per Figma */}
-      <section>
-        {displayPhotoUrl ? (
-          <div className="relative overflow-hidden rounded-radius-md border-2 border-dashed border-text-secondary bg-surface p-16">
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="block w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-              aria-label="Replace photo"
-            >
-              <img
-                src={displayPhotoUrl}
-                alt=""
-                className="h-[160px] w-full rounded-radius-sm object-cover"
-              />
-            </button>
-            <button
-              type="button"
-              onClick={clearPhoto}
-              className="absolute right-12 top-12 z-10 flex h-32 w-32 items-center justify-center rounded-full bg-surface text-text shadow-map"
-              aria-label={photoFile ? "Remove new photo" : "Remove photo"}
-            >
-              <X size={16} />
-            </button>
-          </div>
-        ) : (
+      {/* Photos — up to MAX_RATING_PHOTOS; multiple selection supported */}
+      <section className="space-y-12">
+        {photoCount === 0 ? (
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
@@ -485,9 +475,73 @@ export function RatingForm({
             </div>
             <p className="mt-8 text-ui-label-xl text-text">Show us the vibe</p>
             <p className="max-w-xs text-body-s text-text-secondary">
-              Upload a photo of the seating or workspace.
+              Upload up to {MAX_RATING_PHOTOS} photos of the seating or
+              workspace (JPEG or WebP, 5MB each).
             </p>
           </button>
+        ) : (
+          <>
+            <div className="flex flex-wrap gap-8">
+              {serverPaths.map((path, i) => (
+                <div
+                  key={`srv-${path}-${i}`}
+                  className="relative h-[100px] w-[100px] shrink-0 overflow-hidden rounded-radius-md border border-surface-alt bg-surface-alt"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={userPhotoProxyUrl(path)}
+                    alt=""
+                    className="h-full w-full object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeServerPath(i)}
+                    className="absolute right-4 top-4 z-10 flex h-32 w-32 items-center justify-center rounded-full bg-surface text-text shadow-map"
+                    aria-label="Remove photo"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ))}
+              {localPhotos.map((p, i) => (
+                <div
+                  key={p.url}
+                  className="relative h-[100px] w-[100px] shrink-0 overflow-hidden rounded-radius-md border border-surface-alt bg-surface-alt"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={p.url}
+                    alt=""
+                    className="h-full w-full object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeLocalPhoto(i)}
+                    className="absolute right-4 top-4 z-10 flex h-32 w-32 items-center justify-center rounded-full bg-surface text-text shadow-map"
+                    aria-label="Remove new photo"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+            {canAddMorePhotos ? (
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="flex w-full flex-col items-center rounded-radius-md border-2 border-dashed border-text-secondary bg-surface px-16 py-16 text-center focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              >
+                <Camera className="text-primary" size={20} aria-hidden />
+                <p className="mt-4 text-ui-label-l text-text">
+                  Add more photos ({photoCount}/{MAX_RATING_PHOTOS})
+                </p>
+              </button>
+            ) : (
+              <p className="text-body-s text-text-secondary text-center">
+                Maximum {MAX_RATING_PHOTOS} photos per rating.
+              </p>
+            )}
+          </>
         )}
       </section>
 
