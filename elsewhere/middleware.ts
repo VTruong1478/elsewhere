@@ -1,7 +1,17 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
-const PUBLIC_PATHS = ['/auth', '/login', '/signup', '/auth/callback', '/', '/feed', '/api'];
+const PUBLIC_PATHS = [
+  '/auth',
+  '/login',
+  '/signup',
+  '/auth/callback',
+  '/',
+  '/feed',
+  '/api',
+  '/terms',
+  '/privacy',
+];
 
 function isPublicPath(pathname: string): boolean {
   // Place detail is public so logged-out users can open a spot from the feed.
@@ -20,7 +30,7 @@ function isPublicPath(pathname: string): boolean {
 }
 
 export async function middleware(request: NextRequest) {
-  let response = NextResponse.next({
+  const response = NextResponse.next({
     request: { headers: request.headers },
   });
 
