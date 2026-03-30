@@ -240,6 +240,9 @@ export function FeedMap({
   const lastZoomRef = useRef<number | null>(null);
   const onZoomEndRef = useRef(onZoomEnd);
   onZoomEndRef.current = onZoomEnd;
+  /** After a pinch (2+ touches), ignore marker pointerup for a short window — avoids selecting a pin when lifting fingers from zoom. */
+  const suppressMarkerTapUntilRef = useRef(0);
+  const multiTouchGestureRef = useRef(false);
 
   const [legacyLocatePosition, setLegacyLocatePosition] = useState<{
     lat: number;
@@ -271,34 +274,14 @@ export function FeedMap({
     [places],
   );
 
-  // --- Token guard ---
-  if (!token) {
-    return (
-      <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-surface-alt px-4 text-center text-text-secondary">
-        <p className="text-body-m font-medium">
-          Map unavailable: missing access token
-        </p>
-        <p className="text-body-s">
-          Add{" "}
-          <code className="rounded bg-surface-chip px-1 py-0.5 font-mono text-ui-caption">
-            NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN
-          </code>{" "}
-          to{" "}
-          <code className="rounded bg-surface-chip px-1 py-0.5 font-mono text-ui-caption">
-            .env.local
-          </code>
-          , then restart the dev server.
-        </p>
-      </div>
-    );
-  }
+  const lastEmptyCenterFlyKeyRef = useRef("");
 
   // -----------------------------------------------------------------------
   // 1. Create map
   // -----------------------------------------------------------------------
-  // eslint-disable-next-line react-hooks/rules-of-hooks
+   
   useEffect(() => {
-    if (!mapContainerRef.current || mapRef.current) return;
+    if (!token || !mapContainerRef.current || mapRef.current) return;
 
     mapboxgl.accessToken = token;
 
@@ -320,7 +303,35 @@ export function FeedMap({
 
     mapRef.current = map;
 
+    const container = map.getContainer();
+    const PINCH_MARKER_SUPPRESS_MS = 280;
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length >= 2) multiTouchGestureRef.current = true;
+    };
+    const onTouchEndLike = (e: TouchEvent) => {
+      if (e.touches.length === 0 && multiTouchGestureRef.current) {
+        suppressMarkerTapUntilRef.current =
+          performance.now() + PINCH_MARKER_SUPPRESS_MS;
+        multiTouchGestureRef.current = false;
+      }
+    };
+    container.addEventListener("touchstart", onTouchStart, {
+      capture: true,
+      passive: true,
+    });
+    container.addEventListener("touchend", onTouchEndLike, {
+      capture: true,
+      passive: true,
+    });
+    container.addEventListener("touchcancel", onTouchEndLike, {
+      capture: true,
+      passive: true,
+    });
+
     return () => {
+      container.removeEventListener("touchstart", onTouchStart, true);
+      container.removeEventListener("touchend", onTouchEndLike, true);
+      container.removeEventListener("touchcancel", onTouchEndLike, true);
       markersRef.current.forEach((tm) => {
         clearRootSafely(tm.root);
         tm.marker.remove();
@@ -341,7 +352,7 @@ export function FeedMap({
   // -----------------------------------------------------------------------
   // 2. Zoom-end listener
   // -----------------------------------------------------------------------
-  // eslint-disable-next-line react-hooks/rules-of-hooks
+   
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -362,7 +373,7 @@ export function FeedMap({
   }, [token]);
 
   // Clear stuck hover (e.g. tablet touch) when tapping the map background, not a marker.
-  // eslint-disable-next-line react-hooks/rules-of-hooks
+   
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -373,12 +384,10 @@ export function FeedMap({
     };
   }, [setHoveredPlaceId, token]);
 
-  const lastEmptyCenterFlyKeyRef = useRef("");
-
   // -----------------------------------------------------------------------
   // 3. Fit bounds when places change
   // -----------------------------------------------------------------------
-  // eslint-disable-next-line react-hooks/rules-of-hooks
+   
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -421,7 +430,7 @@ export function FeedMap({
   }, [validPlaces, selectedPlaceId, centerVerticalOffsetPx]);
 
   // When there are no place markers, follow the logical map center (e.g. user in Case 4).
-  // eslint-disable-next-line react-hooks/rules-of-hooks
+   
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !center) return;
@@ -439,7 +448,7 @@ export function FeedMap({
   // -----------------------------------------------------------------------
   // 4. Fly to selected place
   // -----------------------------------------------------------------------
-  // eslint-disable-next-line react-hooks/rules-of-hooks
+   
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !selectedPlaceId) {
@@ -481,7 +490,7 @@ export function FeedMap({
   // -----------------------------------------------------------------------
   // 5a. Marker lifecycle (add / remove / position) — depends only on places + handlers
   // -----------------------------------------------------------------------
-  // eslint-disable-next-line react-hooks/rules-of-hooks
+   
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -512,6 +521,12 @@ export function FeedMap({
         el.addEventListener("pointerup", (e) => {
           e.stopPropagation();
           if (e.pointerType === "mouse" && e.button !== 0) return;
+          if (
+            e.pointerType === "touch" &&
+            performance.now() < suppressMarkerTapUntilRef.current
+          ) {
+            return;
+          }
           onSelectPlace(place.id);
         });
 
@@ -530,7 +545,7 @@ export function FeedMap({
   // -----------------------------------------------------------------------
   // 5b. Marker visuals (PinContent + z-index) — selected / hover / score
   // -----------------------------------------------------------------------
-  // eslint-disable-next-line react-hooks/rules-of-hooks
+   
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -560,7 +575,7 @@ export function FeedMap({
   // -----------------------------------------------------------------------
   // 6. User location marker
   // -----------------------------------------------------------------------
-  // eslint-disable-next-line react-hooks/rules-of-hooks
+   
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -634,6 +649,27 @@ export function FeedMap({
   // -----------------------------------------------------------------------
   // Render
   // -----------------------------------------------------------------------
+  if (!token) {
+    return (
+      <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-surface-alt px-4 text-center text-text-secondary">
+        <p className="text-body-m font-medium">
+          Map unavailable: missing access token
+        </p>
+        <p className="text-body-s">
+          Add{" "}
+          <code className="rounded bg-surface-chip px-1 py-0.5 font-mono text-ui-caption">
+            NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN
+          </code>{" "}
+          to{" "}
+          <code className="rounded bg-surface-chip px-1 py-0.5 font-mono text-ui-caption">
+            .env.local
+          </code>
+          , then restart the dev server.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="relative h-full w-full min-h-[200px]">
       <div ref={mapContainerRef} className="h-full w-full" />
