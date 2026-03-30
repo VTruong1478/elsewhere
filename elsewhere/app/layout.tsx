@@ -1,31 +1,30 @@
-import type { Metadata, Viewport } from 'next';
-import { Lora, DM_Sans } from 'next/font/google';
-import './globals.css';
-import { QueryClientProvider } from '@/components/providers/QueryClientProvider';
+import type { Metadata, Viewport } from "next";
+import { Lora, DM_Sans } from "next/font/google";
+import "./globals.css";
+import { QueryClientProvider } from "@/components/providers/QueryClientProvider";
 
 const lora = Lora({
-  variable: '--font-lora',
-  subsets: ['latin'],
-  display: 'swap',
+  variable: "--font-lora",
+  subsets: ["latin"],
+  display: "swap",
 });
 
 const dmSans = DM_Sans({
-  variable: '--font-dm-sans',
-  subsets: ['latin'],
-  display: 'swap',
+  variable: "--font-dm-sans",
+  subsets: ["latin"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: 'Elsewhere',
-  description:
-    'Discover third spaces—cafes, libraries, and bookstores—tailored for focused work near you.',
-  applicationName: 'Elsewhere',
+  title: "elsewhere",
+  description: "go work elsewhere",
+  applicationName: "elsewhere",
 };
 
 export const viewport: Viewport = {
-  width: 'device-width',
+  width: "device-width",
   initialScale: 1,
-  themeColor: '#EFEBE0',
+  themeColor: "#EFEBE0",
 };
 
 export default function RootLayout({

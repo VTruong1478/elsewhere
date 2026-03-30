@@ -284,6 +284,10 @@ export async function buildFeedItemsFromPlaces(
     );
   }
 
+  if (filterChip === "open_now") {
+    result = result.filter((item) => item.open_now);
+  }
+
   if (filterChip === "bookstores") {
     result = result.filter(
       (item) => item.place_type?.toLowerCase() === "bookstore",

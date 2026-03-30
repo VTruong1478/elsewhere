@@ -50,13 +50,7 @@ export interface FeedItem {
   cost?: string | null;
 }
 
-export type FeedFilter =
-  | ""
-  | "quiet"
-  | "cafes"
-  | "libraries"
-  | "bookstores"
-  | "open_now";
+export type FeedFilter = "" | "quiet" | "cafes" | "libraries" | "open_now";
 
 export const FEED_FILTER_OPTIONS: { value: FeedFilter; label: string }[] = [
   { value: "", label: "All spots" },
@@ -64,5 +58,4 @@ export const FEED_FILTER_OPTIONS: { value: FeedFilter; label: string }[] = [
   { value: "quiet", label: "Quiet" },
   { value: "cafes", label: "Cafes" },
   { value: "libraries", label: "Libraries" },
-  { value: "bookstores", label: "Bookstores" },
 ];

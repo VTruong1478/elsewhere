@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { useEffect, useRef } from "react";
 import { FEED_FILTER_OPTIONS, type FeedFilter } from "@/types/feed";
 import { Pill } from "@/components/ui/Pill";
 
@@ -9,6 +10,31 @@ export function FilterChips() {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const current = (searchParams.get("filter") ?? "") as FeedFilter;
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    const onWheel = (e: WheelEvent) => {
+      if (el.scrollWidth <= el.clientWidth) return;
+      const delta = e.deltaX !== 0 ? e.deltaX : e.deltaY;
+      if (delta === 0) return;
+      const { scrollLeft, scrollWidth, clientWidth } = el;
+      const maxScroll = scrollWidth - clientWidth;
+      const next = scrollLeft + delta;
+      const clamped = Math.max(0, Math.min(maxScroll, next));
+      const unchanged =
+        (delta > 0 && scrollLeft >= maxScroll - 1) ||
+        (delta < 0 && scrollLeft <= 0);
+      if (unchanged) return;
+      e.preventDefault();
+      el.scrollLeft = clamped;
+    };
+
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
 
   const basePath = pathname?.startsWith("/map") ? "/map" : "/feed";
 
@@ -23,7 +49,10 @@ export function FilterChips() {
   }
 
   return (
-    <div className="scrollbar-hide flex flex-nowrap gap-2 overflow-x-auto overflow-y-hidden px-16 py-8">
+    <div
+      ref={scrollRef}
+      className="scrollbar-hide flex min-h-0 w-full min-w-0 flex-nowrap gap-2 overflow-x-auto overflow-y-hidden overscroll-x-contain px-16 py-8 [-webkit-overflow-scrolling:touch]"
+    >
       {FEED_FILTER_OPTIONS.map(({ value, label }) => {
         const isSelected = current === value;
         return (
