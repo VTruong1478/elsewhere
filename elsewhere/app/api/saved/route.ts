@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { ensureProfileFullName } from "@/lib/ensureProfileFullName";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import {
   buildFeedItemsFromPlaces,
@@ -233,6 +234,7 @@ export async function POST(request: NextRequest) {
   }
 
   const serviceClient = createServiceRoleClient();
+  await ensureProfileFullName(serviceClient, user);
 
   // saved.user_id FK → profiles(id) (not auth.users). Users who never hit a profile write
   // can still have a valid session — inserts would fail with FK violation without this row.

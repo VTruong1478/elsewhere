@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { ensureProfileFullName } from "@/lib/ensureProfileFullName";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 
 const NOISE_VALUES = ["silent", "quiet", "vibrant"] as const;
@@ -41,6 +42,7 @@ export async function POST(
   }
 
   const serviceClient = createServiceRoleClient();
+  await ensureProfileFullName(serviceClient, user);
 
   // 2. Rate limit: max 100 ratings per user per UTC day
   const { count, error: countError } = await serviceClient

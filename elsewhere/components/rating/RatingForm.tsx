@@ -372,7 +372,7 @@ export function RatingForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-24">
+    <form onSubmit={handleSubmit} className="space-y-24 pb-32">
       <input
         ref={fileInputRef}
         type="file"

@@ -12,7 +12,7 @@ export default async function PlaceRatePage(props: PageProps) {
   const placeName = sp.name ?? "This place";
 
   return (
-    <div className="w-full bg-background px-16 pb-32 pt-16 lg:pb-0">
+    <div className="w-full bg-background px-16 pb-32 pt-16 lg:pb-32">
       <div className="mx-auto max-w-xl space-y-8">
         <header className="flex min-w-0 items-center gap-8">
           <RatePageBackButton />
