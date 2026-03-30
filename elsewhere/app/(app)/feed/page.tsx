@@ -191,6 +191,7 @@ function FeedContent() {
             !isCase4Empty &&
             !query.isLoading && (
               <FeedEmptyState
+                variant="plain"
                 submittedFromSearch={q.trim() || undefined}
               />
             )}

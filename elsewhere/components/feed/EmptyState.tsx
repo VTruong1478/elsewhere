@@ -4,16 +4,26 @@ import { useState } from "react";
 import { MapPin } from "lucide-react";
 import { AddMissingPlaceModal } from "@/components/feed/AddMissingPlaceModal";
 
+export type FeedEmptyStateVariant = "card" | "plain";
+
 export function FeedEmptyState({
   submittedFromSearch,
+  /** `card`: floating panel on map. `plain`: no surface, shadow, or radius (feed list). */
+  variant = "card",
 }: {
   submittedFromSearch?: string;
+  variant?: FeedEmptyStateVariant;
 } = {}) {
   const [addPlaceOpen, setAddPlaceOpen] = useState(false);
 
+  const shellClass =
+    variant === "plain"
+      ? "bg-transparent p-24"
+      : "rounded-radius-md bg-surface shadow-map p-24";
+
   return (
     <>
-      <div className="rounded-radius-md bg-surface shadow-map p-24">
+      <div className={shellClass}>
         <div className="flex flex-col items-center justify-center text-center">
           <MapPin
             className="text-text-tertiary mb-4"
