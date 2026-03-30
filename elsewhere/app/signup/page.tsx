@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { MapPin } from "lucide-react";
+import { Square, MapPin, SquareCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -66,10 +67,16 @@ export default function SignupPage() {
   const [isLoadingEmail, setIsLoadingEmail] = useState(false);
   const [isLoadingGoogle, setIsLoadingGoogle] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   async function handleEmailSignUp(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+
+    if (!agreedToTerms) {
+      setError("Please agree to the Terms of Service and Privacy Policy.");
+      return;
+    }
 
     setIsLoadingEmail(true);
     const supabase = createClient();
@@ -133,9 +140,35 @@ export default function SignupPage() {
           autoComplete="current-password"
           className="bg-surface"
         />
+        <label className="flex cursor-pointer items-start gap-12">
+          <input
+            type="checkbox"
+            checked={agreedToTerms}
+            onChange={(e) => setAgreedToTerms(e.target.checked)}
+            className="sr-only"
+          />
+          <span className="shrink-0 text-text" aria-hidden>
+            {agreedToTerms ? (
+              <SquareCheck className="text-primary" size={24} strokeWidth={2} />
+            ) : (
+              <Square className="text-text" size={24} strokeWidth={2} />
+            )}
+          </span>
+          <span className="text-body-m text-text">
+            I agree to the{" "}
+            <Link href="/terms" className="text-accent text-link">
+              Terms of Service
+            </Link>{" "}
+            and{" "}
+            <Link href="/privacy" className="text-accent text-link">
+              Privacy Policy
+            </Link>
+            .
+          </span>
+        </label>
         <Button
           type="submit"
-          disabled={isLoadingEmail}
+          disabled={isLoadingEmail || !agreedToTerms}
           className="w-full text-ui-button disabled:opacity-50"
         >
           {isLoadingEmail ? "Creating account..." : "Create account"}
