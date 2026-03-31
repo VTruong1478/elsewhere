@@ -66,7 +66,7 @@ function distanceMeters(
 export type BuildFeedItemsOptions = {
   supabase: SupabaseClient;
   serviceRoleClient: SupabaseClient;
-  /** Defaults to supabase; use service role for server routes if session/RLS is unreliable. */
+  /** Defaults to service role to avoid relying on client-visible ratings SELECT policies. */
   ratingsClient?: SupabaseClient;
   userId: string | null;
   placeList: PlaceStatsRow[];
@@ -88,7 +88,6 @@ export async function buildFeedItemsFromPlaces(
   opts: BuildFeedItemsOptions,
 ): Promise<FeedItem[]> {
   const {
-    supabase,
     serviceRoleClient,
     ratingsClient: ratingsDbOpt,
     userId,
@@ -100,7 +99,7 @@ export async function buildFeedItemsFromPlaces(
     idOrder,
     limit,
   } = opts;
-  const ratingsDb = ratingsDbOpt ?? supabase;
+  const ratingsDb = ratingsDbOpt ?? serviceRoleClient;
 
   const placeIds = placeList.map((r) => r.id);
   let userRatedPlaceIds: Set<string> = new Set();

@@ -475,8 +475,8 @@ export function RatingForm({
             </div>
             <p className="mt-8 text-ui-label-xl text-text">Show us the vibe</p>
             <p className="max-w-xs text-body-s text-text-secondary">
-              Upload up to {MAX_RATING_PHOTOS} photos of the seating or
-              workspace (JPEG or WebP, 5MB each).
+              Upload photos of the seating or workspace (JPEG or WebP, 5MB
+              each).
             </p>
           </button>
         ) : (
@@ -532,14 +532,10 @@ export function RatingForm({
                 className="flex w-full flex-col items-center rounded-radius-md border-2 border-dashed border-text-secondary bg-surface px-16 py-16 text-center focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
               >
                 <Camera className="text-primary" size={20} aria-hidden />
-                <p className="mt-4 text-ui-label-l text-text">
-                  Add more photos ({photoCount}/{MAX_RATING_PHOTOS})
-                </p>
+                <p className="mt-4 text-ui-label-l text-text">Add more photos</p>
               </button>
             ) : (
-              <p className="text-body-s text-text-secondary text-center">
-                Maximum {MAX_RATING_PHOTOS} photos per rating.
-              </p>
+              <p className="text-body-s text-text-secondary text-center">Photo limit reached.</p>
             )}
           </>
         )}

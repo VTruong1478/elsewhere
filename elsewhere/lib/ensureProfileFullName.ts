@@ -28,20 +28,32 @@ export function deriveFullNameFromAuthUser(user: User): string | null {
   return null;
 }
 
+function deriveAvatarUrlFromAuthUser(user: User): string | null {
+  const m = user.user_metadata as Record<string, unknown> | undefined;
+  return m
+    ? pickString(m.avatar_url) ?? pickString(m.picture) ?? null
+    : null;
+}
+
 /**
- * Ensures `profiles.full_name` is set when the DB row exists but name is empty.
- * `place_notes_public` joins on `profiles.full_name`; without it, notes show as "Anonymous".
+ * Ensures profile identity fields are present after auth callback.
+ * - `full_name` powers public note author labels.
+ * - `avatar_url` powers profile avatar UI.
  */
 export async function ensureProfileFullName(
   service: SupabaseClient,
   user: User,
 ): Promise<void> {
-  const derived = deriveFullNameFromAuthUser(user);
-  if (!derived) return;
+  const derivedFullName = deriveFullNameFromAuthUser(user);
+  const derivedAvatarUrl = deriveAvatarUrlFromAuthUser(user);
+
+  if (!derivedFullName && !derivedAvatarUrl) {
+    return;
+  }
 
   const { data: row, error: selectError } = await service
     .from("profiles")
-    .select("full_name")
+    .select("full_name, avatar_url")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -50,14 +62,26 @@ export async function ensureProfileFullName(
     return;
   }
 
-  if (row?.full_name && String(row.full_name).trim() !== "") {
-    return;
+  const currentFullName = pickString(row?.full_name);
+  const currentAvatar = pickString(row?.avatar_url);
+
+  const updates: { full_name?: string; avatar_url?: string; updated_at?: string } = {};
+  if (!currentFullName && derivedFullName) {
+    updates.full_name = derivedFullName;
+  }
+  if (!currentAvatar && derivedAvatarUrl) {
+    updates.avatar_url = derivedAvatarUrl;
   }
 
   if (row) {
+    if (Object.keys(updates).length === 0) {
+      return;
+    }
+
+    updates.updated_at = new Date().toISOString();
     const { error } = await service
       .from("profiles")
-      .update({ full_name: derived, updated_at: new Date().toISOString() })
+      .update(updates)
       .eq("id", user.id);
     if (error) {
       console.error("[ensureProfileFullName] update error:", error);
@@ -65,14 +89,25 @@ export async function ensureProfileFullName(
     return;
   }
 
+  const insertPayload: { id: string; full_name?: string; avatar_url?: string } = {
+    id: user.id,
+  };
+  if (derivedFullName) insertPayload.full_name = derivedFullName;
+  if (derivedAvatarUrl) insertPayload.avatar_url = derivedAvatarUrl;
+
   const { error: insertError } = await service
     .from("profiles")
-    .insert({ id: user.id, full_name: derived });
+    .insert(insertPayload);
 
   if (insertError?.code === "23505") {
+    if (Object.keys(updates).length === 0) {
+      return;
+    }
+
+    updates.updated_at = new Date().toISOString();
     const { error: upd } = await service
       .from("profiles")
-      .update({ full_name: derived, updated_at: new Date().toISOString() })
+      .update(updates)
       .eq("id", user.id);
     if (upd) console.error("[ensureProfileFullName] update after race:", upd);
   } else if (insertError) {

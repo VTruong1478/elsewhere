@@ -12,8 +12,6 @@ import { captureEvent } from "@/lib/analytics";
 import { setOAuthAuthIntent } from "@/lib/gatedAction";
 import { safeInternalPath } from "@/lib/safeNextPath";
 
-const IS_DEV = process.env.NODE_ENV === "development";
-
 function AuthIllustration() {
   return (
     <div
@@ -68,8 +66,8 @@ function LoginPageInner() {
   const searchParams = useSearchParams();
   const nextSafe = safeInternalPath(searchParams.get("next"));
 
-  const [email, setEmail] = useState(IS_DEV ? "test@example.com" : "");
-  const [password, setPassword] = useState(IS_DEV ? "testpass123" : "");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [isLoadingEmail, setIsLoadingEmail] = useState(false);
   const [isLoadingGoogle, setIsLoadingGoogle] = useState(false);
   const [error, setError] = useState<string | null>(null);

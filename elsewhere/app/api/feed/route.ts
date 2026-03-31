@@ -13,25 +13,11 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const latParam = searchParams.get("lat");
   const lngParam = searchParams.get("lng");
-  let lat = latParam != null ? parseFloat(latParam) : NaN;
-  let lng = lngParam != null ? parseFloat(lngParam) : NaN;
-
-  if (process.env.NODE_ENV === "development") {
-    const devLat = process.env.DEV_LOCATION_LAT
-      ? Number(process.env.DEV_LOCATION_LAT)
-      : NaN;
-    const devLng = process.env.DEV_LOCATION_LNG
-      ? Number(process.env.DEV_LOCATION_LNG)
-      : NaN;
-
-    if (!Number.isNaN(devLat) && !Number.isNaN(devLng)) {
-      lat = devLat;
-      lng = devLng;
-    }
-  }
+  const lat = latParam != null ? parseFloat(latParam) : NaN;
+  const lng = lngParam != null ? parseFloat(lngParam) : NaN;
 
   console.log(
-    '[feed] After reading dev location override',
+    '[feed] Parsed location query params',
     Date.now() - startTime,
     'ms',
   );
