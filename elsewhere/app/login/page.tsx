@@ -14,6 +14,20 @@ import { safeInternalPath } from "@/lib/safeNextPath";
 
 const DEV_EMAIL = "test@example.com";
 const DEV_PASSWORD = "testpass123";
+const RATE_PATH_RE = /^\/places\/[^/]+\/rate(?:\/|$)/;
+
+function markAuthReturnPath(nextPath: string | null): string | null {
+  if (!nextPath) return null;
+  if (!RATE_PATH_RE.test(nextPath)) return nextPath;
+  const sep = nextPath.includes("?") ? "&" : "?";
+  return `${nextPath}${sep}from_auth=1`;
+}
+
+function setDevAuthCookieNow() {
+  if (process.env.NODE_ENV !== "development" || typeof document === "undefined")
+    return;
+  document.cookie = "dev_auth=1; path=/; max-age=86400; samesite=lax";
+}
 
 function AuthIllustration() {
   return (
@@ -104,8 +118,9 @@ function LoginPageInner() {
       }
       localStorage.setItem("hasVisited", "true");
       localStorage.removeItem("justLoggedOut");
+      setDevAuthCookieNow();
       captureEvent("login_completed", { method: "email" });
-      router.push(nextSafe ?? "/feed");
+      router.replace(markAuthReturnPath(nextSafe) ?? "/feed");
       return;
     }
 
@@ -124,6 +139,7 @@ function LoginPageInner() {
 
     localStorage.setItem("hasVisited", "true");
     localStorage.removeItem("justLoggedOut");
+    setDevAuthCookieNow();
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -131,7 +147,7 @@ function LoginPageInner() {
       posthog.identify(user.id);
     }
     captureEvent("login_completed", { method: "email" });
-    router.push(nextSafe ?? "/feed");
+    router.replace(markAuthReturnPath(nextSafe) ?? "/feed");
   }
 
   async function handleGoogleSignIn() {

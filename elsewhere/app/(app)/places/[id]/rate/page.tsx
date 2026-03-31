@@ -4,7 +4,7 @@ import { parseAnalyticsSource } from "@/lib/analytics";
 
 interface PageProps {
   params: Promise<{ id: string }>;
-  searchParams?: Promise<{ name?: string; source?: string }>;
+  searchParams?: Promise<{ name?: string; source?: string; from_auth?: string }>;
 }
 
 export default async function PlaceRatePage(props: PageProps) {
@@ -12,12 +12,13 @@ export default async function PlaceRatePage(props: PageProps) {
   const sp = (await props.searchParams) ?? {};
   const placeName = sp.name ?? "This place";
   const rateSource = parseAnalyticsSource(sp.source) ?? "feed";
+  const fromAuth = sp.from_auth === "1";
 
   return (
     <div className="w-full bg-background px-16 pb-32 pt-16 lg:pb-32">
       <div className="mx-auto max-w-xl space-y-8">
         <header className="flex min-w-0 items-center gap-8">
-          <RatePageBackButton />
+          <RatePageBackButton forceFeedOnBack={fromAuth} />
           <div className="min-w-0 flex-1">
             <h1 className="truncate text-heading-m text-text" title={placeName}>
               {placeName}

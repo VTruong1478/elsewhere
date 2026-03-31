@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { getOrCreateDevAuthUser } from "@/lib/devAuth";
 
 const DEV_EMAIL = "test@example.com";
 const DEV_PASSWORD = "testpass123";
@@ -22,6 +24,11 @@ export async function POST(request: NextRequest) {
       { status: 401 },
     );
   }
+
+  // Ensure the dev test account exists in Supabase Auth so gated API writes
+  // can attach to a stable real user id.
+  const serviceClient = createServiceRoleClient();
+  await getOrCreateDevAuthUser(serviceClient);
 
   const response = NextResponse.json({ ok: true });
   response.cookies.set("dev_auth", "1", {

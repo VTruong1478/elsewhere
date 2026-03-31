@@ -1,13 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { cookies } from "next/headers";
+import { getOrCreateDevAuthUser, hasDevBypassCookie } from "@/lib/devAuth";
 
 export async function PATCH(request: NextRequest) {
   const supabase = await createClient();
+  const cookieStore = await cookies();
+  const devBypass = hasDevBypassCookie(cookieStore);
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  const serviceClient = createServiceRoleClient();
+  const actingUser = user ?? (devBypass ? await getOrCreateDevAuthUser(serviceClient) : null);
 
-  if (!user) {
+  if (!actingUser) {
     return NextResponse.json(
       { error: "Authentication required" },
       { status: 401 },
@@ -43,11 +50,12 @@ export async function PATCH(request: NextRequest) {
     );
   }
 
-  const { error } = await supabase
+  const writer = user ? supabase : serviceClient;
+  const { error } = await writer
     .from("user_preferences")
     .upsert(
       {
-        user_id: user.id,
+        user_id: actingUser.id,
         radius_miles: radiusNumber,
       },
       { onConflict: "user_id" },

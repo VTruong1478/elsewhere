@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { cookies } from "next/headers";
+import { getOrCreateDevAuthUser, hasDevBypassCookie } from "@/lib/devAuth";
 
 export async function DELETE(
   _request: NextRequest,
@@ -9,22 +11,25 @@ export async function DELETE(
   const { place_id: placeId } = await params;
 
   const supabase = await createClient();
+  const cookieStore = await cookies();
+  const devBypass = hasDevBypassCookie(cookieStore);
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  const serviceClient = createServiceRoleClient();
+  const actingUser = user ?? (devBypass ? await getOrCreateDevAuthUser(serviceClient) : null);
 
-  if (!user) {
+  if (!actingUser) {
     return NextResponse.json(
       { error: "Authentication required" },
       { status: 401 },
     );
   }
 
-  const serviceClient = createServiceRoleClient();
   const { data, error } = await serviceClient
     .from("saved")
     .delete()
-    .eq("user_id", user.id)
+    .eq("user_id", actingUser.id)
     .eq("place_id", placeId)
     .select()
     .maybeSingle();

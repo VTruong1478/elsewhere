@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { User2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
@@ -6,12 +7,28 @@ import { LogoutButton } from "./LogoutButton";
 
 async function getProfileData() {
   const supabase = await createClient();
+  const cookieStore = await cookies();
+  const devBypass =
+    process.env.NODE_ENV === "development" &&
+    cookieStore.get("dev_auth")?.value === "1";
 
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
+    if (devBypass) {
+      return {
+        fullName: "Dev User",
+        email: "test@example.com",
+        avatarUrl: null,
+        stats: {
+          placesRated: 0,
+          photosUploaded: 0,
+          placesSaved: 0,
+        },
+      };
+    }
     redirect("/auth");
   }
 

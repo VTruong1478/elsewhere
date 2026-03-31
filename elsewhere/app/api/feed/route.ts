@@ -1,26 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import {
   buildFeedItemsFromPlaces,
   type PlaceStatsRow,
 } from "@/lib/feedItemsFromPlaces";
+import { getOrCreateDevAuthUser, hasDevBypassCookie } from "@/lib/devAuth";
 
 export async function GET(request: NextRequest) {
-  const startTime = Date.now();
-  console.log('[feed] Start of GET handler', Date.now() - startTime, 'ms');
-
   const { searchParams } = new URL(request.url);
   const latParam = searchParams.get("lat");
   const lngParam = searchParams.get("lng");
   const lat = latParam != null ? parseFloat(latParam) : NaN;
   const lng = lngParam != null ? parseFloat(lngParam) : NaN;
-
-  console.log(
-    '[feed] Parsed location query params',
-    Date.now() - startTime,
-    'ms',
-  );
 
   if (Number.isNaN(lat) || Number.isNaN(lng)) {
     return NextResponse.json(
@@ -34,31 +27,31 @@ export async function GET(request: NextRequest) {
   const radiusParam = searchParams.get("radius_miles");
 
   const supabase = await createClient();
+  const cookieStore = await cookies();
+  const devBypass = hasDevBypassCookie(cookieStore);
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  const serviceRoleClient = createServiceRoleClient();
+  const actingUser = user ?? (devBypass ? await getOrCreateDevAuthUser(serviceRoleClient) : null);
 
   let radiusMiles = 25;
+
+  const actingReader = user ? supabase : serviceRoleClient;
 
   if (radiusParam != null && radiusParam !== "") {
     const parsed = Number(radiusParam);
     if (!Number.isNaN(parsed) && parsed > 0) radiusMiles = parsed;
-  } else if (user) {
-    const { data: prefs } = await supabase
+  } else if (actingUser) {
+    const { data: prefs } = await actingReader
       .from("user_preferences")
       .select("radius_miles")
-      .eq("user_id", user.id)
+      .eq("user_id", actingUser.id)
       .single();
     if (prefs) {
       radiusMiles = Number(prefs.radius_miles) || 25;
     }
   }
-
-  console.log(
-    '[feed] After loading user preferences',
-    Date.now() - startTime,
-    'ms',
-  );
 
   const { data: rows, error: rpcError } = await supabase.rpc(
     "get_feed_places",
@@ -71,12 +64,6 @@ export async function GET(request: NextRequest) {
     },
   );
 
-  console.log(
-    '[feed] After get_feed_places RPC returns',
-    Date.now() - startTime,
-    'ms',
-  );
-
   if (rpcError) {
     console.error("[feed] get_feed_places RPC error:", rpcError);
     const message =
@@ -87,25 +74,14 @@ export async function GET(request: NextRequest) {
   }
 
   const placeList = rows ?? [];
-  console.log(
-    "[feed] RPC returned",
-    placeList.length,
-    "places; lat=",
-    lat,
-    "lng=",
-    lng,
-    "radius_miles=",
-    radiusMiles,
-  );
   const placeIds = placeList.map((r: { id: string }) => r.id);
-  const serviceRoleClient = createServiceRoleClient();
 
   let savedPlaceIds: Set<string> = new Set();
-  if (user) {
-    const { data: savedRows } = await supabase
+  if (actingUser) {
+    const { data: savedRows } = await actingReader
       .from("saved")
       .select("place_id")
-      .eq("user_id", user.id)
+      .eq("user_id", actingUser.id)
       .in("place_id", placeIds);
     if (savedRows) {
       savedPlaceIds = new Set(
@@ -117,7 +93,7 @@ export async function GET(request: NextRequest) {
   let result = await buildFeedItemsFromPlaces({
     supabase,
     serviceRoleClient,
-    userId: user?.id ?? null,
+    userId: actingUser?.id ?? null,
     placeList: placeList as PlaceStatsRow[],
     refLat: lat,
     refLng: lng,
@@ -131,12 +107,6 @@ export async function GET(request: NextRequest) {
       item.name.toLowerCase().includes(normalizedQuery),
     );
   }
-
-  console.log(
-    '[feed] Just before returning response',
-    Date.now() - startTime,
-    'ms',
-  );
 
   return NextResponse.json({ data: result, error: null });
 }

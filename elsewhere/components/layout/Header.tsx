@@ -85,17 +85,24 @@ function HeaderNav({ currentRoute = "feed" }: { currentRoute?: HeaderRoute }) {
   );
 }
 
-function HeaderProfile() {
+function HeaderProfile({ selected }: { selected: boolean }) {
   return (
     <Link
       href="/profile"
-      className="flex shrink-0 items-center gap-16 text-ui-label-m text-text-inverse"
+      className="relative flex shrink-0 items-center gap-16 rounded-radius-sm px-12 py-8 text-ui-label-m text-text-inverse"
       aria-label="Profile"
+      aria-current={selected ? "page" : undefined}
     >
-      <span className="flex h-40 w-40 items-center justify-center rounded-full bg-header-selected-overlay">
+      {selected && (
+        <span
+          className="pointer-events-none absolute inset-0 rounded-radius-sm bg-header-selected-overlay"
+          aria-hidden
+        />
+      )}
+      <span className="flex items-center justify-center rounded-full">
         <CircleUser size={24} className="text-text-inverse" aria-hidden />
       </span>
-      <span>Profile</span>
+      <span className="relative">Profile</span>
     </Link>
   );
 }
@@ -109,7 +116,14 @@ export function Header({
   if (/^\/places\/[^/]+\/rate(?:\/|$)/.test(pathname ?? "")) {
     return null;
   }
-  const route = currentRoute ?? (pathname === "/saved" ? "saved" : "feed");
+  const isProfileRoute = pathname === "/profile";
+  const route =
+    currentRoute ??
+    (pathname === "/saved"
+      ? "saved"
+      : pathname === "/profile"
+        ? "profile"
+        : "feed");
 
   return (
     <header
@@ -122,7 +136,7 @@ export function Header({
         <HeaderNav currentRoute={route} />
       </div>
       <div className="flex items-center justify-end">
-        {showProfile ? <HeaderProfile /> : <span />}
+        {showProfile ? <HeaderProfile selected={isProfileRoute} /> : <span />}
       </div>
     </header>
   );

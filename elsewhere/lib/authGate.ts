@@ -40,6 +40,21 @@ export async function ensureAuthForGatedAction(
   } = await supabase.auth.getSession();
   if (session?.user) return true;
 
+  if (process.env.NODE_ENV === "development") {
+    try {
+      const res = await fetch("/api/dev-auth/status", {
+        method: "GET",
+        credentials: "same-origin",
+      });
+      if (res.ok) {
+        const json = (await res.json()) as { authenticated?: boolean };
+        if (json.authenticated) return true;
+      }
+    } catch {
+      // Fall through to normal login gate.
+    }
+  }
+
   captureEvent("gated_action_attempted", gateProps(ctx));
   captureEvent("auth_gate_shown", gateProps(ctx));
   persistPendingGatedAction({

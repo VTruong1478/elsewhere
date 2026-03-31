@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { ensureProfileFullName } from "@/lib/ensureProfileFullName";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { getOrCreateDevAuthUser, hasDevBypassCookie } from "@/lib/devAuth";
 import {
   buildFeedItemsFromPlaces,
   type PlaceStatsRow,
@@ -13,21 +15,27 @@ import {
  */
 export async function GET() {
   const supabase = await createClient();
+  const cookieStore = await cookies();
+  const devBypass = hasDevBypassCookie(cookieStore);
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  const serviceClient = createServiceRoleClient();
+  const actingUser =
+    user ?? (devBypass ? await getOrCreateDevAuthUser(serviceClient) : null);
 
-  if (!user) {
+  if (!actingUser) {
     return NextResponse.json(
       { error: "Authentication required" },
       { status: 401 },
     );
   }
 
-  const { data: savedRows, error: savedError } = await supabase
+  const listReader = user ? supabase : serviceClient;
+  const { data: savedRows, error: savedError } = await listReader
     .from("saved")
     .select("place_id, saved_at")
-    .eq("user_id", user.id)
+    .eq("user_id", actingUser.id)
     .order("saved_at", { ascending: false });
 
   if (savedError) {
@@ -51,8 +59,6 @@ export async function GET() {
     seenId.add(id);
     orderedIds.push(id);
   }
-  const serviceClient = createServiceRoleClient();
-
   // Load saved places without is_active filtering — users may have saved before flags/columns
   // matched production, and we still want to show their list.
   const { data: placeRows, error: placesError } = await serviceClient
@@ -182,7 +188,7 @@ export async function GET() {
     supabase,
     serviceRoleClient: serviceClient,
     ratingsClient: serviceClient,
-    userId: user.id,
+    userId: actingUser.id,
     placeList,
     refLat,
     refLng,
@@ -203,11 +209,16 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
+  const cookieStore = await cookies();
+  const devBypass = hasDevBypassCookie(cookieStore);
+  const serviceClient = createServiceRoleClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  const actingUser =
+    user ?? (devBypass ? await getOrCreateDevAuthUser(serviceClient) : null);
 
-  if (!user) {
+  if (!actingUser) {
     return NextResponse.json(
       { error: "Authentication required" },
       { status: 401 },
@@ -233,21 +244,20 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const serviceClient = createServiceRoleClient();
-  await ensureProfileFullName(serviceClient, user);
+  await ensureProfileFullName(serviceClient, actingUser);
 
   // saved.user_id FK → profiles(id) (not auth.users). Users who never hit a profile write
   // can still have a valid session — inserts would fail with FK violation without this row.
   const { data: existingProfile } = await serviceClient
     .from("profiles")
     .select("id")
-    .eq("id", user.id)
+    .eq("id", actingUser.id)
     .maybeSingle();
 
   if (!existingProfile) {
     const { error: profileError } = await serviceClient
       .from("profiles")
-      .insert({ id: user.id });
+      .insert({ id: actingUser.id });
     if (profileError) {
       if (profileError.code !== "23505") {
         console.error("[saved] profile bootstrap error:", profileError);
@@ -286,7 +296,7 @@ export async function POST(request: NextRequest) {
   const { error: insertError } = await serviceClient
     .from("saved")
     .upsert(
-      { user_id: user.id, place_id },
+      { user_id: actingUser.id, place_id },
       { onConflict: "user_id,place_id" },
     );
 

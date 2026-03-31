@@ -206,15 +206,9 @@ export async function computeMatchScoresByPlaceId(params: {
 
     let match_score_percent: number | null = null;
 
-    // If the user has no ratings, skip match scoring entirely.
-    if (userHasRatings && impliedNoise && impliedVibe) {
-      const avg = toNumber(place.avg_overall_rating);
-      if (
-        ratingCount >= 1 &&
-        !Number.isNaN(avg) &&
-        dominant_noise &&
-        dominant_vibe
-      ) {
+    const avg = toNumber(place.avg_overall_rating);
+    if (ratingCount >= 1 && !Number.isNaN(avg)) {
+      if (userHasRatings && impliedNoise && impliedVibe && dominant_noise && dominant_vibe) {
         const noiseDiff = Math.abs(
           noiseOrder.indexOf(dominant_noise as NoiseLabel) -
             noiseOrder.indexOf(impliedNoise),
@@ -230,6 +224,9 @@ export async function computeMatchScoresByPlaceId(params: {
         const place_quality = avg / 5.0;
         const match_score = base_score * 0.7 + place_quality * 0.3;
         match_score_percent = Math.round(match_score * 100);
+      } else {
+        // Cold start fallback (no personal history): use community quality only.
+        match_score_percent = Math.round(Math.min(100, Math.max(0, (avg / 5) * 100)));
       }
     }
 

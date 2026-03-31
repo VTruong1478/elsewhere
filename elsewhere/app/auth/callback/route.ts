@@ -4,6 +4,15 @@ import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { safeInternalPath } from '@/lib/safeNextPath';
 import { NextResponse } from 'next/server';
 
+const RATE_PATH_RE = /^\/places\/[^/]+\/rate(?:\/|$)/;
+
+function markAuthReturnPath(nextPath: string | null): string {
+  const dest = nextPath ?? "/feed";
+  if (!RATE_PATH_RE.test(dest)) return dest;
+  const sep = dest.includes("?") ? "&" : "?";
+  return `${dest}${sep}from_auth=1`;
+}
+
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get('code');
@@ -22,6 +31,16 @@ export async function GET(request: Request) {
     }
   }
 
-  const dest = nextPath ?? '/feed';
-  return NextResponse.redirect(new URL(dest, requestUrl.origin));
+  const dest = markAuthReturnPath(nextPath);
+  const response = NextResponse.redirect(new URL(dest, requestUrl.origin));
+  if (process.env.NODE_ENV === "development") {
+    response.cookies.set("dev_auth", "1", {
+      httpOnly: false,
+      sameSite: "lax",
+      secure: false,
+      path: "/",
+      maxAge: 60 * 60 * 24,
+    });
+  }
+  return response;
 }

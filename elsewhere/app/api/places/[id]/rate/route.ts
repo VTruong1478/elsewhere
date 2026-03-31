@@ -132,23 +132,28 @@ export async function POST(
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json(
-      { error: "Invalid JSON body" },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { noise, vibe, tables, outlets, overall_rating, photo_path, photo_paths, notes } =
-    body as {
-      noise?: string;
-      vibe?: string;
-      tables?: string;
-      outlets?: string;
-      overall_rating?: unknown;
-      photo_path?: string;
-      photo_paths?: unknown;
-      notes?: string;
-    };
+  const {
+    noise,
+    vibe,
+    tables,
+    outlets,
+    overall_rating,
+    photo_path,
+    photo_paths,
+    notes,
+  } = body as {
+    noise?: string;
+    vibe?: string;
+    tables?: string;
+    outlets?: string;
+    overall_rating?: unknown;
+    photo_path?: string;
+    photo_paths?: unknown;
+    notes?: string;
+  };
 
   // 4. Validate required fields
   if (!noise || !NOISE_VALUES.includes(noise as any)) {
@@ -264,10 +269,7 @@ export async function PATCH(
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json(
-      { error: "Invalid JSON body" },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
   const hasPathsKey = Object.prototype.hasOwnProperty.call(body, "photo_paths");

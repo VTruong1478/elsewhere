@@ -73,7 +73,10 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    const loginUrl = new URL('/login', request.url);
+    const authPath = request.nextUrl.pathname.includes("/rate")
+      ? "/signup"
+      : "/login";
+    const loginUrl = new URL(authPath, request.url);
     const returnTo =
       request.nextUrl.pathname +
       (request.nextUrl.search ?? '');

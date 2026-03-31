@@ -7,6 +7,16 @@ import { createClient } from "@/lib/supabase/client";
 import { PostHogOAuthCompletion } from "@/components/PostHogOAuthCompletion";
 import { DEFAULT_POSTHOG_API_HOST } from "@/lib/posthogDefaults";
 
+function setDevAuthCookie(enabled: boolean) {
+  if (process.env.NODE_ENV !== "development" || typeof document === "undefined")
+    return;
+  if (enabled) {
+    document.cookie = "dev_auth=1; path=/; max-age=86400; samesite=lax";
+  } else {
+    document.cookie = "dev_auth=; path=/; max-age=0; samesite=lax";
+  }
+}
+
 export function Providers({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!process.env.NEXT_PUBLIC_POSTHOG_KEY) {
@@ -44,17 +54,26 @@ export function Providers({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!process.env.NEXT_PUBLIC_POSTHOG_KEY) return;
-
     const supabase = createClient();
+    void supabase.auth.getUser().then(({ data }) => {
+      setDevAuthCookie(Boolean(data.user));
+      if (process.env.NEXT_PUBLIC_POSTHOG_KEY && data.user) {
+        posthog.identify(data.user.id);
+      }
+    });
+
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session?.user) {
+      setDevAuthCookie(Boolean(session?.user));
+      if (process.env.NEXT_PUBLIC_POSTHOG_KEY && session?.user) {
         posthog.identify(session.user.id);
       }
       if (event === "SIGNED_OUT") {
-        posthog.reset();
+        setDevAuthCookie(false);
+        if (process.env.NEXT_PUBLIC_POSTHOG_KEY) {
+          posthog.reset();
+        }
       }
     });
 

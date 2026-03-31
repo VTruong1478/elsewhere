@@ -15,7 +15,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <RouteTopNav />
       </div>
       <main
-        className="flex min-h-0 flex-1 flex-col md:flex-row md:max-h-[calc(100dvh-88px)]"
+        className="flex min-h-0 flex-1 flex-col md:flex-row min-[1025px]:max-h-[calc(100dvh-72px)]"
         suppressHydrationWarning
       >
         {children}
