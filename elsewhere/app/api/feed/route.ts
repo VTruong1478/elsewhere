@@ -6,7 +6,10 @@ import {
   buildFeedItemsFromPlaces,
   type PlaceStatsRow,
 } from "@/lib/feedItemsFromPlaces";
-import { getOrCreateDevAuthUser, hasDevBypassCookie } from "@/lib/devAuth";
+import {
+  hasDevBypassCookie,
+  tryGetOrCreateDevAuthUser,
+} from "@/lib/devAuth";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -33,7 +36,10 @@ export async function GET(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
   const serviceRoleClient = createServiceRoleClient();
-  const actingUser = user ?? (devBypass ? await getOrCreateDevAuthUser(serviceRoleClient) : null);
+  const actingUser = user ??
+    (devBypass
+      ? await tryGetOrCreateDevAuthUser(serviceRoleClient, "route.ts")
+      : null);
 
   let radiusMiles = 25;
 

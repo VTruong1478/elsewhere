@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { cookies } from "next/headers";
-import { getOrCreateDevAuthUser, hasDevBypassCookie } from "@/lib/devAuth";
+import {
+  hasDevBypassCookie,
+  tryGetOrCreateDevAuthUser,
+} from "@/lib/devAuth";
 
 export async function DELETE(
   _request: NextRequest,
@@ -17,7 +20,10 @@ export async function DELETE(
     data: { user },
   } = await supabase.auth.getUser();
   const serviceClient = createServiceRoleClient();
-  const actingUser = user ?? (devBypass ? await getOrCreateDevAuthUser(serviceClient) : null);
+  const actingUser = user ??
+    (devBypass
+      ? await tryGetOrCreateDevAuthUser(serviceClient, "route.ts")
+      : null);
 
   if (!actingUser) {
     return NextResponse.json(

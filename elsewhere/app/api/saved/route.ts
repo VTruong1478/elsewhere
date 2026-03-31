@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
-import { ensureProfileFullName } from "@/lib/ensureProfileFullName";
+import {
+  deriveFullNameFromAuthUser,
+  ensureProfileFullName,
+} from "@/lib/ensureProfileFullName";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
-import { getOrCreateDevAuthUser, hasDevBypassCookie } from "@/lib/devAuth";
+import {
+  hasDevBypassCookie,
+  tryGetOrCreateDevAuthUser,
+} from "@/lib/devAuth";
 import {
   buildFeedItemsFromPlaces,
   type PlaceStatsRow,
@@ -22,7 +28,10 @@ export async function GET() {
   } = await supabase.auth.getUser();
   const serviceClient = createServiceRoleClient();
   const actingUser =
-    user ?? (devBypass ? await getOrCreateDevAuthUser(serviceClient) : null);
+    user ??
+    (devBypass
+      ? await tryGetOrCreateDevAuthUser(serviceClient, "route.ts")
+      : null);
 
   if (!actingUser) {
     return NextResponse.json(
@@ -216,7 +225,10 @@ export async function POST(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
   const actingUser =
-    user ?? (devBypass ? await getOrCreateDevAuthUser(serviceClient) : null);
+    user ??
+    (devBypass
+      ? await tryGetOrCreateDevAuthUser(serviceClient, "route.ts")
+      : null);
 
   if (!actingUser) {
     return NextResponse.json(
@@ -250,7 +262,7 @@ export async function POST(request: NextRequest) {
   // can still have a valid session — inserts would fail with FK violation without this row.
   const { data: existingProfile } = await serviceClient
     .from("profiles")
-    .select("id")
+    .select("id, full_name")
     .eq("id", actingUser.id)
     .maybeSingle();
 
@@ -276,7 +288,7 @@ export async function POST(request: NextRequest) {
 
   const { data: place, error: placeError } = await serviceClient
     .from("places")
-    .select("id, is_active")
+    .select("id, name, is_active")
     .eq("id", place_id)
     .maybeSingle();
 
@@ -291,12 +303,27 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const profileNameFromDb =
+    typeof existingProfile?.full_name === "string"
+      ? existingProfile.full_name.trim()
+      : "";
+  const profileName =
+    profileNameFromDb ||
+    deriveFullNameFromAuthUser(actingUser) ||
+    "Anonymous";
+
   // Use service role so the write succeeds regardless of RLS quirks in API routes;
   // `user.id` is already verified via the session client above.
   const { error: insertError } = await serviceClient
     .from("saved")
     .upsert(
-      { user_id: actingUser.id, place_id },
+      {
+        user_id: actingUser.id,
+        place_id,
+        profile_id: actingUser.id,
+        profile_name: profileName,
+        place_name: place.name,
+      },
       { onConflict: "user_id,place_id" },
     );
 

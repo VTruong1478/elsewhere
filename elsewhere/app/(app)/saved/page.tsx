@@ -15,6 +15,11 @@ async function fetchSavedPlaces(): Promise<FeedItem[]> {
     cache: "no-store",
   });
   const body = await res.json();
+  if (res.status === 401) {
+    // Treat unauthenticated as "no saved places" to avoid noisy UI errors
+    // when browsing without a session or when dev bypass is unavailable.
+    return [];
+  }
   if (!res.ok) {
     throw new Error(
       typeof body?.error === "string" ? body.error : res.statusText,

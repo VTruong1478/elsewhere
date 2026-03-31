@@ -55,3 +55,20 @@ export async function getOrCreateDevAuthUser(
   }
   return created.user;
 }
+
+/**
+ * Non-throwing variant for route handlers that should degrade to unauthenticated
+ * when the dev bypass cannot be resolved (e.g. local Supabase not running).
+ */
+export async function tryGetOrCreateDevAuthUser(
+  serviceClient: ServiceRoleClient,
+  context: string,
+): Promise<User | null> {
+  try {
+    return await getOrCreateDevAuthUser(serviceClient);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`[devAuth] ${context}: bypass unavailable (${message})`);
+    return null;
+  }
+}
