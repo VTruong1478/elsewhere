@@ -136,13 +136,7 @@ function FeedContent() {
       has_query: Boolean(q.trim()),
       filter: filter || "all",
     });
-  }, [
-    query.isSuccess,
-    locationCtx.feedQueryEnabled,
-    places.length,
-    q,
-    filter,
-  ]);
+  }, [query.isSuccess, locationCtx.feedQueryEnabled, places.length, q, filter]);
 
   useEffect(() => {
     if (!selectedPlaceId) return;
@@ -191,13 +185,13 @@ function FeedContent() {
               <p className="font-lora text-heading-m text-text mb-2">
                 Couldn’t load the feed
               </p>
-              <p className="text-body-m text-text-secondary mb-4">
+              <p className="text-body-m text-text-secondary max-w-sm mb-16">
                 {query.error?.message ?? "Something went wrong."}
               </p>
               <button
                 type="button"
                 onClick={() => query.refetch()}
-                className="rounded-radius-sm bg-accent px-4 py-2 text-ui-button text-text-inverse"
+                className="rounded-radius-sm bg-primary px-8 py-8 text-ui-button text-text-inverse"
               >
                 Try again
               </button>

@@ -12,6 +12,9 @@ import { captureEvent } from "@/lib/analytics";
 import { setOAuthAuthIntent } from "@/lib/gatedAction";
 import { safeInternalPath } from "@/lib/safeNextPath";
 
+const DEV_EMAIL = "test@example.com";
+const DEV_PASSWORD = "testpass123";
+
 function AuthIllustration() {
   return (
     <div
@@ -82,10 +85,34 @@ function LoginPageInner() {
     setError(null);
     captureEvent("login_started", { method: "email" });
 
+    const normalizedEmail = email.trim().toLowerCase();
+    if (
+      process.env.NODE_ENV === "development" &&
+      normalizedEmail === DEV_EMAIL &&
+      password === DEV_PASSWORD
+    ) {
+      setIsLoadingEmail(true);
+      const devRes = await fetch("/api/dev-auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: normalizedEmail, password }),
+      });
+      setIsLoadingEmail(false);
+      if (!devRes.ok) {
+        setError("Dev login failed");
+        return;
+      }
+      localStorage.setItem("hasVisited", "true");
+      localStorage.removeItem("justLoggedOut");
+      captureEvent("login_completed", { method: "email" });
+      router.push(nextSafe ?? "/feed");
+      return;
+    }
+
     setIsLoadingEmail(true);
     const supabase = createClient();
     const { error: signInError } = await supabase.auth.signInWithPassword({
-      email,
+      email: normalizedEmail,
       password,
     });
     setIsLoadingEmail(false);

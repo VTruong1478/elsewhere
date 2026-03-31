@@ -30,6 +30,22 @@ function isPublicPath(pathname: string): boolean {
 }
 
 export async function middleware(request: NextRequest) {
+  if (isPublicPath(request.nextUrl.pathname)) {
+    return NextResponse.next({
+      request: { headers: request.headers },
+    });
+  }
+
+  // Local/dev-only credential bypass.
+  if (
+    process.env.NODE_ENV === "development" &&
+    request.cookies.get("dev_auth")?.value === "1"
+  ) {
+    return NextResponse.next({
+      request: { headers: request.headers },
+    });
+  }
+
   const response = NextResponse.next({
     request: { headers: request.headers },
   });
@@ -56,7 +72,7 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!isPublicPath(request.nextUrl.pathname) && !user) {
+  if (!user) {
     const loginUrl = new URL('/login', request.url);
     const returnTo =
       request.nextUrl.pathname +

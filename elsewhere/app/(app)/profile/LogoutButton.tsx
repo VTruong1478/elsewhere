@@ -9,6 +9,7 @@ export function LogoutButton() {
 
   async function handleLogout() {
     localStorage.setItem("justLoggedOut", "true");
+    await fetch("/api/dev-auth/logout", { method: "POST" }).catch(() => null);
     const supabase = createClient();
     await supabase.auth.signOut();
     if (process.env.NEXT_PUBLIC_POSTHOG_KEY) {
