@@ -8,11 +8,11 @@ import {
   Headphones,
   Pencil,
   Plug,
-  Table as TableIcon,
   Star,
   Volume2,
   X,
 } from "lucide-react";
+import { PiPicnicTableBold } from "react-icons/pi";
 import { Button } from "@/components/ui/Button";
 import { Pill } from "@/components/ui/Pill";
 import { TextArea } from "@/components/ui/TextArea";
@@ -171,7 +171,7 @@ export function RatingForm({
   const queryClient = useQueryClient();
   const normalizedPlaceId = useMemo(() => normalizePlaceId(placeId), [placeId]);
   const [ratingFlowSource] = useState<AnalyticsSource>(() => source);
-  const ratingStartedSentRef = useRef(false);
+  const [ratingStartedSent, setRatingStartedSent] = useState(false);
   const { data: detail, isFetched: detailFetched } = useQuery({
     queryKey: placeDetailQueryKey(normalizedPlaceId ?? "__invalid__"),
     queryFn: () => fetchPlaceDetail(normalizedPlaceId!),
@@ -209,6 +209,7 @@ export function RatingForm({
       hydratedFromDetailRef.current = true;
       return;
     }
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrate once from server response
     if (isNoiseValue(m.noise)) setNoise(m.noise);
     if (isVibeValue(m.vibe)) setVibe(m.vibe);
     if (isTablesValue(m.tables)) setTables(m.tables);
@@ -256,8 +257,8 @@ export function RatingForm({
   }
 
   function ensureRatingStarted() {
-    if (ratingStartedSentRef.current) return;
-    ratingStartedSentRef.current = true;
+    if (ratingStartedSent) return;
+    setRatingStartedSent(true);
     captureRatingFunnelEvent(
       "rating_started",
       ratingFunnelPlaceSnapshot(ratingHasPhotosNow()),
@@ -635,7 +636,7 @@ export function RatingForm({
       {renderOptionRow<TablesValue>({
         label: "Tables",
         required: true,
-        icon: <TableIcon size={20} />,
+        icon: <PiPicnicTableBold size={20} />,
         options: TABLES_OPTIONS,
         value: tables,
         onChange: setTables,
