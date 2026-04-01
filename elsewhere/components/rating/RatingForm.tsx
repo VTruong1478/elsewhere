@@ -18,6 +18,11 @@ import { Pill } from "@/components/ui/Pill";
 import { TextArea } from "@/components/ui/TextArea";
 import { userPhotoProxyUrl } from "@/lib/userPhotoProxyUrl";
 import { normalizePlaceId } from "@/lib/placeId";
+import {
+  PHOTO_FILE_ACCEPT,
+  PHOTO_MAX_SIZE_BYTES,
+  normalizePhotoForUpload,
+} from "@/lib/photoUpload";
 import { fetchPlaceDetail, placeDetailQueryKey } from "@/lib/placeDetailQuery";
 import {
   type AnalyticsSource,
@@ -183,9 +188,12 @@ export function RatingForm({
   /** Storage paths already saved for this rating (subset user keeps). */
   const [serverPaths, setServerPaths] = useState<string[]>([]);
   /** New files to upload after POST (with blob URLs for preview). */
-  const [localPhotos, setLocalPhotos] = useState<
-    { file: File; url: string }[]
-  >([]);
+  const [localPhotos, setLocalPhotos] = useState<{ file: File; url: string }[]>(
+    [],
+  );
+  const [photoSelectionError, setPhotoSelectionError] = useState<string | null>(
+    null,
+  );
   const fileInputRef = useRef<HTMLInputElement>(null);
   const hydratedFromDetailRef = useRef(false);
   const localPhotosRef = useRef<{ file: File; url: string }[]>([]);
@@ -326,7 +334,25 @@ export function RatingForm({
         });
       }
       if (returnTo) {
-        router.push(returnTo);
+        const currentPath =
+          typeof window !== "undefined"
+            ? `${window.location.pathname}${window.location.search}`
+            : "";
+        const isPlaceDetailReturn = /^\/places\/[^/]+$/.test(returnTo);
+        const returnToWithBackTarget = isPlaceDetailReturn
+          ? `${returnTo}${returnTo.includes("?") ? "&" : "?"}back_to=feed`
+          : returnTo;
+        // If return target is the same detail URL, go back instead of push so we
+        // don't duplicate /places/[id] in history (which breaks the next Back tap).
+        if (
+          typeof window !== "undefined" &&
+          window.history.length > 1 &&
+          currentPath === returnTo
+        ) {
+          router.back();
+        } else {
+          router.push(returnToWithBackTarget);
+        }
       } else if (typeof window !== "undefined" && window.history.length > 1) {
         router.back();
       } else {
@@ -353,30 +379,43 @@ export function RatingForm({
   const photoCount = serverPaths.length + localPhotos.length;
   const canAddMorePhotos = photoCount < MAX_RATING_PHOTOS;
 
-  function addPhotoFiles(fileList: FileList | null) {
+  async function addPhotoFiles(fileList: FileList | null) {
     if (!fileList?.length) return;
+    setPhotoSelectionError(null);
     const remaining =
       MAX_RATING_PHOTOS - serverPaths.length - localPhotos.length;
     if (remaining <= 0) return;
     ensureRatingStarted();
     const accepted: { file: File; url: string }[] = [];
+    const errors: string[] = [];
     for (const file of Array.from(fileList)) {
       if (accepted.length >= remaining) break;
-      if (!["image/jpeg", "image/jpg", "image/webp"].includes(file.type)) {
+      let normalized: File;
+      try {
+        normalized = await normalizePhotoForUpload(file);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Unsupported file type.";
+        errors.push(`${file.name}: ${msg}`);
         continue;
       }
-      if (file.size > 5 * 1024 * 1024) {
+
+      if (normalized.size > PHOTO_MAX_SIZE_BYTES) {
+        errors.push(`${file.name}: Photo must be under 5MB.`);
         continue;
       }
-      accepted.push({ file, url: URL.createObjectURL(file) });
+
+      accepted.push({ file: normalized, url: URL.createObjectURL(normalized) });
     }
     if (accepted.length > 0) {
       setLocalPhotos((prev) => [...prev, ...accepted]);
     }
+    if (errors.length > 0) {
+      setPhotoSelectionError(errors.join(" "));
+    }
   }
 
   function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
-    addPhotoFiles(e.target.files);
+    void addPhotoFiles(e.target.files);
     e.target.value = "";
   }
 
@@ -478,7 +517,7 @@ export function RatingForm({
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/jpeg,image/jpg,image/webp"
+        accept={PHOTO_FILE_ACCEPT}
         multiple
         className="hidden"
         onChange={handlePhotoChange}
@@ -497,8 +536,7 @@ export function RatingForm({
             </div>
             <p className="mt-8 text-ui-label-xl text-text">Show us the vibe</p>
             <p className="max-w-xs text-body-s text-text-secondary">
-              Upload photos of the seating or workspace (JPEG or WebP, 5MB
-              each).
+              Upload photos of the seating or workspace.
             </p>
           </button>
         ) : (
@@ -554,10 +592,19 @@ export function RatingForm({
                 className="flex w-full flex-col items-center rounded-radius-md border-2 border-dashed border-text-secondary bg-surface px-16 py-16 text-center focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
               >
                 <Camera className="text-primary" size={20} aria-hidden />
-                <p className="mt-4 text-ui-label-l text-text">Add more photos</p>
+                <p className="mt-4 text-ui-label-l text-text">
+                  Add more photos
+                </p>
               </button>
             ) : (
-              <p className="text-body-s text-text-secondary text-center">Photo limit reached.</p>
+              <p className="text-body-s text-text-secondary text-center">
+                Photo limit reached.
+              </p>
+            )}
+            {photoSelectionError && (
+              <p className="text-body-s text-status-low text-center">
+                {photoSelectionError}
+              </p>
             )}
           </>
         )}

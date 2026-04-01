@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { PlaceDetailMobile } from "@/components/places/PlaceDetailMobile";
@@ -19,6 +19,16 @@ export function PlaceDetailPageMobile({
   initialCenter,
 }: PlaceDetailPageMobileProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const forceFeedBack = searchParams.get("back_to") === "feed";
+
+  function handleBack() {
+    if (forceFeedBack) {
+      router.push("/feed");
+      return;
+    }
+    router.back();
+  }
 
   return (
     <>
@@ -26,7 +36,7 @@ export function PlaceDetailPageMobile({
         <Button
           variant="secondaryIcon"
           type="button"
-          onClick={() => router.back()}
+          onClick={handleBack}
           className="shadow-map"
           aria-label="Back"
         >
@@ -37,7 +47,7 @@ export function PlaceDetailPageMobile({
         placeId={placeId}
         initialCenter={initialCenter}
         initialSnap="mid"
-        onDismiss={() => router.back()}
+        onDismiss={handleBack}
       />
     </>
   );

@@ -6,13 +6,13 @@ import {
   hasDevBypassCookie,
   tryGetOrCreateDevAuthUser,
 } from "@/lib/devAuth";
+import { PHOTO_MAX_SIZE_BYTES } from "@/lib/photoUpload";
 
 const BUCKET = "user-photos";
-const MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
-const ALLOWED_TYPES = ["image/jpeg", "image/jpg", "image/webp"];
+const ALLOWED_TYPES = ["image/jpeg", "image/jpg", "image/png"];
 
 function getExt(mime: string): string {
-  if (mime === "image/webp") return "webp";
+  if (mime === "image/png") return "png";
   return "jpg";
 }
 
@@ -79,7 +79,7 @@ export async function POST(
     );
   }
 
-  if (file.size > MAX_SIZE_BYTES) {
+  if (file.size > PHOTO_MAX_SIZE_BYTES) {
     return NextResponse.json(
       { error: "Photo must be under 5MB" },
       { status: 400 },
@@ -88,7 +88,7 @@ export async function POST(
 
   if (!ALLOWED_TYPES.includes(file.type)) {
     return NextResponse.json(
-      { error: "Photo must be JPEG or WebP" },
+      { error: "Photo must be JPEG or PNG" },
       { status: 400 },
     );
   }
