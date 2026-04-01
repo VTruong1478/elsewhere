@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { ensureProfileFullName } from "@/lib/ensureProfileFullName";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import {
+  hasDevBypassCookie,
+  tryGetOrCreateDevAuthUser,
+} from "@/lib/devAuth";
 
 const NOISE_VALUES = ["silent", "quiet", "vibrant"] as const;
 const VIBE_VALUES = ["focused", "casual", "social"] as const;
@@ -73,25 +78,33 @@ export async function POST(
 
   // 1. Authenticate
   const supabase = await createClient();
+  const cookieStore = await cookies();
+  const devBypass = hasDevBypassCookie(cookieStore);
+  const serviceClient = createServiceRoleClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  const actingUser =
+    user ??
+    (devBypass
+      ? await tryGetOrCreateDevAuthUser(serviceClient, "rate:POST")
+      : null);
 
-  if (!user) {
+  if (!actingUser) {
     return NextResponse.json(
       { error: "Authentication required" },
       { status: 401 },
     );
   }
 
-  const serviceClient = createServiceRoleClient();
-  await ensureProfileFullName(serviceClient, user);
+  await ensureProfileFullName(serviceClient, actingUser);
+  const writer = user ? supabase : serviceClient;
 
   // 2. Rate limit: max 100 ratings per user per UTC day
   const { count, error: countError } = await serviceClient
     .from("ratings")
     .select("id", { count: "exact", head: true })
-    .eq("user_id", user.id)
+    .eq("user_id", actingUser.id)
     .gte("created_at", startOfTodayUTC());
 
   if (countError) {
@@ -156,7 +169,7 @@ export async function POST(
   };
 
   // 4. Validate required fields
-  if (!noise || !NOISE_VALUES.includes(noise as any)) {
+  if (!noise || !NOISE_VALUES.includes(noise as (typeof NOISE_VALUES)[number])) {
     return NextResponse.json(
       {
         error: `noise is required and must be one of: ${NOISE_VALUES.join(", ")}`,
@@ -165,7 +178,7 @@ export async function POST(
     );
   }
 
-  if (!vibe || !VIBE_VALUES.includes(vibe as any)) {
+  if (!vibe || !VIBE_VALUES.includes(vibe as (typeof VIBE_VALUES)[number])) {
     return NextResponse.json(
       {
         error: `vibe is required and must be one of: ${VIBE_VALUES.join(", ")}`,
@@ -174,7 +187,7 @@ export async function POST(
     );
   }
 
-  if (!tables || !TABLES_VALUES.includes(tables as any)) {
+  if (!tables || !TABLES_VALUES.includes(tables as (typeof TABLES_VALUES)[number])) {
     return NextResponse.json(
       {
         error: `tables is required and must be one of: ${TABLES_VALUES.join(", ")}`,
@@ -183,7 +196,10 @@ export async function POST(
     );
   }
 
-  if (!outlets || !OUTLETS_VALUES.includes(outlets as any)) {
+  if (
+    !outlets ||
+    !OUTLETS_VALUES.includes(outlets as (typeof OUTLETS_VALUES)[number])
+  ) {
     return NextResponse.json(
       {
         error: `outlets is required and must be one of: ${OUTLETS_VALUES.join(", ")}`,
@@ -204,7 +220,7 @@ export async function POST(
   }
 
   const { paths: ratingPhotoPaths, error: photoPathsError } =
-    sanitizeRatingPhotoPaths(photo_paths, photo_path, user.id);
+    sanitizeRatingPhotoPaths(photo_paths, photo_path, actingUser.id);
   if (photoPathsError) {
     return NextResponse.json({ error: photoPathsError }, { status: 400 });
   }
@@ -212,7 +228,7 @@ export async function POST(
   // 6. Upsert into ratings (user client so RLS applies)
   const ratingRow: Record<string, unknown> = {
     place_id: placeId,
-    user_id: user.id,
+    user_id: actingUser.id,
     noise,
     vibe,
     tables,
@@ -224,7 +240,7 @@ export async function POST(
     updated_at: new Date().toISOString(),
   };
 
-  const { data: upserted, error: upsertError } = await supabase
+  const { data: upserted, error: upsertError } = await writer
     .from("ratings")
     .upsert(ratingRow, { onConflict: "user_id,place_id" })
     .select()
@@ -254,16 +270,25 @@ export async function PATCH(
   const { id: placeId } = await params;
 
   const supabase = await createClient();
+  const cookieStore = await cookies();
+  const devBypass = hasDevBypassCookie(cookieStore);
+  const serviceClient = createServiceRoleClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  const actingUser =
+    user ??
+    (devBypass
+      ? await tryGetOrCreateDevAuthUser(serviceClient, "rate:PATCH")
+      : null);
 
-  if (!user) {
+  if (!actingUser) {
     return NextResponse.json(
       { error: "Authentication required" },
       { status: 401 },
     );
   }
+  const writer = user ? supabase : serviceClient;
 
   let body: { photo_path?: string | null; photo_paths?: unknown };
   try {
@@ -284,13 +309,13 @@ export async function PATCH(
   const { paths, error: photoErr } = sanitizeRatingPhotoPaths(
     hasPathsKey ? body.photo_paths : null,
     hasPathsKey ? null : body.photo_path,
-    user.id,
+    actingUser.id,
   );
   if (photoErr) {
     return NextResponse.json({ error: photoErr }, { status: 400 });
   }
 
-  const { error } = await supabase
+  const { error } = await writer
     .from("ratings")
     .update({
       photo_paths: paths,
@@ -298,7 +323,7 @@ export async function PATCH(
       updated_at: new Date().toISOString(),
     })
     .eq("place_id", placeId)
-    .eq("user_id", user.id);
+    .eq("user_id", actingUser.id);
 
   if (error) {
     console.error("[rate] PATCH error:", error);

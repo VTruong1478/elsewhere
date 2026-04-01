@@ -160,7 +160,7 @@ export async function buildFeedItemsFromPlaces(
     }
   }
 
-  const { userHasRatings, resultsByPlaceId } = await computeMatchScoresByPlaceId(
+  const { resultsByPlaceId } = await computeMatchScoresByPlaceId(
     {
       serviceRoleClient,
       userId: userId ?? null,
@@ -255,18 +255,17 @@ export async function buildFeedItemsFromPlaces(
     };
   });
 
-  if (userHasRatings) {
-    items.sort((a, b) => {
-      const scoreA = a._matchScorePercent ?? -1;
-      const scoreB = b._matchScorePercent ?? -1;
-      if (scoreA !== scoreB) return scoreB - scoreA;
-      if (a._distanceMeters !== b._distanceMeters)
-        return a._distanceMeters - b._distanceMeters;
-      return b._ratingCount - a._ratingCount;
-    });
-  } else {
-    items.sort((a, b) => a._distanceMeters - b._distanceMeters);
-  }
+  items.sort((a, b) => {
+    // Canonical feed order:
+    // 1) match score desc, 2) distance asc, 3) rating count desc.
+    // Rated/saved state is metadata only and must not affect ranking.
+    const scoreA = a._matchScorePercent ?? -1;
+    const scoreB = b._matchScorePercent ?? -1;
+    if (scoreA !== scoreB) return scoreB - scoreA;
+    if (a._distanceMeters !== b._distanceMeters)
+      return a._distanceMeters - b._distanceMeters;
+    return b._ratingCount - a._ratingCount;
+  });
 
   let result = items.map(
     ({ _distanceMeters, _matchScorePercent, _ratingCount, ...item }) => {

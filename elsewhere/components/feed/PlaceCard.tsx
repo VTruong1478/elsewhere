@@ -174,7 +174,16 @@ export function PlaceCard({ place }: { place: FeedItem }) {
     place.open_late,
   );
 
-  const rateHref = buildRateHref(place.id, place.name, listSource);
+  const returnPathForRate =
+    typeof window !== "undefined"
+      ? `${window.location.pathname}${window.location.search}`
+      : pathname || "/feed";
+  const rateHref = buildRateHref(
+    place.id,
+    place.name,
+    listSource,
+    returnPathForRate,
+  );
   const returnPathForSave =
     typeof window !== "undefined"
       ? `${window.location.pathname}${window.location.search}`

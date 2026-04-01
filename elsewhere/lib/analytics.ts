@@ -1,5 +1,6 @@
 import posthog from "posthog-js";
 import type { FeedItem } from "@/types/feed";
+import { safeInternalPath } from "@/lib/safeNextPath";
 
 export type AnalyticsSource = "feed" | "map" | "saved";
 
@@ -29,10 +30,15 @@ export function buildRateHref(
   placeId: string,
   placeName: string,
   source: AnalyticsSource,
+  returnTo?: string | null,
 ): string {
   const sp = new URLSearchParams();
   sp.set("name", placeName);
   sp.set("source", source);
+  const safeReturnTo = safeInternalPath(returnTo);
+  if (safeReturnTo) {
+    sp.set("return_to", safeReturnTo);
+  }
   return `/places/${placeId}/rate?${sp.toString()}`;
 }
 

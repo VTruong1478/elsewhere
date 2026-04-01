@@ -44,7 +44,11 @@ function getOpenStatus(
 export function MapPlacePreview({ place }: { place: FeedItem }) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const rateHref = buildRateHref(place.id, place.name, "map");
+  const returnPathForRate =
+    typeof window !== "undefined"
+      ? `${window.location.pathname}${window.location.search}`
+      : "/map";
+  const rateHref = buildRateHref(place.id, place.name, "map", returnPathForRate);
   const returnPathForSave =
     typeof window !== "undefined"
       ? `${window.location.pathname}${window.location.search}`

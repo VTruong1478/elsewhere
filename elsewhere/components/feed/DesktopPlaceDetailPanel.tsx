@@ -627,21 +627,24 @@ export function DesktopPlaceDetailPanel({
         return {
           status: "closed" as const,
           label: "Closed",
-          subLabel: ratingCount > 0 ? `· ${ratingCount} ratings` : undefined,
+          subLabel:
+            ratingCount > 0
+              ? `· ${ratingCount} ${ratingCount === 1 ? "rating" : "ratings"}`
+              : undefined,
         };
       }
       if (opening.closing_soon && closes) {
         return {
           status: "closing-soon" as const,
           label: `Closing soon (${closes})`,
-          subLabel: `· ${ratingCount} ratings`,
+          subLabel: `· ${ratingCount} ${ratingCount === 1 ? "rating" : "ratings"}`,
         };
       }
       if (opening.open_now && closes) {
         return {
           status: "open" as const,
           label: `Open until ${closes}`,
-          subLabel: `· ${ratingCount} ratings`,
+          subLabel: `· ${ratingCount} ${ratingCount === 1 ? "rating" : "ratings"}`,
         };
       }
       if (openLate) {
@@ -938,6 +941,7 @@ export function DesktopPlaceDetailPanel({
             normalizedId ?? placeId,
             place?.name ?? "This place",
             analyticsSourceFromPathname(pathname),
+            pathname ?? "/feed",
           )}
           rateGate={
             normalizedId

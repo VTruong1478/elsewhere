@@ -49,6 +49,14 @@ type RatingPayload = {
   photo_paths?: string[];
 };
 
+class RatingSubmitError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+  }
+}
+
 function isNoiseValue(v: string): v is NoiseValue {
   return (NOISE_OPTIONS as readonly string[]).includes(v);
 }
@@ -73,8 +81,9 @@ async function submitRating(placeId: string, payload: RatingPayload) {
   const json = await res.json().catch(() => ({}));
 
   if (!res.ok) {
-    throw new Error(
+    throw new RatingSubmitError(
       (json as { error?: string }).error ?? "Failed to submit rating",
+      res.status,
     );
   }
 
@@ -144,11 +153,14 @@ export function RatingForm({
   placeId,
   placeName: _placeName,
   source,
+  returnTo,
 }: {
   placeId: string;
   placeName: string;
   /** Entry surface for the rating flow (from `?source=`); locked on first render for funnel events. */
   source: AnalyticsSource;
+  /** Optional safe relative path to return to after successful submit. */
+  returnTo?: string | null;
 }) {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -313,10 +325,20 @@ export function RatingForm({
           queryKey: placeDetailQueryKey(normalizedPlaceId),
         });
       }
-      if (typeof window !== "undefined" && window.history.length > 1) {
+      if (returnTo) {
+        router.push(returnTo);
+      } else if (typeof window !== "undefined" && window.history.length > 1) {
         router.back();
       } else {
         router.push("/feed");
+      }
+    },
+    onError: (error) => {
+      const status =
+        error instanceof RatingSubmitError ? error.status : undefined;
+      if (status === 401 && typeof window !== "undefined") {
+        const nextPath = `${window.location.pathname}${window.location.search}`;
+        router.push(`/login?next=${encodeURIComponent(nextPath)}`);
       }
     },
   });
@@ -668,6 +690,13 @@ export function RatingForm({
             ? "Update Rating"
             : "Submit rating"}
       </Button>
+      {mutation.isError && (
+        <p className="text-body-s text-status-low">
+          {mutation.error instanceof Error
+            ? mutation.error.message
+            : "Failed to submit rating"}
+        </p>
+      )}
     </form>
   );
 }
