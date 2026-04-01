@@ -529,7 +529,7 @@ export function RatingForm({
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="flex w-full flex-col items-center rounded-radius-md border-2 border-dashed border-text-secondary bg-surface px-24 py-32 text-center focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            className="flex w-full flex-col items-center rounded-radius-md border-2 border-dashed border-text-secondary bg-surface px-24 py-24 text-center focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             <div className="flex h-40 w-40 items-center justify-center rounded-full bg-surface-chip">
               <Camera className="text-primary" size={24} aria-hidden />
@@ -545,7 +545,7 @@ export function RatingForm({
               {serverPaths.map((path, i) => (
                 <div
                   key={`srv-${path}-${i}`}
-                  className="relative h-[100px] w-[100px] shrink-0 overflow-hidden rounded-radius-md border border-surface-alt bg-surface-alt"
+                  className="relative h-[160px] w-[160px] shrink-0 overflow-hidden rounded-radius-md border border-surface-alt bg-surface-alt"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
@@ -566,7 +566,7 @@ export function RatingForm({
               {localPhotos.map((p, i) => (
                 <div
                   key={p.url}
-                  className="relative h-[100px] w-[100px] shrink-0 overflow-hidden rounded-radius-md border border-surface-alt bg-surface-alt"
+                  className="relative h-[160px] w-[160px] shrink-0 overflow-hidden rounded-radius-md border border-surface-alt bg-surface-alt"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
@@ -584,23 +584,25 @@ export function RatingForm({
                   </button>
                 </div>
               ))}
+              {canAddMorePhotos ? (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex h-[160px] w-[160px] shrink-0 flex-col items-center justify-center rounded-radius-md border-2 border-dashed border-text-secondary bg-surface px-8 text-center focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                  aria-label="Add more photos"
+                >
+                  <Camera className="text-primary" size={18} aria-hidden />
+                  <p className="mt-4 text-ui-label-s text-text">
+                    Add more photos
+                  </p>
+                </button>
+              ) : null}
             </div>
-            {canAddMorePhotos ? (
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="flex w-full flex-col items-center rounded-radius-md border-2 border-dashed border-text-secondary bg-surface px-16 py-16 text-center focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-              >
-                <Camera className="text-primary" size={20} aria-hidden />
-                <p className="mt-4 text-ui-label-l text-text">
-                  Add more photos
-                </p>
-              </button>
-            ) : (
+            {!canAddMorePhotos ? (
               <p className="text-body-s text-text-secondary text-center">
                 Photo limit reached.
               </p>
-            )}
+            ) : null}
             {photoSelectionError && (
               <p className="text-body-s text-status-low text-center">
                 {photoSelectionError}
@@ -652,9 +654,14 @@ export function RatingForm({
 
       {/* Overall rating — 5 stars with half-star support (hover/drag to select) */}
       <section className="space-y-16 text-center">
-        <p className="text-ui-label-l text-text">
-          Overall rating <span className="text-status-low">*</span>
-        </p>
+        <div className="space-y-0">
+          <p className="text-ui-label-l text-text">
+            Workability rating <span className="text-status-low">*</span>
+          </p>
+          <p className="text-body-s text-text-secondary">
+            How good is this place for getting work done?
+          </p>
+        </div>
         <div
           className="flex items-center justify-center gap-4"
           role="slider"
