@@ -22,6 +22,10 @@ import {
 import { useUserLocation } from "@/hooks/useUserLocation";
 import { samePlaceId } from "@/lib/placeId";
 import { captureFeedLoaded } from "@/lib/analytics";
+import {
+  TutorialModal,
+  TUTORIAL_PENDING_KEY,
+} from "@/components/onboarding/TutorialModal";
 
 function fetchFeed(params: {
   lat: number;
@@ -60,7 +64,16 @@ function FeedContent() {
   const searchParams = useSearchParams();
   const q = searchParams.get("q") ?? "";
   const filter = searchParams.get("filter") ?? "";
-  const locationState = useUserLocation();
+
+  // Pause auto-location when the onboarding tutorial is pending so the
+  // browser permission dialog fires from the tutorial's Enable button (a user
+  // gesture) rather than automatically on mount.
+  const [locationEnabled, setLocationEnabled] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return !localStorage.getItem(TUTORIAL_PENDING_KEY);
+  });
+  const locationState = useUserLocation({ skip: !locationEnabled });
+
   const { selectedPlaceId, setSelectedPlaceId } = usePlaceStore();
 
   const [isLgDesktop, setIsLgDesktop] = useState(() => {
@@ -157,6 +170,7 @@ function FeedContent() {
     !filter;
 
   return (
+    <>
     <div className="flex min-h-0 w-full flex-1 flex-col lg:grid lg:grid-cols-12 lg:overflow-hidden">
       <div className="scrollbar-hide flex min-h-0 w-full flex-col overflow-y-auto lg:col-span-4 lg:min-h-0">
         <div className="shrink-0">
@@ -257,6 +271,10 @@ function FeedContent() {
         ) : null}
       </div>
     </div>
+
+    {/* Onboarding tutorial — layered on top, does not affect feed behavior */}
+    <TutorialModal onLocationEnabled={() => setLocationEnabled(true)} />
+    </>
   );
 }
 

@@ -262,7 +262,7 @@ export function PlaceCard({ place }: { place: FeedItem }) {
             </Pill>
           </div>
 
-          <div className="absolute right-16 top-16">
+          <div className="absolute right-16 top-16" data-tutorial="match-score">
             <MatchRing score={matchPercent} />
           </div>
 
@@ -364,6 +364,7 @@ export function PlaceCard({ place }: { place: FeedItem }) {
         <a
           href={rateHref}
           className="inline-flex"
+          data-tutorial="rate-btn"
           onClick={(e) => {
             e.stopPropagation();
             e.preventDefault();

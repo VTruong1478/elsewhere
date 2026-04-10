@@ -28,11 +28,17 @@ function readCachedCoords(): { lat: number; lng: number } | null {
  *
  * Initial state is always `"loading"` so server and first client render match
  * (sessionStorage is only read after mount).
+ *
+ * Pass `{ skip: true }` to hold the hook in "loading" without firing the
+ * permission prompt — used by the onboarding tutorial so the tutorial can be
+ * the first thing that asks the user, not an automatic browser dialog.
  */
-export function useUserLocation(): UserLocationState {
+export function useUserLocation({ skip = false }: { skip?: boolean } = {}): UserLocationState {
   const [state, setState] = useState<UserLocationState>({ status: "loading" });
 
   useEffect(() => {
+    if (skip) return; // hold in "loading" until the caller is ready
+
     const cachedCoords = readCachedCoords();
 
     if (cachedCoords) {
@@ -112,7 +118,7 @@ export function useUserLocation(): UserLocationState {
       cancelled = true;
       window.clearTimeout(timeoutId);
     };
-  }, []);
+  }, [skip]);
 
   return state;
 }

@@ -12,6 +12,10 @@ import { Input } from "@/components/ui/Input";
 import { captureEvent } from "@/lib/analytics";
 import { setOAuthAuthIntent } from "@/lib/gatedAction";
 import { safeInternalPath } from "@/lib/safeNextPath";
+import {
+  TUTORIAL_COMPLETED_KEY,
+  TUTORIAL_PENDING_KEY,
+} from "@/components/onboarding/TutorialModal";
 
 const RATE_PATH_RE = /^\/places\/[^/]+\/rate(?:\/|$)/;
 
@@ -26,6 +30,13 @@ function setDevAuthCookieNow() {
   if (process.env.NODE_ENV !== "development" || typeof document === "undefined")
     return;
   document.cookie = "dev_auth=1; path=/; max-age=86400; samesite=lax";
+}
+
+/** First-time onboarding only; skip if this browser already finished the tutorial. */
+function queuePostSignupTutorial() {
+  if (typeof window === "undefined") return;
+  if (localStorage.getItem(TUTORIAL_COMPLETED_KEY)) return;
+  localStorage.setItem(TUTORIAL_PENDING_KEY, "1");
 }
 
 function AuthIllustration() {
@@ -113,6 +124,7 @@ function SignupPageInner() {
 
     localStorage.setItem("hasVisited", "true");
     localStorage.removeItem("justLoggedOut");
+    queuePostSignupTutorial();
     setDevAuthCookieNow();
     const {
       data: { user },
@@ -145,6 +157,7 @@ function SignupPageInner() {
 
     localStorage.setItem("hasVisited", "true");
     localStorage.removeItem("justLoggedOut");
+    queuePostSignupTutorial();
   }
 
   const authPanelContent = (
