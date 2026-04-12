@@ -43,11 +43,11 @@ export function BottomTabs() {
             )}
             <Icon
               size={20}
-              className={`relative ${isActive ? "text-primary" : "text-text-secondary"}`}
+              className={`relative ${isActive ? "text-primary" : "text-text-tertiary"}`}
               aria-hidden
             />
             <span
-              className={`relative text-ui-label-s ${isActive ? "text-primary" : "text-text-secondary"}`}
+              className={`relative text-ui-label-s ${isActive ? "text-primary" : "text-text-tertiary"}`}
             >
               {label}
             </span>
