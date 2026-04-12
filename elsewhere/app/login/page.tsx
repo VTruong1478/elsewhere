@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { MapPin } from "lucide-react";
@@ -11,17 +11,10 @@ import { Input } from "@/components/ui/Input";
 import { captureEvent } from "@/lib/analytics";
 import { setOAuthAuthIntent } from "@/lib/gatedAction";
 import { safeInternalPath } from "@/lib/safeNextPath";
+import { destinationAfterAuth } from "@/lib/authReturnPath";
 
 const DEV_EMAIL = "test@example.com";
 const DEV_PASSWORD = "testpass123";
-const RATE_PATH_RE = /^\/places\/[^/]+\/rate(?:\/|$)/;
-
-function markAuthReturnPath(nextPath: string | null): string | null {
-  if (!nextPath) return null;
-  if (!RATE_PATH_RE.test(nextPath)) return nextPath;
-  const sep = nextPath.includes("?") ? "&" : "?";
-  return `${nextPath}${sep}from_auth=1`;
-}
 
 function setDevAuthCookieNow() {
   if (process.env.NODE_ENV !== "development" || typeof document === "undefined")
@@ -83,6 +76,14 @@ function LoginPageInner() {
   const searchParams = useSearchParams();
   const nextSafe = safeInternalPath(searchParams.get("next"));
 
+  useEffect(() => {
+    const supabase = createClient();
+    void supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session?.user) return;
+      window.location.replace(destinationAfterAuth(nextSafe));
+    });
+  }, [nextSafe]);
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoadingEmail, setIsLoadingEmail] = useState(false);
@@ -120,7 +121,7 @@ function LoginPageInner() {
       localStorage.removeItem("justLoggedOut");
       setDevAuthCookieNow();
       captureEvent("login_completed", { method: "email" });
-      router.replace(markAuthReturnPath(nextSafe) ?? "/feed");
+      window.location.assign(destinationAfterAuth(nextSafe));
       return;
     }
 
@@ -147,7 +148,7 @@ function LoginPageInner() {
       posthog.identify(user.id);
     }
     captureEvent("login_completed", { method: "email" });
-    router.replace(markAuthReturnPath(nextSafe) ?? "/feed");
+    window.location.assign(destinationAfterAuth(nextSafe));
   }
 
   async function handleGoogleSignIn() {

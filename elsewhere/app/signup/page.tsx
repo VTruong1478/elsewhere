@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -12,18 +12,23 @@ import { Input } from "@/components/ui/Input";
 import { captureEvent } from "@/lib/analytics";
 import { setOAuthAuthIntent } from "@/lib/gatedAction";
 import { safeInternalPath } from "@/lib/safeNextPath";
+import { destinationAfterAuth } from "@/lib/authReturnPath";
 import {
   TUTORIAL_COMPLETED_KEY,
   TUTORIAL_PENDING_KEY,
 } from "@/components/onboarding/TutorialModal";
 
-const RATE_PATH_RE = /^\/places\/[^/]+\/rate(?:\/|$)/;
-
-function markAuthReturnPath(nextPath: string | null): string | null {
-  if (!nextPath) return null;
-  if (!RATE_PATH_RE.test(nextPath)) return nextPath;
-  const sep = nextPath.includes("?") ? "&" : "?";
-  return `${nextPath}${sep}from_auth=1`;
+/** Skip first-run tutorial queue when signup is completing a return-to-intent path (e.g. rate). */
+function shouldQueuePostSignupTutorial(nextPath: string | null): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    if (localStorage.getItem(TUTORIAL_COMPLETED_KEY)) return false;
+  } catch {
+    return false;
+  }
+  const n = nextPath?.trim() ?? "";
+  if (n === "" || n === "/feed" || n.startsWith("/feed?")) return true;
+  return false;
 }
 
 function setDevAuthCookieNow() {
@@ -93,6 +98,14 @@ function SignupPageInner() {
   const searchParams = useSearchParams();
   const nextSafe = safeInternalPath(searchParams.get("next"));
 
+  useEffect(() => {
+    const supabase = createClient();
+    void supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session?.user) return;
+      window.location.replace(destinationAfterAuth(nextSafe));
+    });
+  }, [nextSafe]);
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoadingEmail, setIsLoadingEmail] = useState(false);
@@ -109,31 +122,65 @@ function SignupPageInner() {
     setError(null);
     captureEvent("sign_up_started", { method: "email" });
 
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail || !password) {
+      setError("Enter your email and password.");
+      return;
+    }
+
     setIsLoadingEmail(true);
     const supabase = createClient();
-    const { error: signUpError } = await supabase.auth.signUp({
-      email,
+    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+      email: normalizedEmail,
       password,
     });
-    setIsLoadingEmail(false);
 
     if (signUpError) {
+      setIsLoadingEmail(false);
       setError(signUpError.message);
       return;
     }
 
+    // signUp often returns no session when "Confirm email" is enabled in Supabase.
+    // With confirmations off, we usually get a session here. If not, sign-in picks
+    // up a session so middleware and API routes see the same user as the client.
+    let session = signUpData.session;
+    if (!session) {
+      const { data: signInData, error: signInError } =
+        await supabase.auth.signInWithPassword({
+          email: normalizedEmail,
+          password,
+        });
+      if (signInError || !signInData.session) {
+        setIsLoadingEmail(false);
+        setError(
+          signInError?.message ??
+            "Check your email to confirm your account, then sign in.",
+        );
+        return;
+      }
+      session = signInData.session;
+    }
+
+    setIsLoadingEmail(false);
+
     localStorage.setItem("hasVisited", "true");
     localStorage.removeItem("justLoggedOut");
-    queuePostSignupTutorial();
+    if (shouldQueuePostSignupTutorial(nextSafe)) queuePostSignupTutorial();
     setDevAuthCookieNow();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = session.user;
     if (user) {
       posthog.identify(user.id);
     }
     captureEvent("sign_up_completed", { method: "email" });
-    router.replace(markAuthReturnPath(nextSafe) ?? "/feed");
+    const dest = destinationAfterAuth(nextSafe);
+    // Full navigation so Supabase auth cookies are committed before the next
+    // request hits middleware (client transitions alone can race cookie writes).
+    if (typeof window !== "undefined") {
+      window.location.assign(dest);
+    } else {
+      router.replace(dest);
+    }
   }
 
   async function handleGoogleSignIn() {
@@ -157,7 +204,7 @@ function SignupPageInner() {
 
     localStorage.setItem("hasVisited", "true");
     localStorage.removeItem("justLoggedOut");
-    queuePostSignupTutorial();
+    if (shouldQueuePostSignupTutorial(nextSafe)) queuePostSignupTutorial();
   }
 
   const authPanelContent = (

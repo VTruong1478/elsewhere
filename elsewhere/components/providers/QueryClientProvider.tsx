@@ -2,6 +2,7 @@
 
 import { QueryClient, QueryClientProvider as TanStackQueryClientProvider } from '@tanstack/react-query';
 import { useState } from 'react';
+import { ResumePendingGatedActions } from '@/components/auth/ResumePendingGatedActions';
 
 export function QueryClientProvider({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -17,6 +18,7 @@ export function QueryClientProvider({ children }: { children: React.ReactNode })
 
   return (
     <TanStackQueryClientProvider client={queryClient}>
+      <ResumePendingGatedActions />
       {children}
     </TanStackQueryClientProvider>
   );

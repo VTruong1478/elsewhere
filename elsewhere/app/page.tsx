@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-/** Landing page for first-time users. */
+/** Guests land on browse; signup is linked from login and marketing paths. */
 export default function Home() {
-  redirect("/signup");
+  redirect("/feed");
 }

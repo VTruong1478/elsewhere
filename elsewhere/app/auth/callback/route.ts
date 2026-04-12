@@ -1,17 +1,9 @@
 import { createClient } from '@/lib/supabase/server';
 import { ensureProfileFullName } from '@/lib/ensureProfileFullName';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
+import { destinationAfterAuth } from '@/lib/authReturnPath';
 import { safeInternalPath } from '@/lib/safeNextPath';
 import { NextResponse } from 'next/server';
-
-const RATE_PATH_RE = /^\/places\/[^/]+\/rate(?:\/|$)/;
-
-function markAuthReturnPath(nextPath: string | null): string {
-  const dest = nextPath ?? "/feed";
-  if (!RATE_PATH_RE.test(dest)) return dest;
-  const sep = dest.includes("?") ? "&" : "?";
-  return `${dest}${sep}from_auth=1`;
-}
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
@@ -31,7 +23,7 @@ export async function GET(request: Request) {
     }
   }
 
-  const dest = markAuthReturnPath(nextPath);
+  const dest = destinationAfterAuth(nextPath);
   const response = NextResponse.redirect(new URL(dest, requestUrl.origin));
   if (process.env.NODE_ENV === "development") {
     response.cookies.set("dev_auth", "1", {

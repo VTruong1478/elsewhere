@@ -73,10 +73,8 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    const authPath = request.nextUrl.pathname.includes("/rate")
-      ? "/signup"
-      : "/login";
-    const loginUrl = new URL(authPath, request.url);
+    // Single entry: login preserves ?next= for all protected routes (including /rate).
+    const loginUrl = new URL("/login", request.url);
     const returnTo =
       request.nextUrl.pathname +
       (request.nextUrl.search ?? '');
