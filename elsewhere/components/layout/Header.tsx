@@ -2,7 +2,16 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Bookmark, CircleUser } from "lucide-react";
+import { useEffect, useLayoutEffect, useState } from "react";
+import type { User } from "@supabase/supabase-js";
+import { Home, Bookmark, CircleUser, User2 } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
+import { hasDevBypassCookieClient } from "@/lib/devAuthClient";
+import {
+  getHeaderFirstName,
+  isDevTestAccountUser,
+  isGoogleAuthUser,
+} from "@/lib/authUserDisplay";
 
 export type HeaderRoute = "feed" | "saved" | string;
 
@@ -85,7 +94,8 @@ function HeaderNav({ currentRoute = "feed" }: { currentRoute?: HeaderRoute }) {
   );
 }
 
-function HeaderProfile({ selected }: { selected: boolean }) {
+/** Logged-out / default: unchanged from original header. */
+function HeaderProfileLoggedOut({ selected }: { selected: boolean }) {
   return (
     <Link
       href="/profile"
@@ -107,12 +117,137 @@ function HeaderProfile({ selected }: { selected: boolean }) {
   );
 }
 
+/**
+ * Dev bypass: no Supabase session on the client, but profile page shows "Dev User"
+ * (see profile/page.tsx). Match that — User2 + "Dev", same circle as profile.
+ */
+function HeaderProfileDev({ selected }: { selected: boolean }) {
+  return (
+    <Link
+      href="/profile"
+      className="relative flex shrink-0 items-center gap-16 rounded-radius-sm px-12 py-8 text-ui-label-m text-text-inverse"
+      aria-label="Dev"
+      aria-current={selected ? "page" : undefined}
+    >
+      {selected && (
+        <span
+          className="pointer-events-none absolute inset-0 rounded-radius-sm bg-header-selected-overlay"
+          aria-hidden
+        />
+      )}
+      <span className="relative flex h-40 w-40 shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-alt text-text shadow-map">
+        <User2 size={20} className="text-primary" aria-hidden />
+      </span>
+      <span className="relative max-w-[120px] truncate">Dev</span>
+    </Link>
+  );
+}
+
+/**
+ * Logged in: same avatar rules as /profile — `profiles.avatar_url` or User2.
+ * Google users: first name; dev test account (email): "Dev"; others: "Profile".
+ */
+function HeaderProfileLoggedIn({
+  selected,
+  user,
+  profileAvatarUrl,
+}: {
+  selected: boolean;
+  user: User;
+  profileAvatarUrl: string | null;
+}) {
+  const google = isGoogleAuthUser(user);
+  const firstName = getHeaderFirstName(user);
+  const label =
+    google && firstName
+      ? firstName
+      : isDevTestAccountUser(user)
+        ? "Dev"
+        : "Profile";
+
+  return (
+    <Link
+      href="/profile"
+      className="relative flex shrink-0 items-center gap-16 rounded-radius-sm px-12 py-8 text-ui-label-m text-text-inverse"
+      aria-label={label}
+      aria-current={selected ? "page" : undefined}
+    >
+      {selected && (
+        <span
+          className="pointer-events-none absolute inset-0 rounded-radius-sm bg-header-selected-overlay"
+          aria-hidden
+        />
+      )}
+      {/* Match profile page: h-40 w-40 circle, img or User2 */}
+      <span className="relative flex h-40 w-40 shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-alt text-text shadow-map">
+        {profileAvatarUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element -- same source as profile page
+          <img
+            src={profileAvatarUrl}
+            alt=""
+            className="h-full w-full rounded-full object-cover"
+            referrerPolicy="no-referrer"
+          />
+        ) : (
+          <User2 size={20} className="text-primary" aria-hidden />
+        )}
+      </span>
+      <span className="relative max-w-[120px] truncate">{label}</span>
+    </Link>
+  );
+}
+
 export function Header({
   currentRoute,
   showProfile = true,
   className = "",
 }: HeaderProps) {
   const pathname = usePathname();
+  const [user, setUser] = useState<User | null>(null);
+  const [profileAvatarUrl, setProfileAvatarUrl] = useState<string | null>(null);
+  const [devBypassActive, setDevBypassActive] = useState(false);
+
+  useLayoutEffect(() => {
+    setDevBypassActive(hasDevBypassCookieClient());
+  }, []);
+
+  useEffect(() => {
+    const supabase = createClient();
+    void supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+    });
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!user) {
+      setProfileAvatarUrl(null);
+      return;
+    }
+    const supabase = createClient();
+    let cancelled = false;
+    void supabase
+      .from("profiles")
+      .select("avatar_url")
+      .eq("id", user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled) return;
+        const url = data?.avatar_url;
+        setProfileAvatarUrl(
+          typeof url === "string" && url.trim() ? url.trim() : null,
+        );
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
   if (/^\/places\/[^/]+\/rate(?:\/|$)/.test(pathname ?? "")) {
     return null;
   }
@@ -136,7 +271,21 @@ export function Header({
         <HeaderNav currentRoute={route} />
       </div>
       <div className="flex items-center justify-end">
-        {showProfile ? <HeaderProfile selected={isProfileRoute} /> : <span />}
+        {showProfile ? (
+          user ? (
+            <HeaderProfileLoggedIn
+              selected={isProfileRoute}
+              user={user}
+              profileAvatarUrl={profileAvatarUrl}
+            />
+          ) : devBypassActive ? (
+            <HeaderProfileDev selected={isProfileRoute} />
+          ) : (
+            <HeaderProfileLoggedOut selected={isProfileRoute} />
+          )
+        ) : (
+          <span />
+        )}
       </div>
     </header>
   );

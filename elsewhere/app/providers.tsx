@@ -55,10 +55,13 @@ export function Providers({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const supabase = createClient();
-    void supabase.auth.getUser().then(({ data }) => {
-      setDevAuthCookie(Boolean(data.user));
-      if (process.env.NEXT_PUBLIC_POSTHOG_KEY && data.user) {
-        posthog.identify(data.user.id);
+    // Prefer getSession first: reads persisted session without a round trip.
+    // getUser() can resolve null briefly and cleared dev_auth before hydration.
+    void supabase.auth.getSession().then(({ data: { session } }) => {
+      const u = session?.user;
+      setDevAuthCookie(Boolean(u));
+      if (process.env.NEXT_PUBLIC_POSTHOG_KEY && u) {
+        posthog.identify(u.id);
       }
     });
 
