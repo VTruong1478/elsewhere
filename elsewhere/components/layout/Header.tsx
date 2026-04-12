@@ -94,13 +94,25 @@ function HeaderNav({ currentRoute = "feed" }: { currentRoute?: HeaderRoute }) {
   );
 }
 
-/** Logged-out / default: unchanged from original header. */
-function HeaderProfileLoggedOut({ selected }: { selected: boolean }) {
+function loginHrefFromPath(pathname: string | null): string {
+  const p = pathname?.trim() || "";
+  if (!p || p === "/login" || p === "/signup") return "/login";
+  return `/login?next=${encodeURIComponent(p)}`;
+}
+
+/** Logged-out: link to login; label matches other nav rows (icon + text). */
+function HeaderProfileLoggedOut({
+  selected,
+  href,
+}: {
+  selected: boolean;
+  href: string;
+}) {
   return (
     <Link
-      href="/profile"
+      href={href}
       className="relative flex shrink-0 items-center gap-16 rounded-radius-sm px-12 py-8 text-ui-label-m text-text-inverse"
-      aria-label="Profile"
+      aria-label="Log in"
       aria-current={selected ? "page" : undefined}
     >
       {selected && (
@@ -112,7 +124,7 @@ function HeaderProfileLoggedOut({ selected }: { selected: boolean }) {
       <span className="flex items-center justify-center rounded-full">
         <CircleUser size={24} className="text-text-inverse" aria-hidden />
       </span>
-      <span className="relative">Profile</span>
+      <span className="relative">Log in</span>
     </Link>
   );
 }
@@ -135,8 +147,8 @@ function HeaderProfileDev({ selected }: { selected: boolean }) {
           aria-hidden
         />
       )}
-      <span className="relative flex h-40 w-40 shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-alt text-text shadow-map">
-        <User2 size={20} className="text-primary" aria-hidden />
+      <span className="relative flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-alt text-text shadow-map">
+        <User2 size={16} className="text-primary" aria-hidden />
       </span>
       <span className="relative max-w-[120px] truncate">Dev</span>
     </Link>
@@ -178,8 +190,8 @@ function HeaderProfileLoggedIn({
           aria-hidden
         />
       )}
-      {/* Match profile page: h-40 w-40 circle, img or User2 */}
-      <span className="relative flex h-40 w-40 shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-alt text-text shadow-map">
+      {/* 24×24 avatar (design spacing scale); img or User2 */}
+      <span className="relative flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-alt text-text shadow-map">
         {profileAvatarUrl ? (
           // eslint-disable-next-line @next/next/no-img-element -- same source as profile page
           <img
@@ -189,7 +201,7 @@ function HeaderProfileLoggedIn({
             referrerPolicy="no-referrer"
           />
         ) : (
-          <User2 size={20} className="text-primary" aria-hidden />
+          <User2 size={16} className="text-primary" aria-hidden />
         )}
       </span>
       <span className="relative max-w-[120px] truncate">{label}</span>
@@ -252,6 +264,7 @@ export function Header({
     return null;
   }
   const isProfileRoute = pathname === "/profile";
+  const isLoginRoute = pathname === "/login";
   const route =
     currentRoute ??
     (pathname === "/saved"
@@ -281,7 +294,10 @@ export function Header({
           ) : devBypassActive ? (
             <HeaderProfileDev selected={isProfileRoute} />
           ) : (
-            <HeaderProfileLoggedOut selected={isProfileRoute} />
+            <HeaderProfileLoggedOut
+              selected={isLoginRoute}
+              href={loginHrefFromPath(pathname ?? null)}
+            />
           )
         ) : (
           <span />

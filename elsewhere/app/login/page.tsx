@@ -112,15 +112,34 @@ function LoginPageInner() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: normalizedEmail, password }),
       });
-      setIsLoadingEmail(false);
       if (!devRes.ok) {
+        setIsLoadingEmail(false);
         setError("Dev login failed");
+        return;
+      }
+      // API only ensures the user exists + sets dev_auth. A real Supabase session
+      // is required for client getSession() / middleware user checks.
+      const supabaseDev = createClient();
+      const { error: devSignInError } = await supabaseDev.auth.signInWithPassword({
+        email: normalizedEmail,
+        password,
+      });
+      setIsLoadingEmail(false);
+      if (devSignInError) {
+        setError(devSignInError.message);
         return;
       }
       localStorage.setItem("hasVisited", "true");
       localStorage.removeItem("justLoggedOut");
       setDevAuthCookieNow();
+      const {
+        data: { user: devUser },
+      } = await supabaseDev.auth.getUser();
+      if (devUser) {
+        posthog.identify(devUser.id);
+      }
       captureEvent("login_completed", { method: "email" });
+      await supabaseDev.auth.getSession();
       window.location.assign(destinationAfterAuth(nextSafe));
       return;
     }

@@ -85,10 +85,10 @@ export default async function ProfilePage() {
   const { fullName, email, avatarUrl, stats } = await getProfileData();
 
   return (
-    <main className="min-h-screen w-full bg-background px-16 py-24">
+    <main className="min-h-screen w-full bg-background px-16 pt-40">
       <div className="mx-auto flex max-w-md flex-col items-center text-center">
         {/* Avatar */}
-        <div className="mb-16 flex h-40 w-40 items-center justify-center rounded-full bg-surface-alt text-text shadow-map">
+        <div className="mb-16 h-80 w-80 flex items-center justify-center rounded-full bg-surface-alt text-text shadow-map">
           {avatarUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -97,7 +97,7 @@ export default async function ProfilePage() {
               className="h-full w-full rounded-full object-cover"
             />
           ) : (
-            <User2 size={20} className="text-primary" aria-hidden />
+            <User2 size={40} className="text-primary" aria-hidden />
           )}
         </div>
 

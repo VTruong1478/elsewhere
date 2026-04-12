@@ -38,6 +38,8 @@ module.exports = {
         24: "24px",
         32: "32px",
         40: "40px",
+        // Overrides Tailwind default `80` (= 20rem / ~320px) so `h-80`/`w-80` are 80px.
+        80: "80px",
       },
       zIndex: {
         10: "10",
