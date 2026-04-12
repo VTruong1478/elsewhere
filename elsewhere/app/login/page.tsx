@@ -148,6 +148,7 @@ function LoginPageInner() {
       posthog.identify(user.id);
     }
     captureEvent("login_completed", { method: "email" });
+    await supabase.auth.getSession();
     window.location.assign(destinationAfterAuth(nextSafe));
   }
 
@@ -261,7 +262,14 @@ function LoginPageInner() {
             <div className="flex flex-col gap-16">{authPanelContent}</div>
             <button
               type="button"
-              onClick={() => router.push("/feed")}
+              onClick={() => {
+                try {
+                  localStorage.setItem("hasVisited", "true");
+                } catch {
+                  /* ignore */
+                }
+                router.push("/feed");
+              }}
               className="mx-auto mt-auto pb-16 text-body-l text-accent text-link"
             >
               Browse without an account
@@ -290,7 +298,14 @@ function LoginPageInner() {
 
               <button
                 type="button"
-                onClick={() => router.push("/feed")}
+                onClick={() => {
+                  try {
+                    localStorage.setItem("hasVisited", "true");
+                  } catch {
+                    /* ignore */
+                  }
+                  router.push("/feed");
+                }}
                 className="mx-auto pb-16 text-body-l text-accent text-link lg:absolute lg:bottom-24 lg:left-1/2 lg:-translate-x-1/2 lg:pb-0"
               >
                 Browse without an account

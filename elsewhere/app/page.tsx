@@ -1,6 +1,8 @@
-import { redirect } from "next/navigation";
+"use client";
 
-/** Guests land on browse; signup is linked from login and marketing paths. */
+import { AuthEntryRedirect } from "@/components/auth/AuthEntryRedirect";
+
+/** First visit → signup; returning → feed (see AuthEntryRedirect). */
 export default function Home() {
-  redirect("/feed");
+  return <AuthEntryRedirect />;
 }

@@ -8,6 +8,7 @@ const PUBLIC_PATHS = [
   '/auth/callback',
   '/',
   '/feed',
+  '/map',
   '/api',
   '/terms',
   '/privacy',
@@ -30,22 +31,6 @@ function isPublicPath(pathname: string): boolean {
 }
 
 export async function middleware(request: NextRequest) {
-  if (isPublicPath(request.nextUrl.pathname)) {
-    return NextResponse.next({
-      request: { headers: request.headers },
-    });
-  }
-
-  // Local/dev-only credential bypass.
-  if (
-    process.env.NODE_ENV === "development" &&
-    request.cookies.get("dev_auth")?.value === "1"
-  ) {
-    return NextResponse.next({
-      request: { headers: request.headers },
-    });
-  }
-
   const response = NextResponse.next({
     request: { headers: request.headers },
   });
@@ -67,10 +52,24 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  // Refresh session (getUser validates the token with the auth server)
+  // Refresh session on every matched route (including public) so cookies stay in
+  // sync after client sign-in; skipping this on /feed caused protected routes to
+  // miss the session on the next navigation.
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  if (isPublicPath(request.nextUrl.pathname)) {
+    return response;
+  }
+
+  // Local/dev-only credential bypass.
+  if (
+    process.env.NODE_ENV === "development" &&
+    request.cookies.get("dev_auth")?.value === "1"
+  ) {
+    return response;
+  }
 
   if (!user) {
     // Single entry: login preserves ?next= for all protected routes (including /rate).

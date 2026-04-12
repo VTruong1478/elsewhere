@@ -1,22 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { AuthEntryRedirect } from "@/components/auth/AuthEntryRedirect";
 
+/** Profile and legacy entry: same rules as `/` (AuthEntryRedirect). */
 export default function AuthEntryPage() {
-  const router = useRouter();
-
-  useEffect(() => {
-    const justLoggedOut = localStorage.getItem("justLoggedOut") === "true";
-    if (justLoggedOut) {
-      localStorage.removeItem("justLoggedOut");
-      router.replace("/login");
-      return;
-    }
-
-    const hasVisited = localStorage.getItem("hasVisited") === "true";
-    router.replace(hasVisited ? "/login" : "/signup");
-  }, [router]);
-
-  return null;
+  return <AuthEntryRedirect />;
 }

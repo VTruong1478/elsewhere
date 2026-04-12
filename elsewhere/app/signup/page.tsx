@@ -173,6 +173,8 @@ function SignupPageInner() {
       posthog.identify(user.id);
     }
     captureEvent("sign_up_completed", { method: "email" });
+    // Ensure cookie storage has flushed before full navigation (middleware reads cookies).
+    await supabase.auth.getSession();
     const dest = destinationAfterAuth(nextSafe);
     // Full navigation so Supabase auth cookies are committed before the next
     // request hits middleware (client transitions alone can race cookie writes).
@@ -319,7 +321,14 @@ function SignupPageInner() {
             <div className="flex flex-col gap-16">{authPanelContent}</div>
             <button
               type="button"
-              onClick={() => router.push("/feed")}
+              onClick={() => {
+                try {
+                  localStorage.setItem("hasVisited", "true");
+                } catch {
+                  /* ignore */
+                }
+                router.push("/feed");
+              }}
               className="mx-auto mt-auto pb-16 text-body-l text-accent text-link"
             >
               Browse without an account
@@ -348,7 +357,14 @@ function SignupPageInner() {
 
               <button
                 type="button"
-                onClick={() => router.push("/feed")}
+                onClick={() => {
+                  try {
+                    localStorage.setItem("hasVisited", "true");
+                  } catch {
+                    /* ignore */
+                  }
+                  router.push("/feed");
+                }}
                 className="mx-auto pb-16 text-body-l text-accent text-link lg:absolute lg:bottom-24 lg:left-1/2 lg:-translate-x-1/2 lg:pb-0"
               >
                 Browse without an account

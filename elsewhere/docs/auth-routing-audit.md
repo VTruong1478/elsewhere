@@ -14,8 +14,8 @@ Concise reference for **logged-out / guest / return-to-intent** behavior and whe
 
 | Entry | Logged out | Notes |
 |-------|------------|--------|
-| `/` | Redirects to **`/feed`** | `app/page.tsx` |
-| `/auth` | Client: `justLoggedOut` → `/login`; else `hasVisited` → `/login` else **`/signup`** | `app/auth/page.tsx` |
+| `/` | Client: `justLoggedOut` → `/login`; else `hasVisited` → **`/feed`** else **`/signup`** | `app/page.tsx` → `components/auth/AuthEntryRedirect.tsx` |
+| `/auth` | Same as **`/`** (shared **`AuthEntryRedirect`**) | `app/auth/page.tsx` |
 | `/signup` | Page loads; if session exists → **redirect to `destinationAfterAuth(next)`** | `app/signup/page.tsx`, `lib/authReturnPath.ts` |
 | `/login` | Same session redirect as signup | `app/login/page.tsx` |
 | `/feed`, `/map`, `/places/[id]` | **Allowed** | `middleware.ts` `isPublicPath` |
@@ -27,25 +27,25 @@ Concise reference for **logged-out / guest / return-to-intent** behavior and whe
 
 | Concern | File(s) |
 |--------|---------|
-| Public vs protected paths | `middleware.ts` |
+| Public vs protected paths | `middleware.ts` (session refresh runs on **all** matched routes so cookies stay synced after client auth) |
 | Safe `next` open-redirect guard | `lib/safeNextPath.ts` |
 | Post-auth URL (`from_auth` on rate URLs) | `lib/authReturnPath.ts` → `destinationAfterAuth` |
 | Gate save/rate without session | `lib/authGate.ts`, `lib/gatedAction.ts` |
 | Resume pending save after login | `components/auth/ResumePendingGatedActions.tsx` (inside `QueryClientProvider`) |
 | Email/password + OAuth return | `app/login/page.tsx`, `app/signup/page.tsx`, `app/auth/callback/route.ts` |
-| Profile server guard (no session) | `app/(app)/profile/page.tsx` → `redirect("/auth")` (middleware usually sends to login first) |
+| Profile server guard (no session) | `app/(app)/profile/page.tsx` → `redirect("/login?next=/profile")` (middleware usually sends to login first) |
 | Tutorial queue | `components/onboarding/TutorialModal.tsx`; queued only when signup `next` is default feed browse — `shouldQueuePostSignupTutorial` in `app/signup/page.tsx` |
 
 ## Known edge cases
 
 - **Expired session**: Middleware sees no user → `/login?next=current path`. Same as direct paste of protected URL.
-- **Stale `hasVisited` / `justLoggedOut`**: `/auth` still branches on these; logout sets `justLoggedOut` in `LogoutButton` before `signOut`.
+- **Stale `hasVisited` / `justLoggedOut`**: `/` and `/auth` branch on these via **`AuthEntryRedirect`**; logout sets `justLoggedOut` in `LogoutButton` before `signOut`. **Browse without an account** sets `hasVisited` so the next root visit lands on **`/feed`**.
 - **History**: Login/signup success uses **`window.location.assign`** / **`replace`** so Supabase cookies are visible to the next request; avoids client-only navigation races with middleware.
 - **OAuth signup + tutorial**: Tutorial is not queued when `next` points away from default `/feed` browse, so return-to-intent (e.g. rate) is not blocked by the first-run tutorial.
 
 ## Inconsistencies removed in this pass
 
 - Middleware used to send **`/rate`** URLs to **`/signup`** while client gates used **`/login`** — now **all** use **`/login?next=…`**.
-- **`/`** used to force **`/signup`** — now **`/feed`** for guest-first entry.
+- **`/`** used to **`redirect("/feed")` server-side** — now **client** routing: first visit **`/signup`**, returning **`/feed`** (same as **`/auth`**).
 - **Save** after auth did not run automatically — **resume** POSTs pending save when session appears.
 - **Signup** always queued the first-run tutorial — now **deferred** when completing a non–feed-browse `next`.
