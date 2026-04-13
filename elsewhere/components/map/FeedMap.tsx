@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  useEffect,
-  useCallback,
-  useState,
-  useRef,
-  useMemo,
-} from "react";
+import { useEffect, useCallback, useState, useRef, useMemo } from "react";
 import mapboxgl from "mapbox-gl";
 import { createRoot, Root } from "react-dom/client";
 import { Locate } from "lucide-react";
@@ -70,16 +64,43 @@ export interface FeedMapProps {
    * Default 0.5 (screen center). E.g. 0.75 centers the pin in the right half of the map.
    */
   selectedMarkerScreenXRatio?: number;
+  /**
+   * When false (full-screen map tab), do not re-fit the camera to all markers when
+   * `places` updates from refetch (e.g. zoom/radius) — preserves user zoom/pan.
+   * Default true for feed embeds.
+   */
+  autoFitBoundsOnPlacesChange?: boolean;
+  /**
+   * When this string changes (e.g. search or filter), allow one auto-fit again.
+   * Use with `autoFitBoundsOnPlacesChange={false}`.
+   */
+  autoFitBoundsResetKey?: string;
+  /**
+   * Reserved for future use; fixed-camera modes no longer wait on fetch. Map tab may
+   * still pass `!isFetching` for clarity — it does not change camera behavior.
+   */
+  feedPlacesReady?: boolean;
+  /**
+   * When false (default): never `fitBounds` to show all pins — use MAP_TAB_FIXED_ZOOM at
+   * `center`. When true (e.g. place detail map), allow legacy fit-to-pins behavior.
+   */
+  allowPinFitBounds?: boolean;
 }
 
 const PADDING_PX = 48;
-const MAX_ZOOM = 18;
-const MIN_ZOOM = 3;
+/** One-finger pan starting on a pin: if the finger moves farther than this before lift, do not open place detail. */
+const MARKER_TAP_MAX_MOVE_PX = 14;
+const MAX_ZOOM = 18; // street
+const MIN_ZOOM = 3; // world
 const SELECTED_MIN_ZOOM = 14;
 /** Slightly closer framing when offsetting the pin (e.g. desktop feed + side panel). */
 const SELECTED_FOCUS_ZOOM = 15;
 const USER_LOCATION_ZOOM = 14;
-
+const DEFAULT_MAP_ZOOM = 12;
+/**
+ * Full-screen map tab (`/map`): fixed camera at `center` — never auto fitBounds to all pins.
+ */
+const MAP_TAB_FIXED_ZOOM = 8;
 const MAPBOX_STYLE = "mapbox://styles/vtruong1478/cmmgu21ou006c01rybm1m2nrt";
 
 // ---------------------------------------------------------------------------
@@ -219,13 +240,17 @@ export function FeedMap({
   selectedPlaceId,
   onSelectPlace,
   center,
-  zoom = 12,
+  zoom = DEFAULT_MAP_ZOOM,
   onZoomEnd,
   centerVerticalOffsetPx = 0,
   showUserLocationDot,
   userLocationForDot,
   onPlaceMarkerHover,
   selectedMarkerScreenXRatio,
+  autoFitBoundsOnPlacesChange = true,
+  autoFitBoundsResetKey,
+  feedPlacesReady: _feedPlacesReady = true,
+  allowPinFitBounds = false,
 }: FeedMapProps) {
   const token = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN?.trim() ?? "";
   const { hoveredPlaceId, setHoveredPlaceId } = usePlaceStore();
@@ -237,6 +262,9 @@ export function FeedMap({
     null,
   );
   const lastBoundsKeyRef = useRef("");
+  /** Map tab: after first fit for current search/filter, skip refits (e.g. radius refetch). */
+  const hasAutoFittedRef = useRef(false);
+  const prevAutoFitResetKeyRef = useRef<string | undefined>(undefined);
   const lastFlyKeyRef = useRef<string | null>(null);
   const lastZoomRef = useRef<number | null>(null);
   const onZoomEndRef = useRef(onZoomEnd);
@@ -247,6 +275,10 @@ export function FeedMap({
   const multiTouchGestureRef = useRef(false);
   /** Map zoom at touch pointerdown on a marker — if zoom changed before pointerup, treat as pinch/pan not a tap. */
   const markerTouchStartZoomRef = useRef<number | null>(null);
+  /** Client position at pointerdown on a marker — if pointerup moved past threshold, treat as pan not tap (mobile one-finger drag). */
+  const markerPointerDownClientRef = useRef<{ x: number; y: number } | null>(
+    null,
+  );
 
   const [legacyLocatePosition, setLegacyLocatePosition] = useState<{
     lat: number;
@@ -273,6 +305,9 @@ export function FeedMap({
     ? [center.lng, center.lat]
     : NOVA_CENTER;
 
+  /** Place-detail maps (fit bounds / zoom to pin); everything else stays at MAP_TAB_FIXED_ZOOM. */
+  const initialZoom = allowPinFitBounds ? zoom : MAP_TAB_FIXED_ZOOM;
+
   const validPlaces = useMemo(
     () => places.filter((p) => isValidCoord(p.lat, p.lng)),
     [places],
@@ -283,7 +318,7 @@ export function FeedMap({
   // -----------------------------------------------------------------------
   // 1. Create map
   // -----------------------------------------------------------------------
-   
+
   useEffect(() => {
     if (!token || !mapContainerRef.current || mapRef.current) return;
 
@@ -293,7 +328,7 @@ export function FeedMap({
       container: mapContainerRef.current,
       style: MAPBOX_STYLE,
       center: defaultCenter,
-      zoom,
+      zoom: initialZoom,
       projection: "mercator",
       pitch: 0,
       bearing: 0,
@@ -350,6 +385,10 @@ export function FeedMap({
       }
       map.remove();
       mapRef.current = null;
+      hasAutoFittedRef.current = false;
+      lastBoundsKeyRef.current = "";
+      lastEmptyCenterFlyKeyRef.current = "";
+      lastFlyKeyRef.current = null;
     };
     // Only run once on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -358,7 +397,7 @@ export function FeedMap({
   // -----------------------------------------------------------------------
   // 2. Zoom-end listener
   // -----------------------------------------------------------------------
-   
+
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -379,7 +418,7 @@ export function FeedMap({
   }, [token]);
 
   // Clear stuck hover (e.g. tablet touch) when tapping the map background, not a marker.
-   
+
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -390,10 +429,24 @@ export function FeedMap({
     };
   }, [setHoveredPlaceId, token]);
 
+  // Map tab: allow auto-fit again when search/filter changes (not on zoom/radius refetch).
+  useEffect(() => {
+    if (autoFitBoundsResetKey === undefined) return;
+    if (prevAutoFitResetKeyRef.current === undefined) {
+      prevAutoFitResetKeyRef.current = autoFitBoundsResetKey;
+      return;
+    }
+    if (prevAutoFitResetKeyRef.current !== autoFitBoundsResetKey) {
+      hasAutoFittedRef.current = false;
+      lastBoundsKeyRef.current = "";
+      prevAutoFitResetKeyRef.current = autoFitBoundsResetKey;
+    }
+  }, [autoFitBoundsResetKey]);
+
   // -----------------------------------------------------------------------
   // 3. Fit bounds when places change
   // -----------------------------------------------------------------------
-   
+
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -410,10 +463,38 @@ export function FeedMap({
       .sort((a, b) => a.id.localeCompare(b.id))
       .map((p) => ({ id: p.id, lat: p.lat, lng: p.lng }));
     const key = JSON.stringify(sorted);
-    if (key === lastBoundsKeyRef.current) return;
-    lastBoundsKeyRef.current = key;
 
     if (validPlaces.length === 0) return;
+
+    // Map tab: fixed zoom at logical center — never fitBounds / never zoom-to-all pins.
+    if (!autoFitBoundsOnPlacesChange) {
+      if (hasAutoFittedRef.current) return;
+      if (!center) return;
+      hasAutoFittedRef.current = true;
+      lastBoundsKeyRef.current = key;
+      map.flyTo({
+        center: [center.lng, center.lat],
+        zoom: MAP_TAB_FIXED_ZOOM,
+        duration: 600,
+      });
+      return;
+    }
+
+    // Feed / saved embeds: same fixed camera — never fitBounds unless explicitly allowed (place detail).
+    if (!allowPinFitBounds) {
+      if (key === lastBoundsKeyRef.current) return;
+      lastBoundsKeyRef.current = key;
+      if (!center) return;
+      map.flyTo({
+        center: [center.lng, center.lat],
+        zoom: MAP_TAB_FIXED_ZOOM,
+        duration: 600,
+      });
+      return;
+    }
+
+    if (key === lastBoundsKeyRef.current) return;
+    lastBoundsKeyRef.current = key;
 
     if (validPlaces.length === 1) {
       const p = validPlaces[0];
@@ -433,28 +514,47 @@ export function FeedMap({
       maxZoom: MAX_ZOOM,
       duration: 600,
     });
-  }, [validPlaces, selectedPlaceId, centerVerticalOffsetPx]);
+  }, [
+    validPlaces,
+    selectedPlaceId,
+    centerVerticalOffsetPx,
+    center?.lat,
+    center?.lng,
+    autoFitBoundsOnPlacesChange,
+    allowPinFitBounds,
+  ]);
 
   // When there are no place markers, follow the logical map center (e.g. user in Case 4).
-   
+
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !center) return;
     if (validPlaces.length > 0) return;
-    const flyKey = `${validPlaces.length}\u0000${center.lat.toFixed(5)}\u0000${center.lng.toFixed(5)}\u0000${zoom}`;
+    const emptyZoom =
+      !autoFitBoundsOnPlacesChange || !allowPinFitBounds
+        ? MAP_TAB_FIXED_ZOOM
+        : zoom;
+    const flyKey = `${validPlaces.length}\u0000${center.lat.toFixed(5)}\u0000${center.lng.toFixed(5)}\u0000${emptyZoom}`;
     if (flyKey === lastEmptyCenterFlyKeyRef.current) return;
     lastEmptyCenterFlyKeyRef.current = flyKey;
     map.flyTo({
       center: [center.lng, center.lat],
-      zoom,
+      zoom: emptyZoom,
       duration: 600,
     });
-  }, [center?.lat, center?.lng, validPlaces.length, zoom]);
+  }, [
+    center?.lat,
+    center?.lng,
+    validPlaces.length,
+    zoom,
+    allowPinFitBounds,
+    autoFitBoundsOnPlacesChange,
+  ]);
 
   // -----------------------------------------------------------------------
   // 4. Fly to selected place
   // -----------------------------------------------------------------------
-   
+
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !selectedPlaceId) {
@@ -496,7 +596,7 @@ export function FeedMap({
   // -----------------------------------------------------------------------
   // 5a. Marker lifecycle (add / remove / position) — depends only on places + handlers
   // -----------------------------------------------------------------------
-   
+
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -528,7 +628,24 @@ export function FeedMap({
           (e) => {
             if (e.pointerType === "touch") {
               markerTouchStartZoomRef.current = map.getZoom() ?? null;
+              markerPointerDownClientRef.current = {
+                x: e.clientX,
+                y: e.clientY,
+              };
+            } else if (e.pointerType === "mouse" && e.button === 0) {
+              markerPointerDownClientRef.current = {
+                x: e.clientX,
+                y: e.clientY,
+              };
             }
+          },
+          { passive: true },
+        );
+        el.addEventListener(
+          "pointercancel",
+          () => {
+            markerPointerDownClientRef.current = null;
+            markerTouchStartZoomRef.current = null;
           },
           { passive: true },
         );
@@ -536,6 +653,26 @@ export function FeedMap({
         el.addEventListener("pointerup", (e) => {
           e.stopPropagation();
           if (e.pointerType === "mouse" && e.button !== 0) return;
+
+          const start = markerPointerDownClientRef.current;
+          markerPointerDownClientRef.current = null;
+
+          if (e.pointerType === "touch" && !start) {
+            markerTouchStartZoomRef.current = null;
+            return;
+          }
+
+          if (
+            (e.pointerType === "touch" || e.pointerType === "mouse") &&
+            start
+          ) {
+            const dist = Math.hypot(e.clientX - start.x, e.clientY - start.y);
+            if (dist > MARKER_TAP_MAX_MOVE_PX) {
+              markerTouchStartZoomRef.current = null;
+              return;
+            }
+          }
+
           if (e.pointerType === "touch") {
             // Pinch: first finger lifts while second is still down — suppress window isn't set yet.
             if (multiTouchGestureRef.current) {
@@ -549,14 +686,13 @@ export function FeedMap({
             const z0 = markerTouchStartZoomRef.current;
             markerTouchStartZoomRef.current = null;
             const z1 = map.getZoom();
-            if (
-              z0 != null &&
-              z1 != null &&
-              Math.abs(z1 - z0) > 0.05
-            ) {
+            if (z0 != null && z1 != null && Math.abs(z1 - z0) > 0.05) {
               return;
             }
+          } else if (e.pointerType === "mouse") {
+            markerTouchStartZoomRef.current = null;
           }
+
           capturePlaceOpened(place, "map");
           onSelectPlace(place.id);
         });
@@ -576,7 +712,7 @@ export function FeedMap({
   // -----------------------------------------------------------------------
   // 5b. Marker visuals (PinContent + z-index) — selected / hover / score
   // -----------------------------------------------------------------------
-   
+
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -606,7 +742,7 @@ export function FeedMap({
   // -----------------------------------------------------------------------
   // 6. User location marker
   // -----------------------------------------------------------------------
-   
+
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;

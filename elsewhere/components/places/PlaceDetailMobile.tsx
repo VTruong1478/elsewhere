@@ -1034,6 +1034,7 @@ export function PlaceDetailMobile({
               center={mapCenter}
               zoom={mapZoom}
               centerVerticalOffsetPx={mapCenterOffsetPx}
+              allowPinFitBounds
             />
           </div>
         )}
@@ -1070,6 +1071,7 @@ export function PlaceDetailMobile({
             center={mapCenter}
             zoom={mapZoom}
             centerVerticalOffsetPx={mapCenterOffsetPx}
+            allowPinFitBounds
           />
         </div>
       )}

@@ -12,6 +12,8 @@ interface MapPanelProps {
   userLocationForDot?: { lat: number; lng: number };
   /** See FeedMap `selectedMarkerScreenXRatio`. */
   selectedMarkerScreenXRatio?: number;
+  /** See FeedMap `allowPinFitBounds`. */
+  allowPinFitBounds?: boolean;
 }
 
 /**
@@ -27,6 +29,7 @@ export function MapPanel({
   showUserLocationDot,
   userLocationForDot,
   selectedMarkerScreenXRatio,
+  allowPinFitBounds,
 }: MapPanelProps) {
   return (
     <div className="relative hidden min-h-0 w-full lg:block lg:h-full">
@@ -39,6 +42,7 @@ export function MapPanel({
           showUserLocationDot={showUserLocationDot}
           userLocationForDot={userLocationForDot}
           selectedMarkerScreenXRatio={selectedMarkerScreenXRatio}
+          allowPinFitBounds={allowPinFitBounds}
         />
       </div>
     </div>

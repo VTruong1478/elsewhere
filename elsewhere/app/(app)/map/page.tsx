@@ -163,6 +163,8 @@ function MapContent() {
         radiusMiles: feedRequest.feedRadiusMiles,
       }),
     enabled: feedRequest.feedQueryEnabled,
+    /** Keeps previous pins visible during zoom→radius refetch; avoids isLoading flash + empty map. */
+    placeholderData: (previousData) => previousData,
   });
 
   const patchRadiusMutation = useMutation({
@@ -187,7 +189,8 @@ function MapContent() {
         patchRadiusMutation.mutate(newRadius, {
           onSuccess: () => {
             queryClient.invalidateQueries({
-              queryKey: ["feed"],
+              queryKey: ["feed", "map"],
+              exact: false,
               refetchType: "active",
             });
           },
@@ -307,6 +310,8 @@ function MapContent() {
     [setSelectedPlaceId],
   );
 
+  const mapAutoFitResetKey = `${debouncedMapQ}\0${filter}`;
+
   const feedMapSharedProps = {
     places,
     selectedPlaceId,
@@ -316,6 +321,8 @@ function MapContent() {
     showUserLocationDot: locationCtx.showUserLocationDot,
     userLocationForDot: locationCtx.userLocationForDot ?? undefined,
     onPlaceMarkerHover: prefetchPlaceDetail,
+    autoFitBoundsOnPlacesChange: false as const,
+    autoFitBoundsResetKey: mapAutoFitResetKey,
   } as const;
 
   // Use isLoading, not isFetching: refetches (e.g. after zoom → invalidateQueries(["feed"])
