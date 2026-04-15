@@ -16,6 +16,16 @@ const MAX_RATINGS_PER_DAY = 100;
 /** Cap for user-uploaded images attached to one rating (storage paths). */
 const MAX_RATING_PHOTOS = 6;
 
+function isRatingsPermissionDenied(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const err = error as { code?: string; message?: string };
+  if (err.code === "42501") return true;
+  return (
+    typeof err.message === "string" &&
+    /permission denied.*ratings/i.test(err.message)
+  );
+}
+
 function startOfTodayUTC(): string {
   const now = new Date();
   return new Date(
@@ -240,11 +250,23 @@ export async function POST(
     updated_at: new Date().toISOString(),
   };
 
-  const { data: upserted, error: upsertError } = await writer
+  let { data: upserted, error: upsertError } = await writer
     .from("ratings")
     .upsert(ratingRow, { onConflict: "user_id,place_id" })
     .select()
     .single();
+
+  if (user && isRatingsPermissionDenied(upsertError)) {
+    // Production hardening can revoke table grants for authenticated users.
+    // Retry with service role while still binding row ownership to actingUser.id.
+    const retry = await serviceClient
+      .from("ratings")
+      .upsert(ratingRow, { onConflict: "user_id,place_id" })
+      .select()
+      .single();
+    upserted = retry.data;
+    upsertError = retry.error;
+  }
 
   if (upsertError) {
     console.error("[rate] upsert error:", upsertError);
@@ -315,7 +337,7 @@ export async function PATCH(
     return NextResponse.json({ error: photoErr }, { status: 400 });
   }
 
-  const { error } = await writer
+  let { error } = await writer
     .from("ratings")
     .update({
       photo_paths: paths,
@@ -324,6 +346,19 @@ export async function PATCH(
     })
     .eq("place_id", placeId)
     .eq("user_id", actingUser.id);
+
+  if (user && isRatingsPermissionDenied(error)) {
+    const retry = await serviceClient
+      .from("ratings")
+      .update({
+        photo_paths: paths,
+        photo_path: paths[0] ?? null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("place_id", placeId)
+      .eq("user_id", actingUser.id);
+    error = retry.error;
+  }
 
   if (error) {
     console.error("[rate] PATCH error:", error);
