@@ -107,6 +107,7 @@ function SignupPageInner() {
   }, [nextSafe]);
 
   const [email, setEmail] = useState("");
+  const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
   const [isLoadingEmail, setIsLoadingEmail] = useState(false);
   const [isLoadingGoogle, setIsLoadingGoogle] = useState(false);
@@ -123,8 +124,9 @@ function SignupPageInner() {
     captureEvent("sign_up_started", { method: "email" });
 
     const normalizedEmail = email.trim().toLowerCase();
-    if (!normalizedEmail || !password) {
-      setError("Enter your email and password.");
+    const normalizedFullName = fullName.trim();
+    if (!normalizedFullName || !normalizedEmail || !password) {
+      setError("Enter your full name, email, and password.");
       return;
     }
 
@@ -133,6 +135,11 @@ function SignupPageInner() {
     const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
       email: normalizedEmail,
       password,
+      options: {
+        data: {
+          full_name: normalizedFullName,
+        },
+      },
     });
 
     if (signUpError) {
@@ -215,6 +222,16 @@ function SignupPageInner() {
         Create your account to unlock all features.
       </p>
       <form onSubmit={handleEmailSignUp} className="flex flex-col gap-16">
+        <Input
+          variant="field"
+          id="full-name"
+          type="text"
+          value={fullName}
+          onChange={(e) => setFullName(e.target.value)}
+          placeholder="Full name"
+          autoComplete="name"
+          className="bg-surface"
+        />
         <Input
           variant="field"
           id="email"

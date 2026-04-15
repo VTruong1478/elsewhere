@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { deriveFullNameFromAuthUser } from "@/lib/ensureProfileFullName";
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -73,12 +74,42 @@ export async function POST(request: NextRequest) {
     userId = String(profileRow.id);
   }
 
+  // Denormalized submitter info for easier moderation in table views.
+  let submitterFullName: string | null = null;
+  let submitterEmail: string | null = null;
+
+  const { data: profileRow } = await serviceClient
+    .from("profiles")
+    .select("full_name")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (typeof profileRow?.full_name === "string") {
+    const trimmed = profileRow.full_name.trim();
+    submitterFullName = trimmed.length > 0 ? trimmed : null;
+  }
+
+  if (user) {
+    submitterEmail = user.email ?? null;
+    if (!submitterFullName) {
+      submitterFullName = deriveFullNameFromAuthUser(user);
+    }
+  } else if (userId) {
+    const { data: adminUserData, error: adminUserError } =
+      await serviceClient.auth.admin.getUserById(userId);
+    if (!adminUserError) {
+      submitterEmail = adminUserData.user?.email ?? null;
+    }
+  }
+
   const { error } = await serviceClient.from("place_submissions").insert({
     user_id: userId,
     place_name,
     address_or_location,
     place_type,
     submitted_from_search,
+    submitter_full_name: submitterFullName,
+    submitter_email: submitterEmail,
   });
 
   if (error) {
