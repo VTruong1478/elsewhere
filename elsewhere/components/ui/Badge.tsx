@@ -1,4 +1,4 @@
-type BadgeVariant = 'free' | 'library' | 'cafe';
+type BadgeVariant = 'free' | 'library' | 'cafe' | 'tea_shop';
 
 interface BadgeProps {
   variant: BadgeVariant;
@@ -10,6 +10,7 @@ const variantStyles: Record<BadgeVariant, string> = {
   free: 'bg-primary text-text-inverse',
   library: 'border border-surface-alt bg-surface-chip text-text',
   cafe: 'border border-surface-alt bg-surface-chip text-text',
+  tea_shop: 'border border-surface-alt bg-surface-chip text-text',
 };
 
 export function Badge({ variant, children, className = '' }: BadgeProps) {

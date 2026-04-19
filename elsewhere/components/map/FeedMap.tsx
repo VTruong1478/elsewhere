@@ -25,6 +25,13 @@ function getTierColor(score: number | null): string {
   return TIER_COLORS.low;
 }
 
+/** Matches pin styling: colored ring vs gray "--" when there is no match score. */
+function placeHasMatchScore(place: FeedItem): boolean {
+  return (
+    place.match_score_percent != null && !Number.isNaN(place.match_score_percent)
+  );
+}
+
 function isValidCoord(lat: number, lng: number): boolean {
   return (
     typeof lat === "number" &&
@@ -735,7 +742,14 @@ export function FeedMap({
       );
 
       const el = tracked.marker.getElement();
-      el.style.zIndex = selected ? "3" : hovered ? "2" : "1";
+      // Stack colored (scored) pins above gray pins; selection/hover still win.
+      const hasScore = placeHasMatchScore(place);
+      let z = 1;
+      if (selected) z = 6;
+      else if (hovered) z = 5;
+      else if (hasScore) z = 3;
+      else z = 1;
+      el.style.zIndex = String(z);
     });
   }, [validPlaces, selectedPlaceId, hoveredPlaceId]);
 

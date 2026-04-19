@@ -80,7 +80,7 @@ const FCPL_BRANCH_TEXT_QUERIES = [
   "Access Services Fairfax County Public Library Fairfax VA",
 ] as const;
 
-type PlaceType = "cafe" | "library";
+type PlaceType = "cafe" | "library" | "tea_shop";
 
 interface LocalizedText {
   text?: string;

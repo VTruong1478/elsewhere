@@ -6,7 +6,7 @@
  *
  * Name whitelist (never deactivated): Starbucks, Peet's Coffee, Paris Baguette, Tous les Jours
  * (also "tou les jours"), Minara Cafe @ DAH, Midori Tea House, Panera Bread, library, and any name
- * containing "cafe"/"café", or coffee, bakery, tea, bake, or boba (accent normalized).
+ * containing "cafe"/"café", or coffee, bakery, tea, bake, or bubble (accent normalized).
  *
  * Whitelisted rows skip the Google API call.
  *
@@ -47,7 +47,7 @@ const EXCLUDED_TYPE_SUBSTRINGS = ["restaurant", "food", "kitchen"] as const;
 /**
  * Substrings matched against a normalized place name (case- and accent-insensitive;
  * apostrophes removed). Also whitelisted if normalized name includes "cafe"
- * (covers "café") or any of NAME_WHITELIST_SUBSTRINGS (coffee, bakery, tea, bake, boba).
+ * (covers "café") or any of NAME_WHITELIST_SUBSTRINGS (coffee, bakery, tea, bake, bubble).
  */
 const NAME_WHITELIST_PHRASES = [
   "starbucks",
@@ -66,7 +66,7 @@ const NAME_WHITELIST_SUBSTRINGS = [
   "bakery",
   "tea",
   "bake",
-  "boba",
+  "bubble",
 ] as const;
 
 /** Delay between Google API calls to reduce burst quota issues */

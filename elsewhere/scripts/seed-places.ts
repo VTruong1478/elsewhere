@@ -8,6 +8,14 @@
  *   npx ts-node scripts/seed-places.ts
  *   npx ts-node scripts/seed-places.ts --dry-run
  *
+ * Add a single place (Google Places Text Search or Place Details by id):
+ *   npx ts-node scripts/seed-places.ts --one --query "Reston Regional Library VA" --type library
+ *   npx ts-node scripts/seed-places.ts --one --place-id ChIJ... --type cafe
+ *   npx ts-node scripts/seed-places.ts --one --query "..." --type library --show-candidates
+ *   npx ts-node scripts/seed-places.ts --one --query "..." --type library --pick 2
+ *
+ * To wipe all rows first, see scripts/delete-all-places.ts (destructive; uses CASCADE).
+ *
  * ENV (.env.local): GOOGLE_PLACES_API_KEY, NEXT_PUBLIC_SUPABASE_URL,
  * SUPABASE_SERVICE_ROLE_KEY
  *
@@ -27,21 +35,111 @@ import dotenv from "dotenv";
 import { Client } from "pg";
 import path from "path";
 
-const DRY_RUN = process.argv.includes("--dry-run");
-
 dotenv.config({ path: path.resolve(process.cwd(), ".env.local") });
 
 const GOOGLE_PLACES_API_KEY = process.env.GOOGLE_PLACES_API_KEY;
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-if (!GOOGLE_PLACES_API_KEY) {
-  throw new Error("GOOGLE_PLACES_API_KEY is required in .env.local");
+type PlaceType = "cafe" | "library" | "tea_shop";
+
+type CliMode = "bulk" | "one";
+
+function argvFlag(name: string): boolean {
+  return process.argv.includes(name);
 }
-if (!DRY_RUN && (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY)) {
-  throw new Error(
-    "NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required in .env.local (unless --dry-run)",
-  );
+
+function argvValue(flag: string): string | undefined {
+  const i = process.argv.indexOf(flag);
+  if (i === -1 || i + 1 >= process.argv.length) {
+    return undefined;
+  }
+  return process.argv[i + 1];
+}
+
+function parseCli(): {
+  mode: CliMode;
+  dryRun: boolean;
+  help: boolean;
+  oneQuery?: string;
+  onePlaceId?: string;
+  oneType?: PlaceType;
+  onePick1Based: number;
+  showCandidates: boolean;
+} {
+  const dryRun = argvFlag("--dry-run");
+  const help = argvFlag("--help") || argvFlag("-h");
+  const one = argvFlag("--one");
+  const showCandidates = argvFlag("--show-candidates");
+  const query = argvValue("--query");
+  const placeId = argvValue("--place-id");
+  const typeRaw = argvValue("--type");
+  const pickRaw = argvValue("--pick");
+  const onePick1Based =
+    pickRaw != null && pickRaw !== "" ? Number.parseInt(pickRaw, 10) : 1;
+  if (pickRaw != null && pickRaw !== "" && !Number.isFinite(onePick1Based)) {
+    throw new Error(`Invalid --pick: ${pickRaw} (expected a number)`);
+  }
+
+  let oneType: PlaceType | undefined;
+  if (typeRaw != null && typeRaw !== "") {
+    if (
+      typeRaw !== "cafe" &&
+      typeRaw !== "library" &&
+      typeRaw !== "tea_shop"
+    ) {
+      throw new Error(
+        `--type must be "cafe", "library", or "tea_shop" (got "${typeRaw}")`,
+      );
+    }
+    oneType = typeRaw;
+  }
+
+  return {
+    mode: one ? "one" : "bulk",
+    dryRun,
+    help,
+    oneQuery: query,
+    onePlaceId: placeId,
+    oneType,
+    onePick1Based: Number.isFinite(onePick1Based) && onePick1Based >= 1 ? onePick1Based : 1,
+    showCandidates,
+  };
+}
+
+function printHelp(): void {
+  console.log(`
+seed-places.ts — bulk Google Text Search (NOVA) or add one place.
+
+Bulk (default):
+  npx ts-node scripts/seed-places.ts [--dry-run]
+
+One place:
+  npx ts-node scripts/seed-places.ts --one --query "Place name and area" --type cafe|library|tea_shop [--pick N] [--show-candidates] [--dry-run]
+  npx ts-node scripts/seed-places.ts --one --place-id ChIJ... --type cafe|library|tea_shop [--dry-run]
+
+  --pick N     Use the Nth search result (1-based). Default 1.
+  --show-candidates   Print up to 20 Text Search matches and exit (no DB write).
+
+Env (.env.local): GOOGLE_PLACES_API_KEY; for writes: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+`);
+}
+
+function requireGoogleKey(): void {
+  if (!GOOGLE_PLACES_API_KEY) {
+    throw new Error("GOOGLE_PLACES_API_KEY is required in .env.local");
+  }
+}
+
+function requireSupabaseForWrite(dryRun: boolean): void {
+  if (
+    !dryRun &&
+    (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY)
+  ) {
+    throw new Error(
+      "NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required in .env.local (unless --dry-run)",
+    );
+  }
 }
 
 const SEARCH_TEXT_URL =
@@ -71,8 +169,6 @@ const NOVA_AREAS = [
   "Ashburn VA",
   "Leesburg VA",
 ] as const;
-
-type PlaceType = "cafe" | "library";
 
 interface SearchSpec {
   query: string;
@@ -115,7 +211,9 @@ interface OpeningHours {
 }
 
 interface PlaceResource {
+  /** Search returns `id`; Place Details may use `name` (resource name). */
   id?: string;
+  name?: string;
   displayName?: LocalizedText;
   formattedAddress?: string;
   location?: LatLng;
@@ -199,6 +297,69 @@ async function searchTextAllPages(textQuery: string): Promise<PlaceResource[]> {
   return out;
 }
 
+/** Single page of Text Search (for --one). */
+async function searchTextFirstPage(
+  textQuery: string,
+  maxResultCount: number,
+): Promise<PlaceResource[]> {
+  const res = await fetch(SEARCH_TEXT_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Goog-Api-Key": GOOGLE_PLACES_API_KEY!,
+      "X-Goog-FieldMask": FIELD_MASK,
+    },
+    body: JSON.stringify({ textQuery, maxResultCount }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Places searchText HTTP ${res.status}: ${text}`);
+  }
+
+  const json = (await res.json()) as SearchTextResponse;
+  return json.places ?? [];
+}
+
+const PLACE_DETAILS_FIELD_MASK = [
+  "id",
+  "displayName",
+  "formattedAddress",
+  "location",
+  "photos",
+  "currentOpeningHours",
+  "primaryType",
+  "types",
+].join(",");
+
+/** GET /v1/places/{id} uses the textual id (ChIJ…), not the "places/" prefix. */
+function normalizePlaceIdForHttp(placeIdRaw: string): string {
+  const t = placeIdRaw.trim();
+  if (t.startsWith("places/")) {
+    return t.slice("places/".length);
+  }
+  return t;
+}
+
+async function fetchPlaceDetails(placeIdRaw: string): Promise<PlaceResource> {
+  const id = normalizePlaceIdForHttp(placeIdRaw);
+  const url = `https://places.googleapis.com/v1/places/${encodeURIComponent(id)}`;
+  const res = await fetch(url, {
+    method: "GET",
+    headers: {
+      "X-Goog-Api-Key": GOOGLE_PLACES_API_KEY!,
+      "X-Goog-FieldMask": PLACE_DETAILS_FIELD_MASK,
+    },
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Place Details HTTP ${res.status}: ${text}`);
+  }
+
+  return res.json() as Promise<PlaceResource>;
+}
+
 interface PlaceRow {
   google_place_id: string;
   name: string;
@@ -217,7 +378,7 @@ function mapPlaceToRow(
   place: PlaceResource,
   placeType: PlaceType,
 ): PlaceRow | null {
-  const googlePlaceId = place.id?.trim();
+  const googlePlaceId = (place.id ?? place.name)?.trim();
   if (!googlePlaceId) {
     return null;
   }
@@ -400,7 +561,101 @@ async function fetchExistingIds(
   return existing;
 }
 
-async function main(): Promise<void> {
+async function runOnePlaceMode(cli: ReturnType<typeof parseCli>): Promise<void> {
+  requireGoogleKey();
+  requireSupabaseForWrite(cli.dryRun);
+
+  if (!cli.oneType) {
+    throw new Error('--one requires --type cafe|library|tea_shop');
+  }
+  const placeType = cli.oneType;
+
+  let resource: PlaceResource;
+
+  const q = cli.oneQuery?.trim();
+  const pid = cli.onePlaceId?.trim();
+
+  if (pid && q) {
+    throw new Error("Use either --place-id or --query, not both");
+  }
+
+  if (pid) {
+    resource = await fetchPlaceDetails(pid);
+  } else if (q) {
+    const results = await searchTextFirstPage(q, 20);
+    if (results.length === 0) {
+      throw new Error("No Google Places results for this query.");
+    }
+    if (cli.showCandidates) {
+      console.log(`Candidates for "${q}":\n`);
+      results.forEach((p, i) => {
+        const name = p.displayName?.text ?? "(no name)";
+        const addr = p.formattedAddress ?? "";
+        const id = p.id ?? "";
+        console.log(`  ${i + 1}. ${name} — ${addr}`);
+        console.log(`      id: ${id}`);
+      });
+      console.log(
+        "\nRe-run with --pick N (1-based) or omit --show-candidates to upsert.",
+      );
+      return;
+    }
+    const idx = cli.onePick1Based - 1;
+    if (idx < 0 || idx >= results.length) {
+      throw new Error(
+        `--pick ${cli.onePick1Based} out of range (only ${results.length} results; try --show-candidates)`,
+      );
+    }
+    resource = results[idx]!;
+  } else {
+    throw new Error('--one requires --query "..." or --place-id …');
+  }
+
+  const row = mapPlaceToRow(resource, placeType);
+  if (!row) {
+    throw new Error(
+      "Could not map Google place to a row (missing id or coordinates).",
+    );
+  }
+
+  console.log("\nResolved place:");
+  console.log(`  Name:             ${row.name}`);
+  console.log(`  Address:          ${row.address}`);
+  console.log(`  Google Place ID:  ${row.google_place_id}`);
+  console.log(`  Coordinates:      ${row.lat}, ${row.lng}`);
+  console.log(`  Photo ref:        ${row.google_photo_ref ?? "(none)"}`);
+  console.log(`  Type:             ${row.place_type}`);
+
+  if (cli.dryRun) {
+    console.log("\n--dry-run: no Supabase writes.");
+    return;
+  }
+
+  const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
+  await ensurePlaceStatsFunctions();
+
+  const { error } = await supabase.from("places").upsert([row], {
+    onConflict: "google_place_id",
+  });
+  if (error) {
+    const msg = error.message;
+    if (msg.includes("tables_ideal")) {
+      throw new Error(
+        `${msg}\n\n` +
+          "The DB trigger create_place_stats_on_place_insert still references removed columns. " +
+          "Fix: add DATABASE_URL to .env.local and re-run, or run scripts/sql/create-place-stats-trigger.sql in Supabase SQL Editor.",
+      );
+    }
+    throw new Error(`Supabase upsert failed: ${msg}`);
+  }
+
+  console.log("\nDone — one place upserted.");
+}
+
+async function runBulkMode(dryRun: boolean): Promise<void> {
+  requireGoogleKey();
+  requireSupabaseForWrite(dryRun);
+
   const specs = buildSearchSpecs();
   const byGoogleId = new Map<string, PlaceRow>();
 
@@ -430,7 +685,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  if (DRY_RUN) {
+  if (dryRun) {
     console.log("\n--dry-run: would upsert the following (sample up to 15):");
     for (const row of rows.slice(0, 15)) {
       console.log(
@@ -485,6 +740,19 @@ async function main(): Promise<void> {
   console.log(`  New places (not in DB before this run): ${newCount}`);
   console.log(`  Already existed (upserted / updated): ${existedCount}`);
   console.log(`  Total rows upserted: ${rows.length}`);
+}
+
+async function main(): Promise<void> {
+  const cli = parseCli();
+  if (cli.help) {
+    printHelp();
+    return;
+  }
+  if (cli.mode === "one") {
+    await runOnePlaceMode(cli);
+    return;
+  }
+  await runBulkMode(cli.dryRun);
 }
 
 main().catch((err) => {

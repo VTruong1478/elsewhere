@@ -8,6 +8,7 @@ import { Modal } from "@/components/ui/Modal";
 
 const PLACE_TYPE_OPTIONS = [
   { value: "cafe", label: "Cafe" },
+  { value: "tea_shop", label: "Tea Shop" },
   { value: "library", label: "Library" },
   { value: "bookstore", label: "Bookstore" },
   { value: "coworking", label: "Coworking" },

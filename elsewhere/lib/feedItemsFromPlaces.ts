@@ -292,6 +292,12 @@ export async function buildFeedItemsFromPlaces(
     );
   }
 
+  if (filterChip === "tea_shops") {
+    result = result.filter(
+      (item) => item.place_type?.toLowerCase() === "tea_shop",
+    );
+  }
+
   if (idOrder?.length) {
     const byId = new Map(result.map((i) => [i.id, i]));
     const ordered: FeedItem[] = [];

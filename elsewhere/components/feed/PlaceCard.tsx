@@ -20,6 +20,7 @@ import {
   type AnalyticsSource,
 } from "@/lib/analytics";
 import { ensureAuthForGatedAction } from "@/lib/authGate";
+import { formatPlaceTypeForDisplay } from "@/lib/placeTypeDisplay";
 import { tryCaptureGatedActionCompleted } from "@/lib/gatedAction";
 
 type StatusKind = "open" | "closing-soon" | "closed";
@@ -255,10 +256,7 @@ export function PlaceCard({ place }: { place: FeedItem }) {
         <div className="absolute inset-0 z-0 flex flex-col">
           <div className="absolute left-16 top-16 flex gap-8">
             <Pill variant="placeType">
-              {place.place_type
-                ? place.place_type.charAt(0).toUpperCase() +
-                  place.place_type.slice(1)
-                : "Spot"}
+              {formatPlaceTypeForDisplay(place.place_type)}
             </Pill>
           </div>
 
