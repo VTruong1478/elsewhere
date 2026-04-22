@@ -1,6 +1,6 @@
 'use client';
 
-import { FeedMap } from './FeedMap';
+import { FeedMap, DEFAULT_MAP_ZOOM } from './FeedMap';
 import type { FeedItem } from '@/types/feed';
 
 interface MapPanelProps {
@@ -14,6 +14,8 @@ interface MapPanelProps {
   selectedMarkerScreenXRatio?: number;
   /** See FeedMap `allowPinFitBounds`. */
   allowPinFitBounds?: boolean;
+  /** See FeedMap `showRecenterButton`. Default true for this desktop panel. */
+  showRecenterButton?: boolean;
 }
 
 /**
@@ -30,6 +32,7 @@ export function MapPanel({
   userLocationForDot,
   selectedMarkerScreenXRatio,
   allowPinFitBounds,
+  showRecenterButton = true,
 }: MapPanelProps) {
   return (
     <div className="relative hidden min-h-0 w-full lg:block lg:h-full">
@@ -39,10 +42,12 @@ export function MapPanel({
           selectedPlaceId={selectedPlaceId}
           onSelectPlace={onSelectPlace}
           center={center}
+          zoom={DEFAULT_MAP_ZOOM}
           showUserLocationDot={showUserLocationDot}
           userLocationForDot={userLocationForDot}
           selectedMarkerScreenXRatio={selectedMarkerScreenXRatio}
           allowPinFitBounds={allowPinFitBounds}
+          showRecenterButton={showRecenterButton}
         />
       </div>
     </div>

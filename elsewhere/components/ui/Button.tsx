@@ -1,12 +1,15 @@
 "use client";
 
 import { forwardRef } from "react";
+import type { ReactNode } from "react";
 
 export type ButtonVariant =
   | "primary"
   | "secondary"
   | "secondarySurface"
-  | "secondaryIcon";
+  | "secondaryIcon"
+  /** Two stacked icon hits (e.g. map zoom +/−); height of two {@link secondaryIcon} rows with a divider. */
+  | "secondaryZoomStack";
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
@@ -31,6 +34,20 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
             ? "border-2 border-primary bg-surface text-primary"
             : "border-2 border-primary bg-surface text-primary";
 
+    if (variant === "secondaryZoomStack") {
+      return (
+        <div
+          className={`
+            inline-flex w-10 min-w-10 max-w-10 flex-col overflow-hidden rounded-radius-md
+            border-2 border-primary bg-surface text-primary box-border
+            ${className}
+          `.trim()}
+        >
+          {children}
+        </div>
+      );
+    }
+
     return (
       <button
         ref={ref}
@@ -51,3 +68,64 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     );
   },
 );
+
+const zoomStackHit =
+  "flex h-10 w-full shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-primary hover:bg-surface-alt disabled:cursor-not-allowed disabled:opacity-40";
+
+type SecondaryZoomStackButtonProps = {
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  zoomInDisabled?: boolean;
+  zoomOutDisabled?: boolean;
+  zoomInLabel?: string;
+  zoomOutLabel?: string;
+  className?: string;
+  /** Lucide-style icons (e.g. `<Plus />`, `<Minus />`). */
+  zoomInIcon: ReactNode;
+  zoomOutIcon: ReactNode;
+};
+
+/**
+ * Two stacked controls matching secondary icon width, with a horizontal rule between
+ * (Google Maps–style manual zoom).
+ */
+export function SecondaryZoomStackButton({
+  onZoomIn,
+  onZoomOut,
+  zoomInDisabled,
+  zoomOutDisabled,
+  zoomInLabel = "Zoom in",
+  zoomOutLabel = "Zoom out",
+  className = "",
+  zoomInIcon,
+  zoomOutIcon,
+}: SecondaryZoomStackButtonProps) {
+  return (
+    <Button variant="secondaryZoomStack" className={className}>
+      <button
+        type="button"
+        className={zoomStackHit}
+        onClick={onZoomIn}
+        disabled={zoomInDisabled}
+        aria-label={zoomInLabel}
+        title={zoomInLabel}
+      >
+        {zoomInIcon}
+      </button>
+      <div
+        className="h-0 w-full shrink-0 border-t-2 border-primary"
+        aria-hidden
+      />
+      <button
+        type="button"
+        className={zoomStackHit}
+        onClick={onZoomOut}
+        disabled={zoomOutDisabled}
+        aria-label={zoomOutLabel}
+        title={zoomOutLabel}
+      >
+        {zoomOutIcon}
+      </button>
+    </Button>
+  );
+}

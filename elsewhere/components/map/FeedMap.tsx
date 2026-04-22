@@ -3,13 +3,19 @@
 import { useEffect, useCallback, useState, useRef, useMemo } from "react";
 import mapboxgl from "mapbox-gl";
 import { createRoot, Root } from "react-dom/client";
-import { Locate } from "lucide-react";
+import { Locate, Minus, Navigation, Plus } from "lucide-react";
 import type { FeedItem } from "@/types/feed";
 import { samePlaceId } from "@/lib/placeId";
 import { usePlaceStore } from "@/store/usePlaceStore";
 import { capturePlaceOpened, feedItemHasPhotos } from "@/lib/analytics";
+import { Button, SecondaryZoomStackButton } from "@/components/ui/Button";
+import { ANNANDALE_FALLBACK } from "@/lib/locationRegion";
 
-const NOVA_CENTER: [number, number] = [-77.1941, 38.8304];
+/** Mapbox [lng, lat] when no `center` prop — matches product fallback (Annandale, VA). */
+const FALLBACK_MAP_CENTER: [number, number] = [
+  ANNANDALE_FALLBACK.lng,
+  ANNANDALE_FALLBACK.lat,
+];
 
 const TIER_COLORS = {
   high: "#4F5D3F",
@@ -28,7 +34,8 @@ function getTierColor(score: number | null): string {
 /** Matches pin styling: colored ring vs gray "--" when there is no match score. */
 function placeHasMatchScore(place: FeedItem): boolean {
   return (
-    place.match_score_percent != null && !Number.isNaN(place.match_score_percent)
+    place.match_score_percent != null &&
+    !Number.isNaN(place.match_score_percent)
   );
 }
 
@@ -88,10 +95,16 @@ export interface FeedMapProps {
    */
   feedPlacesReady?: boolean;
   /**
-   * When false (default): never `fitBounds` to show all pins — use MAP_TAB_FIXED_ZOOM at
-   * `center`. When true (e.g. place detail map), allow legacy fit-to-pins behavior.
+   * When false (default): never `fitBounds` to show all pins — camera stays at this `zoom`
+   * over `center` (desktop feed uses {@link DEFAULT_MAP_ZOOM}; `/map` passes
+   * {@link MAP_TAB_FIXED_ZOOM}). When true (e.g. place detail map), allow fit-to-pins.
    */
   allowPinFitBounds?: boolean;
+  /**
+   * When true, show a secondary control (bottom-right stack) that flies the camera back to
+   * the logical `center` (shared location when in-area, otherwise Annandale / list centroid).
+   */
+  showRecenterButton?: boolean;
 }
 
 const PADDING_PX = 48;
@@ -99,15 +112,17 @@ const PADDING_PX = 48;
 const MARKER_TAP_MAX_MOVE_PX = 14;
 const MAX_ZOOM = 18; // street
 const MIN_ZOOM = 3; // world
-const SELECTED_MIN_ZOOM = 14;
+const SELECTED_MIN_ZOOM = 12;
 /** Slightly closer framing when offsetting the pin (e.g. desktop feed + side panel). */
-const SELECTED_FOCUS_ZOOM = 15;
-const USER_LOCATION_ZOOM = 14;
-const DEFAULT_MAP_ZOOM = 12;
+const SELECTED_FOCUS_ZOOM = 12;
+/** Zoom for the locate control (single tap → center on user at the product default). */
+const USER_LOCATION_ZOOM = 12;
+/** Default fixed-camera zoom (e.g. desktop feed map beside the list). */
+export const DEFAULT_MAP_ZOOM = 12;
 /**
- * Full-screen map tab (`/map`): fixed camera at `center` — never auto fitBounds to all pins.
+ * Full-screen `/map` tab: wider fixed camera at `center` — pass as `zoom` on `FeedMap`.
  */
-const MAP_TAB_FIXED_ZOOM = 8;
+export const MAP_TAB_FIXED_ZOOM = 8;
 const MAPBOX_STYLE = "mapbox://styles/vtruong1478/cmmgu21ou006c01rybm1m2nrt";
 
 // ---------------------------------------------------------------------------
@@ -258,6 +273,7 @@ export function FeedMap({
   autoFitBoundsResetKey,
   feedPlacesReady: _feedPlacesReady = true,
   allowPinFitBounds = false,
+  showRecenterButton = false,
 }: FeedMapProps) {
   const token = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN?.trim() ?? "";
   const { hoveredPlaceId, setHoveredPlaceId } = usePlaceStore();
@@ -293,6 +309,8 @@ export function FeedMap({
   } | null>(null);
   const [isLocating, setIsLocating] = useState(false);
   const [locateError, setLocateError] = useState<string | null>(null);
+  /** Latest zoom for +/- control disabled states (synced from the map). */
+  const [mapZoomUi, setMapZoomUi] = useState<number | null>(null);
 
   const legacyMode = showUserLocationDot === undefined;
   const effectiveUserLocation = useMemo(() => {
@@ -308,12 +326,21 @@ export function FeedMap({
 
   const showLocateControl = legacyMode || showUserLocationDot === true;
 
+  const recenterUsesSharedLocation = useMemo(() => {
+    if (!center || !userLocationForDot || showUserLocationDot === false)
+      return false;
+    return (
+      Math.abs(center.lat - userLocationForDot.lat) < 5e-5 &&
+      Math.abs(center.lng - userLocationForDot.lng) < 5e-5
+    );
+  }, [center, userLocationForDot, showUserLocationDot]);
+
   const defaultCenter: [number, number] = center
     ? [center.lng, center.lat]
-    : NOVA_CENTER;
+    : FALLBACK_MAP_CENTER;
 
-  /** Place-detail maps (fit bounds / zoom to pin); everything else stays at MAP_TAB_FIXED_ZOOM. */
-  const initialZoom = allowPinFitBounds ? zoom : MAP_TAB_FIXED_ZOOM;
+  /** Initial zoom; fixed-camera embeds keep this level (see `zoom` prop). */
+  const initialZoom = zoom;
 
   const validPlaces = useMemo(
     () => places.filter((p) => isValidCoord(p.lat, p.lng)),
@@ -321,6 +348,13 @@ export function FeedMap({
   );
 
   const lastEmptyCenterFlyKeyRef = useRef("");
+  /**
+   * Mirror of `selectedPlaceId` so the "fit bounds" effect can read it without
+   * re-running on selection changes. Dismissing the detail panel must leave the
+   * camera where the user left it (no snap-back to fallback center + zoom).
+   */
+  const selectedPlaceIdRef = useRef(selectedPlaceId);
+  selectedPlaceIdRef.current = selectedPlaceId;
 
   // -----------------------------------------------------------------------
   // 1. Create map
@@ -412,6 +446,7 @@ export function FeedMap({
     const handler = () => {
       const z = map.getZoom();
       if (z == null) return;
+      setMapZoomUi(z);
       const rounded = Math.round(z * 100) / 100;
       if (lastZoomRef.current === rounded) return;
       lastZoomRef.current = rounded;
@@ -458,18 +493,19 @@ export function FeedMap({
     const map = mapRef.current;
     if (!map) return;
 
-    // While a place is selected, camera is driven by the "fly to selected" effect only.
-    // Do not fit all markers here — otherwise when `centerVerticalOffsetPx` updates for
-    // the bottom sheet, the key changes and this effect re-runs ~600ms later and zooms out.
-    if (selectedPlaceId) {
-      lastBoundsKeyRef.current = "";
-      return;
-    }
-
     const sorted = [...validPlaces]
       .sort((a, b) => a.id.localeCompare(b.id))
       .map((p) => ({ id: p.id, lat: p.lat, lng: p.lng }));
     const key = JSON.stringify(sorted);
+
+    // While a place is selected, camera is driven by the "fly to selected" effect only.
+    // Record the current key so that when the user dismisses the detail panel,
+    // this effect sees no "new" places and does not snap the camera back to the
+    // fallback center / zoom — the view stays exactly where the user left it.
+    if (selectedPlaceIdRef.current) {
+      lastBoundsKeyRef.current = key;
+      return;
+    }
 
     if (validPlaces.length === 0) return;
 
@@ -481,7 +517,7 @@ export function FeedMap({
       lastBoundsKeyRef.current = key;
       map.flyTo({
         center: [center.lng, center.lat],
-        zoom: MAP_TAB_FIXED_ZOOM,
+        zoom,
         duration: 600,
       });
       return;
@@ -494,7 +530,7 @@ export function FeedMap({
       if (!center) return;
       map.flyTo({
         center: [center.lng, center.lat],
-        zoom: MAP_TAB_FIXED_ZOOM,
+        zoom,
         duration: 600,
       });
       return;
@@ -523,12 +559,12 @@ export function FeedMap({
     });
   }, [
     validPlaces,
-    selectedPlaceId,
     centerVerticalOffsetPx,
     center?.lat,
     center?.lng,
     autoFitBoundsOnPlacesChange,
     allowPinFitBounds,
+    zoom,
   ]);
 
   // When there are no place markers, follow the logical map center (e.g. user in Case 4).
@@ -537,10 +573,7 @@ export function FeedMap({
     const map = mapRef.current;
     if (!map || !center) return;
     if (validPlaces.length > 0) return;
-    const emptyZoom =
-      !autoFitBoundsOnPlacesChange || !allowPinFitBounds
-        ? MAP_TAB_FIXED_ZOOM
-        : zoom;
+    const emptyZoom = zoom;
     const flyKey = `${validPlaces.length}\u0000${center.lat.toFixed(5)}\u0000${center.lng.toFixed(5)}\u0000${emptyZoom}`;
     if (flyKey === lastEmptyCenterFlyKeyRef.current) return;
     lastEmptyCenterFlyKeyRef.current = flyKey;
@@ -827,6 +860,43 @@ export function FeedMap({
     );
   }, [legacyMode, userLocationForDot]);
 
+  const handleRecenter = useCallback(() => {
+    const map = mapRef.current;
+    if (!map || !center) return;
+    map.flyTo({
+      center: [center.lng, center.lat],
+      zoom: allowPinFitBounds ? map.getZoom() : zoom,
+      duration: 600,
+    });
+  }, [allowPinFitBounds, center, zoom]);
+
+  const handleManualZoomIn = useCallback(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const z = map.getZoom();
+    if (z >= MAX_ZOOM) return;
+    map.easeTo({
+      zoom: Math.min(z + 1, MAX_ZOOM),
+      duration: 220,
+      essential: true,
+    });
+  }, []);
+
+  const handleManualZoomOut = useCallback(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const z = map.getZoom();
+    if (z <= MIN_ZOOM) return;
+    map.easeTo({
+      zoom: Math.max(z - 1, MIN_ZOOM),
+      duration: 220,
+      essential: true,
+    });
+  }, []);
+
+  const zoomInDisabled = mapZoomUi != null && mapZoomUi >= MAX_ZOOM - 0.001;
+  const zoomOutDisabled = mapZoomUi != null && mapZoomUi <= MIN_ZOOM + 0.001;
+
   // -----------------------------------------------------------------------
   // Render
   // -----------------------------------------------------------------------
@@ -851,33 +921,67 @@ export function FeedMap({
     );
   }
 
+  const showBottomRightStack = showRecenterButton || showLocateControl;
+
   return (
     <div className="relative h-full w-full min-h-[200px]">
       <div ref={mapContainerRef} className="h-full w-full" />
-      {showLocateControl && (
-        <div className="absolute bottom-3 right-3 z-30">
-          <button
-            type="button"
-            onClick={handleLocate}
-            disabled={isLocating}
-            className="flex h-10 w-10 items-center justify-center rounded-radius-sm bg-surface shadow-map text-text hover:bg-surface-alt disabled:opacity-60"
-            aria-label={
-              isLocating
-                ? "Getting your location…"
-                : "Center map on your location"
-            }
-            title={
-              isLocating
-                ? "Getting your location…"
-                : "Center map on your location"
-            }
-          >
-            <Locate className="h-5 w-5 text-accent" aria-hidden />
-          </button>
-          {locateError && (
-            <span className="sr-only" role="alert">
-              {locateError}
-            </span>
+      {showBottomRightStack && (
+        <div className="absolute bottom-[64px] right-3 z-30 flex flex-col items-end gap-8">
+          {showRecenterButton && center != null && (
+            <Button
+              variant="secondaryIcon"
+              onClick={handleRecenter}
+              aria-label={
+                recenterUsesSharedLocation
+                  ? "Recenter map on your location"
+                  : "Recenter map on the default area"
+              }
+              title={
+                recenterUsesSharedLocation
+                  ? "Recenter map on your location"
+                  : "Recenter map on the default area"
+              }
+            >
+              <Navigation size={18} aria-hidden strokeWidth={2} />
+            </Button>
+          )}
+          {showLocateControl && (
+            <>
+              <button
+                type="button"
+                onClick={handleLocate}
+                disabled={isLocating}
+                className="flex h-10 w-10 items-center justify-center rounded-radius-sm bg-surface shadow-map text-text hover:bg-surface-alt disabled:opacity-60"
+                aria-label={
+                  isLocating
+                    ? "Getting your location…"
+                    : "Center map on your location"
+                }
+                title={
+                  isLocating
+                    ? "Getting your location…"
+                    : "Center map on your location"
+                }
+              >
+                <Locate size={18} className=" text-accent" aria-hidden />
+              </button>
+              {locateError && (
+                <span className="sr-only" role="alert">
+                  {locateError}
+                </span>
+              )}
+            </>
+          )}
+          {showRecenterButton && (
+            <SecondaryZoomStackButton
+              onZoomIn={handleManualZoomIn}
+              onZoomOut={handleManualZoomOut}
+              zoomInDisabled={zoomInDisabled}
+              zoomOutDisabled={zoomOutDisabled}
+              zoomInIcon={<Plus size={18} aria-hidden strokeWidth={2} />}
+              zoomOutIcon={<Minus size={18} aria-hidden strokeWidth={2} />}
+            />
           )}
         </div>
       )}

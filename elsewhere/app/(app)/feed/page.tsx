@@ -10,7 +10,7 @@ import { PlaceCard } from "@/components/feed/PlaceCard";
 import { PlaceCardSkeleton } from "@/components/feed/PlaceCardSkeleton";
 import { FeedEmptyState } from "@/components/feed/EmptyState";
 import { LocationStatusMessageBody } from "@/components/feed/LocationStatusMessageBody";
-import { FeedMap } from "@/components/map/FeedMap";
+import { FeedMap, DEFAULT_MAP_ZOOM } from "@/components/map/FeedMap";
 import { MapPanel } from "@/components/map/MapPanel";
 import { DesktopPlaceDetailPanel } from "@/components/feed/DesktopPlaceDetailPanel";
 import { usePlaceStore } from "@/store/usePlaceStore";
@@ -237,8 +237,10 @@ function FeedContent() {
               selectedPlaceId={selectedPlaceId}
               onSelectPlace={onSelectPlace}
               center={locationCtx.mapCenter}
+              zoom={DEFAULT_MAP_ZOOM}
               showUserLocationDot={locationCtx.showUserLocationDot}
               userLocationForDot={locationCtx.userLocationForDot ?? undefined}
+              showRecenterButton
             />
           </div>
         )}

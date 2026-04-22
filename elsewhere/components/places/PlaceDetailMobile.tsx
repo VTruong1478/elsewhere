@@ -479,7 +479,11 @@ export function PlaceDetailMobile({
   } | null>(null);
   const DISMISS_DRAG_BUFFER_PX = 80;
   const DISMISS_THRESHOLD_PX = 40;
-  useEffect(() => {
+  // Layout effect so `heights` is committed before the first paint — together with the
+  // initial-`translateY` layout effect below, this guarantees the sheet paints directly
+  // at the `initialSnap` position (mid by default) instead of flashing at full (ty=0)
+  // and animating down on mount.
+  useLayoutEffect(() => {
     function recalc() {
       const h = window.innerHeight;
       // Peek: name/status + handle (slightly taller than minimal strip so header stays readable)
@@ -507,10 +511,14 @@ export function PlaceDetailMobile({
   }, []);
 
   const [translateY, setTranslateY] = useState(0);
+  const [isInitialSnapReady, setIsInitialSnapReady] = useState(false);
   const translateYRef = useRef(0);
   useEffect(() => {
     translateYRef.current = translateY;
   }, [translateY]);
+  useEffect(() => {
+    setIsInitialSnapReady(false);
+  }, [placeId, initialSnap]);
 
   const isDraggingRef = useRef(false);
   const sheetInnerRef = useRef<HTMLDivElement>(null);
@@ -528,7 +536,10 @@ export function PlaceDetailMobile({
     "idle",
   );
 
-  useEffect(() => {
+  // Pair with the `heights` layout effect: commit the initial snap position before
+  // paint so the sheet appears directly at `initialSnap` (mid by default) instead of
+  // flashing at full (ty=0) and animating down.
+  useLayoutEffect(() => {
     if (!heights) return;
     const ty =
       initialSnap === "full"
@@ -537,6 +548,7 @@ export function PlaceDetailMobile({
           ? heights.peekTy
           : heights.midTy;
     setTranslateY(ty);
+    setIsInitialSnapReady(true);
   }, [heights, placeId, initialSnap]);
 
   function clampTy(ty: number): number {
@@ -1095,9 +1107,10 @@ export function PlaceDetailMobile({
         style={{
           height: heights?.full ?? "auto",
           transform: `translateY(${translateY}px)`,
-          transition: isDraggingRef.current
+          transition: isDraggingRef.current || !isInitialSnapReady
             ? "none"
             : "transform 260ms ease-out",
+          visibility: isInitialSnapReady ? "visible" : "hidden",
         }}
       >
         <div

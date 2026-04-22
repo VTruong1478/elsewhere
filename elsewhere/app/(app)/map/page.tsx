@@ -14,7 +14,7 @@ import { ArrowLeft } from "lucide-react";
 import { SearchBar } from "@/components/feed/SearchBar";
 import { FilterChips } from "@/components/feed/FilterChips";
 import { LocationStatusMessageBody } from "@/components/feed/LocationStatusMessageBody";
-import { FeedMap } from "@/components/map/FeedMap";
+import { FeedMap, DEFAULT_MAP_ZOOM } from "@/components/map/FeedMap";
 import { MapLoadingOverlay } from "@/components/map/MapLoadingOverlay";
 import { FeedEmptyState } from "@/components/feed/EmptyState";
 import { MapPlacePreview } from "@/components/map/MapPlacePreview";
@@ -317,12 +317,14 @@ function MapContent() {
     selectedPlaceId,
     onSelectPlace,
     center: locationCtx.mapCenter,
+    zoom: DEFAULT_MAP_ZOOM,
     onZoomEnd: handleZoomEnd,
     showUserLocationDot: locationCtx.showUserLocationDot,
     userLocationForDot: locationCtx.userLocationForDot ?? undefined,
     onPlaceMarkerHover: prefetchPlaceDetail,
     autoFitBoundsOnPlacesChange: false as const,
     autoFitBoundsResetKey: mapAutoFitResetKey,
+    showRecenterButton: true as const,
   } as const;
 
   // Use isLoading, not isFetching: refetches (e.g. after zoom → invalidateQueries(["feed"])
