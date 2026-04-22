@@ -81,7 +81,12 @@ function fetchFeed(params: {
 function MapContent() {
   const searchParams = useSearchParams();
   const filter = searchParams.get("filter") ?? "";
-  const locationState = useUserLocation();
+  // Do not auto-request geolocation on the map tab — that triggers the system
+  // dialog on cold navigation (and feels like it fires before the page loads).
+  // Permission is requested from the feed (`useUserLocation` default) or via
+  // the map "locate" control (user gesture). Still use sessionStorage coords
+  // when the user already granted on feed.
+  const locationState = useUserLocation({ autoRequest: false });
   const queryClient = useQueryClient();
   const { selectedPlaceId, setSelectedPlaceId, setHoveredPlaceId } =
     usePlaceStore();

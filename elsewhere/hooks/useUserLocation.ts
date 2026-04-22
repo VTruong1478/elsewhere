@@ -32,8 +32,19 @@ function readCachedCoords(): { lat: number; lng: number } | null {
  * Pass `{ skip: true }` to hold the hook in "loading" without firing the
  * permission prompt — used by the onboarding tutorial so the tutorial can be
  * the first thing that asks the user, not an automatic browser dialog.
+ *
+ * Pass `{ autoRequest: false }` to **not** call `getCurrentPosition` on mount.
+ * The hook still applies any coords already in `sessionStorage` (written when
+ * the user enables location on the feed). Use this on routes like `/map` so
+ * the system permission dialog only appears from the feed flow (or from an
+ * explicit control such as the map "locate" button).
  */
-export function useUserLocation({ skip = false }: { skip?: boolean } = {}): UserLocationState {
+export function useUserLocation(
+  {
+    skip = false,
+    autoRequest = true,
+  }: { skip?: boolean; autoRequest?: boolean } = {},
+): UserLocationState {
   const [state, setState] = useState<UserLocationState>({ status: "loading" });
 
   useEffect(() => {
@@ -47,6 +58,17 @@ export function useUserLocation({ skip = false }: { skip?: boolean } = {}): User
         lat: cachedCoords.lat,
         lng: cachedCoords.lng,
       });
+    }
+
+    if (!autoRequest) {
+      if (!cachedCoords) {
+        if (!navigator.geolocation) {
+          setState({ status: "unavailable" });
+        } else {
+          setState({ status: "denied" });
+        }
+      }
+      return;
     }
 
     if (!navigator.geolocation) {
@@ -118,7 +140,7 @@ export function useUserLocation({ skip = false }: { skip?: boolean } = {}): User
       cancelled = true;
       window.clearTimeout(timeoutId);
     };
-  }, [skip]);
+  }, [skip, autoRequest]);
 
   return state;
 }

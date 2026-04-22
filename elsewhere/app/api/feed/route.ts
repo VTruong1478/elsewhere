@@ -59,7 +59,11 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const { data: rows, error: rpcError } = await supabase.rpc(
+  // Run feed RPC with the service role so place/aggregate reads do not depend on
+  // the browser session's table GRANTs (see get_feed_places SECURITY DEFINER
+  // migration). User-scoped reads (e.g. saved, preferences) still use `supabase`
+  // / `actingReader` below.
+  const { data: rows, error: rpcError } = await serviceRoleClient.rpc(
     "get_feed_places",
     {
       user_lat: lat,
@@ -99,6 +103,7 @@ export async function GET(request: NextRequest) {
   let result = await buildFeedItemsFromPlaces({
     supabase,
     serviceRoleClient,
+    ratingsClient: serviceRoleClient,
     userId: actingUser?.id ?? null,
     placeList: placeList as PlaceStatsRow[],
     refLat: lat,
