@@ -7,7 +7,7 @@ export type PeriodEnd = {
   hour?: number;
   minute?: number;
   /** ISO date "YYYY-MM-DD" in place-local calendar when API provides it */
-  date?: string;
+  date?: string | { year: number; month: number; day: number };
   year?: number;
   month?: number;
 };
@@ -71,11 +71,17 @@ function getCloseTime(period: OpeningPeriod): number | null {
   return getMinutesFromEnd(period.close);
 }
 
-/** YYYY-MM-DD from API `date` or legacy year/month/day */
+/** YYYY-MM-DD from API `date` (string or Places New nested object) or legacy year/month/day */
 function getPeriodYmd(end: PeriodEnd | undefined): string | null {
   if (!end) return null;
   if (typeof end.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(end.date)) {
     return end.date;
+  }
+  if (end.date && typeof end.date === 'object' && !Array.isArray(end.date)) {
+    const { year: y, month: mo, day: d } = end.date;
+    if (typeof y === 'number' && typeof mo === 'number' && typeof d === 'number') {
+      return `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    }
   }
   if (
     typeof end.year === 'number' &&
@@ -134,8 +140,7 @@ function zonedYmdMinutesToUtcMs(
 
 type FullDateDerived =
   | { kind: 'no_full_date_periods' }
-  | { kind: 'open'; closeMinutes: number; closeUtcMs: number }
-  | { kind: 'closed' };
+  | { kind: 'open'; closeMinutes: number; closeUtcMs: number };
 
 /** When periods include open.date + close.date, use true instants: open <= now < close */
 function deriveFromFullDates(
@@ -169,7 +174,8 @@ function deriveFromFullDates(
       };
     }
   }
-  return { kind: 'closed' };
+  // Dated windows exist but none contain "now" (e.g. future exception hours) — fall back to weekday logic.
+  return { kind: 'no_full_date_periods' };
 }
 
 function formatCloseTime(closeTime: number): string {
@@ -213,20 +219,18 @@ export function deriveOpeningState(
   }
 
   const full = deriveFromFullDates(openingHours, tz, nowMs);
-  if (full.kind !== 'no_full_date_periods') {
-    if (full.kind === 'open') {
-      result.open_now = true;
-      result.closes_at = formatCloseTime(full.closeMinutes);
-      const minsUntilClose = (full.closeUtcMs - nowMs) / 60000;
-      if (minsUntilClose <= CLOSING_SOON_MINUTES && minsUntilClose >= 0) {
-        result.closing_soon = true;
-      }
-      if (
-        full.closeMinutes >= OPEN_LATE_THRESHOLD_MINUTES ||
-        full.closeMinutes < 6 * 60
-      ) {
-        result.open_late = true;
-      }
+  if (full.kind === 'open') {
+    result.open_now = true;
+    result.closes_at = formatCloseTime(full.closeMinutes);
+    const minsUntilClose = (full.closeUtcMs - nowMs) / 60000;
+    if (minsUntilClose <= CLOSING_SOON_MINUTES && minsUntilClose >= 0) {
+      result.closing_soon = true;
+    }
+    if (
+      full.closeMinutes >= OPEN_LATE_THRESHOLD_MINUTES ||
+      full.closeMinutes < 6 * 60
+    ) {
+      result.open_late = true;
     }
     return result;
   }
@@ -240,68 +244,90 @@ export function deriveOpeningState(
     return typeof d === 'number' ? d : undefined;
   };
 
-  let todayPeriod: OpeningPeriod | undefined;
-  let matchKind: MatchKind | null = null;
+  /** True when close is early morning (end of overnight) vs a mistaken Mon→Tue “6pm” span. */
+  function overnightCarryoverClose(openTime: number, closeTime: number): boolean {
+    return closeTime < openTime || closeTime < 12 * 60;
+  }
 
+  let matchKind: MatchKind | null = null;
+  let openTime = 0;
+  let closeTimeRaw = 0;
+  let closesNextDayForMatch = false;
+
+  // 1) Overnight tail: e.g. Sun 7:30 AM–Mon 2:00 AM → still open Mon 1:00 AM (before Mon 2:00).
   for (const p of openingHours.periods) {
     const oDay = openDay(p);
     const cDay = closeDay(p);
-    if (oDay === now.day) {
-      todayPeriod = p;
-      matchKind = 'open_day';
+    const closeT = getCloseTime(p);
+    const openT = getOpenTime(p);
+    if (
+      closeT == null ||
+      oDay === undefined ||
+      cDay === undefined ||
+      cDay !== now.day ||
+      oDay === cDay
+    ) {
+      continue;
+    }
+    if (!overnightCarryoverClose(openT, closeT)) {
+      continue;
+    }
+    if (nowMinutes < closeT) {
+      matchKind = 'close_day_carryover';
+      openTime = openT;
+      closeTimeRaw = closeT;
+      closesNextDayForMatch = true;
       break;
     }
   }
-  if (!todayPeriod) {
+
+  // 2) Same-day windows; try every period for this weekday (not only the first).
+  if (!matchKind) {
     for (const p of openingHours.periods) {
       const oDay = openDay(p);
-      const cDay = closeDay(p);
-      if (cDay === now.day && oDay !== undefined && oDay !== now.day) {
-        todayPeriod = p;
-        matchKind = 'close_day_carryover';
+      const closeT = getCloseTime(p);
+      const openT = getOpenTime(p);
+      if (closeT == null || oDay !== now.day) {
+        continue;
+      }
+      const closesNextDay =
+        closeT < openT ||
+        (p.close?.day != null &&
+          p.open?.day != null &&
+          p.close.day !== p.open.day);
+      let isOpen = false;
+      if (closesNextDay) {
+        isOpen = nowMinutes >= openT;
+      } else {
+        isOpen = nowMinutes >= openT && nowMinutes < closeT;
+      }
+      if (isOpen) {
+        matchKind = 'open_day';
+        openTime = openT;
+        closeTimeRaw = closeT;
+        closesNextDayForMatch = closesNextDay;
         break;
       }
     }
   }
 
-  if (!todayPeriod || !matchKind) {
+  if (!matchKind) {
     return result;
   }
 
-  const openTime = getOpenTime(todayPeriod);
-  const closeTimeRaw = getCloseTime(todayPeriod);
-  if (closeTimeRaw == null) {
-    return result;
-  }
-
-  const closesNextDay =
-    closeTimeRaw < openTime ||
-    (todayPeriod.close?.day != null &&
-      todayPeriod.open?.day != null &&
-      todayPeriod.close.day !== todayPeriod.open.day);
-
-  if (matchKind === 'close_day_carryover') {
-    result.open_now = nowMinutes < closeTimeRaw;
-  } else if (closesNextDay) {
-    result.open_now = nowMinutes >= openTime;
-  } else {
-    result.open_now = nowMinutes >= openTime && nowMinutes < closeTimeRaw;
-  }
-
+  result.open_now = true;
   result.closes_at = formatCloseTime(closeTimeRaw);
 
-  if (result.open_now) {
-    let minsUntilClose: number;
-    if (matchKind === 'close_day_carryover') {
-      minsUntilClose = closeTimeRaw - nowMinutes;
-    } else if (closesNextDay) {
-      minsUntilClose = 24 * 60 - nowMinutes + closeTimeRaw;
-    } else {
-      minsUntilClose = closeTimeRaw - nowMinutes;
-    }
-    if (minsUntilClose <= CLOSING_SOON_MINUTES && minsUntilClose >= 0) {
-      result.closing_soon = true;
-    }
+  let minsUntilClose: number;
+  if (matchKind === 'close_day_carryover') {
+    minsUntilClose = closeTimeRaw - nowMinutes;
+  } else if (closesNextDayForMatch) {
+    minsUntilClose = 24 * 60 - nowMinutes + closeTimeRaw;
+  } else {
+    minsUntilClose = closeTimeRaw - nowMinutes;
+  }
+  if (minsUntilClose <= CLOSING_SOON_MINUTES && minsUntilClose >= 0) {
+    result.closing_soon = true;
   }
 
   if (closeTimeRaw >= OPEN_LATE_THRESHOLD_MINUTES || closeTimeRaw < 6 * 60) {
