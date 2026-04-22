@@ -94,13 +94,13 @@ function HeaderNav({ currentRoute = "feed" }: { currentRoute?: HeaderRoute }) {
   );
 }
 
-function loginHrefFromPath(pathname: string | null): string {
+function signupHrefFromPath(pathname: string | null): string {
   const p = pathname?.trim() || "";
-  if (!p || p === "/login" || p === "/signup") return "/login";
-  return `/login?next=${encodeURIComponent(p)}`;
+  if (!p || p === "/login" || p === "/signup") return "/signup";
+  return `/signup?next=${encodeURIComponent(p)}`;
 }
 
-/** Logged-out: link to login; label matches other nav rows (icon + text). */
+/** Logged-out: link to signup; label matches other nav rows (icon + text). */
 function HeaderProfileLoggedOut({
   selected,
   href,
@@ -112,7 +112,7 @@ function HeaderProfileLoggedOut({
     <Link
       href={href}
       className="relative flex shrink-0 items-center gap-16 rounded-radius-sm px-12 py-8 text-ui-label-m text-text-inverse"
-      aria-label="Log in"
+      aria-label="Sign up"
       aria-current={selected ? "page" : undefined}
     >
       {selected && (
@@ -124,7 +124,7 @@ function HeaderProfileLoggedOut({
       <span className="flex items-center justify-center rounded-full">
         <CircleUser size={24} className="text-text-inverse" aria-hidden />
       </span>
-      <span className="relative">Log in</span>
+      <span className="relative">Sign up</span>
     </Link>
   );
 }
@@ -264,7 +264,7 @@ export function Header({
     return null;
   }
   const isProfileRoute = pathname === "/profile";
-  const isLoginRoute = pathname === "/login";
+  const isAuthEntryRoute = pathname === "/login" || pathname === "/signup";
   const route =
     currentRoute ??
     (pathname === "/saved"
@@ -295,8 +295,8 @@ export function Header({
             <HeaderProfileDev selected={isProfileRoute} />
           ) : (
             <HeaderProfileLoggedOut
-              selected={isLoginRoute}
-              href={loginHrefFromPath(pathname ?? null)}
+              selected={isAuthEntryRoute}
+              href={signupHrefFromPath(pathname ?? null)}
             />
           )
         ) : (

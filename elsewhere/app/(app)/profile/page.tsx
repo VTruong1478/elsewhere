@@ -29,7 +29,7 @@ async function getProfileData() {
         },
       };
     }
-    redirect(`/login?next=${encodeURIComponent("/profile")}`);
+    redirect(`/signup?next=${encodeURIComponent("/profile")}`);
   }
 
   const serviceClient = createServiceRoleClient();

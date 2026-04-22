@@ -365,7 +365,7 @@ export function RatingForm({
         error instanceof RatingSubmitError ? error.status : undefined;
       if (status === 401 && typeof window !== "undefined") {
         const nextPath = `${window.location.pathname}${window.location.search}`;
-        router.push(`/login?next=${encodeURIComponent(nextPath)}`);
+        router.push(`/signup?next=${encodeURIComponent(nextPath)}`);
       }
     },
   });

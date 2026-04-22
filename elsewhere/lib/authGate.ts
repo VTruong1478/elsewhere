@@ -27,7 +27,8 @@ const gateProps = (ctx: GateContext): Record<string, unknown> =>
   }) as Record<string, unknown>;
 
 /**
- * If no session, records analytics, persists pending gated action, redirects to login with ?next=.
+ * If no session, records analytics, persists pending gated action, redirects to
+ * signup with `?next=` (returning users can switch to login from that page).
  * @returns true if authenticated and caller should continue.
  */
 export async function ensureAuthForGatedAction(
@@ -51,7 +52,7 @@ export async function ensureAuthForGatedAction(
         if (json.authenticated) return true;
       }
     } catch {
-      // Fall through to normal login gate.
+      // Fall through to normal auth gate (signup).
     }
   }
 
@@ -68,6 +69,6 @@ export async function ensureAuthForGatedAction(
   });
 
   const next = encodeURIComponent(ctx.returnPath);
-  navigate(`/login?next=${next}`);
+  navigate(`/signup?next=${next}`);
   return false;
 }

@@ -72,13 +72,14 @@ export async function middleware(request: NextRequest) {
   }
 
   if (!user) {
-    // Single entry: login preserves ?next= for all protected routes (including /rate).
-    const loginUrl = new URL("/login", request.url);
+    // Guests go to signup first; `next` preserves return (profile, saved, rate, …).
+    // Returning users can switch to login from the signup page.
+    const signupUrl = new URL("/signup", request.url);
     const returnTo =
       request.nextUrl.pathname +
       (request.nextUrl.search ?? '');
-    loginUrl.searchParams.set('next', returnTo);
-    return NextResponse.redirect(loginUrl);
+    signupUrl.searchParams.set('next', returnTo);
+    return NextResponse.redirect(signupUrl);
   }
 
   return response;

@@ -64,5 +64,5 @@ export const FEED_FILTER_OPTIONS: { value: FeedFilter; label: string }[] = [
   { value: "quiet", label: "Quiet" },
   { value: "cafes", label: "Cafes" },
   { value: "libraries", label: "Libraries" },
-  { value: "tea_shops", label: "Tea Shop" },
+  { value: "tea_shops", label: "Tea shop" },
 ];
