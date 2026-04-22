@@ -332,12 +332,12 @@ function MapContent() {
     showRecenterButton: true as const,
   } as const;
 
-  // Use isLoading, not isFetching: refetches (e.g. after zoom → invalidateQueries(["feed"])
-  // in handleZoomEnd) keep cached data, so isFetching flashes but isLoading stays false.
+  // isFetching covers first paint and refetches (e.g. filter) while placeholderData may
+  // keep previous pins; search debounce and location still gate loading separately.
   const showMapLoading =
     mapSearchPending ||
     locationState.status === "loading" ||
-    (feedRequest.feedQueryEnabled && query.isLoading);
+    (feedRequest.feedQueryEnabled && query.isFetching);
 
   return (
     <div className="relative flex min-h-0 flex-1 w-full flex-col">

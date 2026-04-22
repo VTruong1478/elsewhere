@@ -11,6 +11,7 @@ import { PlaceCardSkeleton } from "@/components/feed/PlaceCardSkeleton";
 import { FeedEmptyState } from "@/components/feed/EmptyState";
 import { LocationStatusMessageBody } from "@/components/feed/LocationStatusMessageBody";
 import { FeedMap, DEFAULT_MAP_ZOOM } from "@/components/map/FeedMap";
+import { MapLoadingOverlay } from "@/components/map/MapLoadingOverlay";
 import { MapPanel } from "@/components/map/MapPanel";
 import { DesktopPlaceDetailPanel } from "@/components/feed/DesktopPlaceDetailPanel";
 import { usePlaceStore } from "@/store/usePlaceStore";
@@ -159,7 +160,8 @@ function FeedContent() {
 
   const showSkeletons =
     locationState.status === "loading" ||
-    (locationCtx.feedQueryEnabled && query.isLoading);
+    (locationCtx.feedQueryEnabled &&
+      (query.isLoading || (!isLgDesktop && query.isFetching)));
 
   const showResults = locationCtx.feedQueryEnabled && query.isSuccess;
 
@@ -231,7 +233,7 @@ function FeedContent() {
       </div>
       <div className="relative flex min-h-0 flex-col lg:col-span-8 lg:h-full lg:min-h-0">
         {isMapTabActive && (
-          <div className="h-[280px] w-full shrink-0 md:hidden">
+          <div className="relative h-[280px] w-full shrink-0 md:hidden">
             <FeedMap
               places={places}
               selectedPlaceId={selectedPlaceId}
@@ -242,6 +244,12 @@ function FeedContent() {
               userLocationForDot={locationCtx.userLocationForDot ?? undefined}
               showRecenterButton
             />
+            {locationCtx.feedQueryEnabled &&
+            !isLgDesktop &&
+            query.isFetching &&
+            !query.isLoading ? (
+              <MapLoadingOverlay />
+            ) : null}
           </div>
         )}
         <MapPanel
@@ -253,6 +261,13 @@ function FeedContent() {
           userLocationForDot={locationCtx.userLocationForDot ?? undefined}
           selectedMarkerScreenXRatio={
             isLgDesktop && selectedPlaceId ? 0.75 : undefined
+          }
+          showPlacesLoading={
+            !!(
+              locationCtx.feedQueryEnabled &&
+              isLgDesktop &&
+              query.isFetching
+            )
           }
         />
         {selectedPlaceId ? (

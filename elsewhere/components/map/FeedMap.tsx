@@ -927,7 +927,7 @@ export function FeedMap({
     <div className="relative h-full w-full min-h-[200px]">
       <div ref={mapContainerRef} className="h-full w-full" />
       {showBottomRightStack && (
-        <div className="absolute bottom-[64px] right-3 z-30 flex flex-col items-end gap-8">
+        <div className="absolute bottom-[64px] right-3 z-30 flex flex-col items-end gap-8 lg:bottom-6">
           {showRecenterButton && center != null && (
             <Button
               variant="secondaryIcon"

@@ -135,6 +135,7 @@ export default function SavedPage() {
           onSelectPlace={onSelectPlace}
           center={mapCenter}
           showUserLocationDot={false}
+          showPlacesLoading={savedQuery.isFetching}
         />
       </div>
     </div>

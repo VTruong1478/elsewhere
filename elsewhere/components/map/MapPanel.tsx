@@ -1,6 +1,7 @@
 'use client';
 
 import { FeedMap, DEFAULT_MAP_ZOOM } from './FeedMap';
+import { MapLoadingOverlay } from './MapLoadingOverlay';
 import type { FeedItem } from '@/types/feed';
 
 interface MapPanelProps {
@@ -16,6 +17,8 @@ interface MapPanelProps {
   allowPinFitBounds?: boolean;
   /** See FeedMap `showRecenterButton`. Default true for this desktop panel. */
   showRecenterButton?: boolean;
+  /** When true, show the same “Loading places…” treatment as the map tab (initial + refetch). */
+  showPlacesLoading?: boolean;
 }
 
 /**
@@ -33,6 +36,7 @@ export function MapPanel({
   selectedMarkerScreenXRatio,
   allowPinFitBounds,
   showRecenterButton = true,
+  showPlacesLoading = false,
 }: MapPanelProps) {
   return (
     <div className="relative hidden min-h-0 w-full lg:block lg:h-full">
@@ -50,6 +54,7 @@ export function MapPanel({
           showRecenterButton={showRecenterButton}
         />
       </div>
+      {showPlacesLoading ? <MapLoadingOverlay /> : null}
     </div>
   );
 }
