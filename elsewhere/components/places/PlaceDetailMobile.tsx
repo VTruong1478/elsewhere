@@ -1088,13 +1088,15 @@ export function PlaceDetailMobile({
         </div>
       )}
 
-      {/* Backdrop */}
-      <button
-        type="button"
-        aria-label="Close place details"
-        onClick={() => onDismiss?.()}
-        className={`absolute inset-0 bg-black/0 ${onDismiss ? "pointer-events-auto" : "pointer-events-none"}`}
-      />
+      {/* Backdrop: only for full-screen detail flow. On map-tab overlay, allow map taps through. */}
+      {renderMap ? (
+        <button
+          type="button"
+          aria-label="Close place details"
+          onClick={() => onDismiss?.()}
+          className={`absolute inset-0 bg-black/0 ${onDismiss ? "pointer-events-auto" : "pointer-events-none"}`}
+        />
+      ) : null}
 
       {/* Bottom sheet */}
       <div
