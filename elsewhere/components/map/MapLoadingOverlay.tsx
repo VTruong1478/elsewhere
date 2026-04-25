@@ -3,10 +3,16 @@
 import { Loader2 } from "lucide-react";
 
 /** Top-centered loading indicator over the map (search debounce, location, or feed fetch). */
-export function MapLoadingOverlay() {
+export function MapLoadingOverlay({
+  label = "Loading places…",
+  className,
+}: {
+  label?: string;
+  className?: string;
+}) {
   return (
     <div
-      className="pointer-events-none absolute inset-x-0 top-0 z-20 flex justify-center pt-[min(18vh,104px)]"
+      className={`pointer-events-none absolute inset-x-0 top-0 z-20 flex justify-center pt-[min(18vh,104px)] ${className ?? ""}`.trim()}
       aria-live="polite"
       aria-busy="true"
     >
@@ -17,7 +23,7 @@ export function MapLoadingOverlay() {
           aria-hidden
         />
         <span className="text-ui-label-m text-text-secondary">
-          Loading places…
+          {label}
         </span>
       </div>
     </div>

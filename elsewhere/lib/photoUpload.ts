@@ -3,9 +3,10 @@ const PNG_MIMES = new Set(["image/png"]);
 const HEIC_HEIF_MIMES = new Set(["image/heic", "image/heif"]);
 const HEIC_HEIF_EXTS = [".heic", ".heif"];
 
-export const PHOTO_MAX_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
+// Keep below typical serverless multipart body limits during API relay uploads.
+export const PHOTO_MAX_SIZE_BYTES = 4 * 1024 * 1024; // 4MB
 export const PHOTO_FILE_ACCEPT = "image/jpeg,image/png,.heic,.heif";
-const TARGET_UPLOAD_SIZE_BYTES = Math.floor(9.5 * 1024 * 1024); // keep margin below 10MB bucket cap
+const TARGET_UPLOAD_SIZE_BYTES = Math.floor(3.6 * 1024 * 1024); // keep margin below server/API body caps
 const MAX_IMAGE_DIMENSION_PX = 2400;
 
 function lowerExt(name: string): string {

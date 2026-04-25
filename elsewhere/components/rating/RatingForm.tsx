@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { PiPicnicTableBold } from "react-icons/pi";
 import { Button } from "@/components/ui/Button";
+import { MapLoadingOverlay } from "@/components/map/MapLoadingOverlay";
 import { Pill } from "@/components/ui/Pill";
 import { TextArea } from "@/components/ui/TextArea";
 import { userPhotoProxyUrl } from "@/lib/userPhotoProxyUrl";
@@ -194,6 +195,7 @@ export function RatingForm({
   const [photoSelectionError, setPhotoSelectionError] = useState<string | null>(
     null,
   );
+  const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const hydratedFromDetailRef = useRef(false);
   const localPhotosRef = useRef<{ file: File; url: string }[]>([]);
@@ -276,32 +278,49 @@ export function RatingForm({
     }) => {
       await submitRating(placeId, payload);
       if (newFiles.length === 0) return;
+      setIsUploadingPhotos(true);
       const paths = [...(payload.photo_paths ?? [])];
-      for (const file of newFiles) {
-        const formData = new FormData();
-        formData.append("photo", file);
-        const uploadRes = await fetch(`/api/places/${placeId}/upload-photo`, {
-          method: "POST",
-          credentials: "same-origin",
-          body: formData,
-        });
-        if (!uploadRes.ok) {
-          const json = await uploadRes.json().catch(() => ({}));
-          throw new Error(
-            (json as { error?: string }).error ?? "Photo upload failed",
-          );
+      try {
+        for (const file of newFiles) {
+          const formData = new FormData();
+          formData.append("photo", file);
+          const uploadRes = await fetch(`/api/places/${placeId}/upload-photo`, {
+            method: "POST",
+            credentials: "same-origin",
+            body: formData,
+          });
+          if (!uploadRes.ok) {
+            const json = await uploadRes
+              .json()
+              .catch(() => ({}) as { error?: string; message?: string });
+            const apiMessage =
+              typeof json.error === "string"
+                ? json.error
+                : typeof json.message === "string"
+                  ? json.message
+                  : null;
+            if (uploadRes.status === 413) {
+              throw new Error("Photo is too large. Please use an image under 4MB.");
+            }
+            throw new Error(
+              apiMessage ??
+                `Photo upload failed (${uploadRes.status}). Please try a smaller image.`,
+            );
+          }
+          const { path } = (await uploadRes.json()) as { path: string };
+          paths.push(path);
         }
-        const { path } = (await uploadRes.json()) as { path: string };
-        paths.push(path);
-      }
-      const patchRes = await fetch(`/api/places/${placeId}/rate`, {
-        method: "PATCH",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ photo_paths: paths }),
-      });
-      if (!patchRes.ok) {
-        throw new Error("Failed to save photos to rating");
+        const patchRes = await fetch(`/api/places/${placeId}/rate`, {
+          method: "PATCH",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ photo_paths: paths }),
+        });
+        if (!patchRes.ok) {
+          throw new Error("Failed to save photos to rating");
+        }
+      } finally {
+        setIsUploadingPhotos(false);
       }
       captureRatingFunnelEvent(
         "photo_uploaded",
@@ -401,7 +420,7 @@ export function RatingForm({
       }
 
       if (normalized.size > PHOTO_MAX_SIZE_BYTES) {
-        errors.push(`${file.name}: Photo must be under 10MB.`);
+        errors.push(`${file.name}: Photo must be under 4MB.`);
         continue;
       }
 
@@ -514,10 +533,12 @@ export function RatingForm({
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="space-y-24 pb-[calc(120px+env(safe-area-inset-bottom,0px))] lg:pb-32"
-    >
+    <div className="relative">
+      {isUploadingPhotos ? <MapLoadingOverlay label="Uploading photos…" /> : null}
+      <form
+        onSubmit={handleSubmit}
+        className="space-y-24 pb-[calc(120px+env(safe-area-inset-bottom,0px))] lg:pb-32"
+      >
       <input
         ref={fileInputRef}
         type="file"
@@ -755,6 +776,7 @@ export function RatingForm({
             : "Failed to submit rating"}
         </p>
       )}
-    </form>
+      </form>
+    </div>
   );
 }
