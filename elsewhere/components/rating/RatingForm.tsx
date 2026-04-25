@@ -401,7 +401,7 @@ export function RatingForm({
       }
 
       if (normalized.size > PHOTO_MAX_SIZE_BYTES) {
-        errors.push(`${file.name}: Photo must be under 5MB.`);
+        errors.push(`${file.name}: Photo must be under 10MB.`);
         continue;
       }
 
@@ -514,7 +514,10 @@ export function RatingForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-24 pb-32">
+    <form
+      onSubmit={handleSubmit}
+      className="space-y-24 pb-[calc(120px+env(safe-area-inset-bottom,0px))] lg:pb-32"
+    >
       <input
         ref={fileInputRef}
         type="file"
