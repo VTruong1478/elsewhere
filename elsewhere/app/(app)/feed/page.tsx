@@ -173,124 +173,124 @@ function FeedContent() {
 
   return (
     <>
-    <div className="flex min-h-0 w-full flex-1 flex-col lg:grid lg:grid-cols-12 lg:overflow-hidden">
-      <div className="scrollbar-hide flex min-h-0 w-full flex-col overflow-y-auto lg:col-span-4 lg:min-h-0">
-        <div className="shrink-0">
-          <div className="px-16 lg:pt-16">
-            <SearchBar />
+      <div className="flex min-h-0 w-full flex-1 flex-col lg:grid lg:grid-cols-12 lg:overflow-hidden">
+        <div className="scrollbar-hide flex min-h-0 w-full flex-col overflow-y-auto lg:col-span-4 lg:min-h-0">
+          <div className="shrink-0">
+            <div className="px-16 lg:pt-16">
+              <SearchBar />
+            </div>
+            <FilterChips />
           </div>
-          <FilterChips />
-        </div>
-        <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto px-16 pb-8">
-          {locationCtx.locationStatusMessage && (
-            <p className="text-body-s text-text-tertiary px-4 pb-8 text-center">
-              <LocationStatusMessageBody
-                message={locationCtx.locationStatusMessage}
-              />
-            </p>
-          )}
-          {showSkeletons && (
-            <div className="space-y-4">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <PlaceCardSkeleton key={i} />
-              ))}
-            </div>
-          )}
-          {locationCtx.feedQueryEnabled && query.isError && (
-            <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
-              <p className="font-lora text-heading-m text-text mb-2">
-                Couldn’t load the feed
+          <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto py-4 px-16 pb-8">
+            {locationCtx.locationStatusMessage && (
+              <p className="text-body-s text-text-tertiary px-4 pb-8 text-center">
+                <LocationStatusMessageBody
+                  message={locationCtx.locationStatusMessage}
+                />
               </p>
-              <p className="text-body-m text-text-secondary max-w-sm mb-16">
-                {query.error?.message ?? "Something went wrong."}
-              </p>
-              <button
-                type="button"
-                onClick={() => query.refetch()}
-                className="rounded-radius-sm bg-primary px-8 py-8 text-ui-button text-text-inverse"
-              >
-                Try again
-              </button>
-            </div>
-          )}
-          {showResults &&
-            places.length === 0 &&
-            !isCase4Empty &&
-            !query.isLoading && (
-              <FeedEmptyState
-                variant="plain"
-                submittedFromSearch={q.trim() || undefined}
-              />
             )}
-          {showResults && places.length > 0 && (
-            <div className="space-y-12">
-              {places.map((place) => (
-                <PlaceCard key={place.id} place={place} />
-              ))}
+            {showSkeletons && (
+              <div className="space-y-4">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <PlaceCardSkeleton key={i} />
+                ))}
+              </div>
+            )}
+            {locationCtx.feedQueryEnabled && query.isError && (
+              <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+                <p className="font-lora text-heading-m text-text mb-2">
+                  Couldn’t load the feed
+                </p>
+                <p className="text-body-m text-text-secondary max-w-sm mb-16">
+                  {query.error?.message ?? "Something went wrong."}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => query.refetch()}
+                  className="rounded-radius-sm bg-primary px-8 py-8 text-ui-button text-text-inverse"
+                >
+                  Try again
+                </button>
+              </div>
+            )}
+            {showResults &&
+              places.length === 0 &&
+              !isCase4Empty &&
+              !query.isLoading && (
+                <FeedEmptyState
+                  variant="plain"
+                  submittedFromSearch={q.trim() || undefined}
+                />
+              )}
+            {showResults && places.length > 0 && (
+              <div className="space-y-12">
+                {places.map((place) => (
+                  <PlaceCard key={place.id} place={place} />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="relative flex min-h-0 flex-col lg:col-span-8 lg:h-full lg:min-h-0">
+          {isMapTabActive && (
+            <div className="relative h-[280px] w-full shrink-0 md:hidden">
+              <FeedMap
+                places={places}
+                selectedPlaceId={selectedPlaceId}
+                onSelectPlace={onSelectPlace}
+                center={locationCtx.mapCenter}
+                zoom={DEFAULT_MAP_ZOOM}
+                showUserLocationDot={locationCtx.showUserLocationDot}
+                userLocationForDot={locationCtx.userLocationForDot ?? undefined}
+                showRecenterButton
+              />
+              {locationCtx.feedQueryEnabled &&
+              !isLgDesktop &&
+              query.isFetching &&
+              !query.isLoading ? (
+                <MapLoadingOverlay />
+              ) : null}
             </div>
           )}
-        </div>
-      </div>
-      <div className="relative flex min-h-0 flex-col lg:col-span-8 lg:h-full lg:min-h-0">
-        {isMapTabActive && (
-          <div className="relative h-[280px] w-full shrink-0 md:hidden">
-            <FeedMap
-              places={places}
-              selectedPlaceId={selectedPlaceId}
-              onSelectPlace={onSelectPlace}
-              center={locationCtx.mapCenter}
-              zoom={DEFAULT_MAP_ZOOM}
-              showUserLocationDot={locationCtx.showUserLocationDot}
-              userLocationForDot={locationCtx.userLocationForDot ?? undefined}
-              showRecenterButton
-            />
-            {locationCtx.feedQueryEnabled &&
-            !isLgDesktop &&
-            query.isFetching &&
-            !query.isLoading ? (
-              <MapLoadingOverlay />
-            ) : null}
-          </div>
-        )}
-        <MapPanel
-          places={places}
-          selectedPlaceId={selectedPlaceId}
-          onSelectPlace={onSelectPlace}
-          center={locationCtx.mapCenter}
-          showUserLocationDot={locationCtx.showUserLocationDot}
-          userLocationForDot={locationCtx.userLocationForDot ?? undefined}
-          selectedMarkerScreenXRatio={
-            isLgDesktop && selectedPlaceId ? 0.75 : undefined
-          }
-          showPlacesLoading={
-            !!(
-              locationCtx.feedQueryEnabled &&
-              isLgDesktop &&
-              query.isFetching
-            )
-          }
-        />
-        {selectedPlaceId ? (
-          <div className="pointer-events-none absolute inset-0 z-30 hidden lg:block">
-            <div className="absolute bottom-0 left-0 top-0 flex w-1/2 flex-col p-16">
-              <div className="pointer-events-auto flex h-0 min-h-0 flex-1 flex-col">
-                <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-radius-md shadow-map">
-                  <DesktopPlaceDetailPanel
-                    placeId={selectedPlaceId}
-                    initialCenter={desktopDetailCenter}
-                    previewFeedItem={selectedPlace}
-                    onDismiss={() => setSelectedPlaceId(null)}
-                  />
+          <MapPanel
+            places={places}
+            selectedPlaceId={selectedPlaceId}
+            onSelectPlace={onSelectPlace}
+            center={locationCtx.mapCenter}
+            showUserLocationDot={locationCtx.showUserLocationDot}
+            userLocationForDot={locationCtx.userLocationForDot ?? undefined}
+            selectedMarkerScreenXRatio={
+              isLgDesktop && selectedPlaceId ? 0.75 : undefined
+            }
+            showPlacesLoading={
+              !!(
+                locationCtx.feedQueryEnabled &&
+                isLgDesktop &&
+                query.isFetching
+              )
+            }
+          />
+          {selectedPlaceId ? (
+            <div className="pointer-events-none absolute inset-0 z-30 hidden lg:block">
+              <div className="absolute bottom-0 left-0 top-0 flex w-1/2 flex-col p-16">
+                <div className="pointer-events-auto flex h-0 min-h-0 flex-1 flex-col">
+                  <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-radius-md shadow-map">
+                    <DesktopPlaceDetailPanel
+                      placeId={selectedPlaceId}
+                      initialCenter={desktopDetailCenter}
+                      previewFeedItem={selectedPlace}
+                      onDismiss={() => setSelectedPlaceId(null)}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        ) : null}
+          ) : null}
+        </div>
       </div>
-    </div>
 
-    {/* Onboarding tutorial — layered on top, does not affect feed behavior */}
-    <TutorialModal onLocationEnabled={() => setLocationEnabled(true)} />
+      {/* Onboarding tutorial — layered on top, does not affect feed behavior */}
+      <TutorialModal onLocationEnabled={() => setLocationEnabled(true)} />
     </>
   );
 }

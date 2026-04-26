@@ -416,6 +416,7 @@ function MapContent() {
               selectedPlaceId && (
                 <>
                   <PlaceDetailMobile
+                    key={selectedPlaceId}
                     placeId={selectedPlaceId}
                     initialCenter={
                       selectedPlace

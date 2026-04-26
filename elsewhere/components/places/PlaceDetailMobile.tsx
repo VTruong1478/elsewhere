@@ -516,10 +516,6 @@ export function PlaceDetailMobile({
   useEffect(() => {
     translateYRef.current = translateY;
   }, [translateY]);
-  useEffect(() => {
-    setIsInitialSnapReady(false);
-  }, [placeId, initialSnap]);
-
   const isDraggingRef = useRef(false);
   const sheetInnerRef = useRef<HTMLDivElement>(null);
   const sheetMetaRef = useRef<HTMLDivElement>(null);
