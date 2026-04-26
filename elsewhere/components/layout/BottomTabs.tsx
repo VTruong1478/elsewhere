@@ -17,7 +17,8 @@ export function BottomTabs() {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 flex min-h-[56px] items-center justify-around border-t border-surface-alt bg-surface z-40 lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 flex items-center justify-around border-t border-surface-alt bg-surface pb-[env(safe-area-inset-bottom,0px)] lg:hidden"
+      style={{ minHeight: "calc(56px + env(safe-area-inset-bottom,0px))" }}
       role="tablist"
       suppressHydrationWarning
     >
