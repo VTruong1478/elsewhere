@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, Map, Bookmark, CircleUserRound } from "lucide-react";
@@ -14,11 +15,38 @@ const tabs = [
 export function BottomTabs() {
   const pathname = usePathname();
   const isPlaceDetail = pathname?.startsWith("/places/") ?? false;
+  const [visualViewportBottomOffset, setVisualViewportBottomOffset] =
+    useState(0);
+
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+
+    const sync = () => {
+      const offset = Math.max(
+        0,
+        window.innerHeight - viewport.height - viewport.offsetTop,
+      );
+      setVisualViewportBottomOffset(Math.round(offset));
+    };
+
+    sync();
+    viewport.addEventListener("resize", sync);
+    viewport.addEventListener("scroll", sync);
+    window.addEventListener("orientationchange", sync);
+    return () => {
+      viewport.removeEventListener("resize", sync);
+      viewport.removeEventListener("scroll", sync);
+      window.removeEventListener("orientationchange", sync);
+    };
+  }, []);
 
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-40 flex items-center justify-around border-t border-surface-alt bg-surface pb-[env(safe-area-inset-bottom,0px)] lg:hidden"
-      style={{ minHeight: "calc(56px + env(safe-area-inset-bottom,0px))" }}
+      className="fixed inset-x-0 bottom-0 z-50 flex h-[56px] items-center justify-around border-t border-surface-alt bg-surface lg:hidden"
+      style={{
+        transform: `translateY(-${visualViewportBottomOffset}px)`,
+      }}
       role="tablist"
       suppressHydrationWarning
     >
