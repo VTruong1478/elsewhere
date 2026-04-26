@@ -17,10 +17,12 @@ export function BottomTabs() {
   const isPlaceDetail = pathname?.startsWith("/places/") ?? false;
   const [visualViewportBottomOffset, setVisualViewportBottomOffset] =
     useState(0);
+  const [hasVisualViewport, setHasVisualViewport] = useState(false);
 
   useEffect(() => {
     const viewport = window.visualViewport;
     if (!viewport) return;
+    setHasVisualViewport(true);
 
     const sync = () => {
       const offset = Math.max(
@@ -41,10 +43,15 @@ export function BottomTabs() {
     };
   }, []);
 
+  const collapsedToolbarBottomPadding =
+    hasVisualViewport && visualViewportBottomOffset <= 1 ? 10 : 0;
+
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-50 flex h-[56px] items-center justify-around border-t border-surface-alt bg-surface lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-50 flex items-center justify-around border-t border-surface-alt bg-surface lg:hidden"
       style={{
+        height: 56 + collapsedToolbarBottomPadding,
+        paddingBottom: collapsedToolbarBottomPadding,
         transform: `translateY(-${visualViewportBottomOffset}px)`,
       }}
       role="tablist"
