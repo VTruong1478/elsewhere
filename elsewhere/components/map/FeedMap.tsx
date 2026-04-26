@@ -3,7 +3,7 @@
 import { useEffect, useCallback, useState, useRef, useMemo } from "react";
 import mapboxgl from "mapbox-gl";
 import { createRoot, Root } from "react-dom/client";
-import { Locate, Minus, Navigation, Plus } from "lucide-react";
+import { Minus, Navigation, Plus } from "lucide-react";
 import type { FeedItem } from "@/types/feed";
 import { samePlaceId } from "@/lib/placeId";
 import { usePlaceStore } from "@/store/usePlaceStore";
@@ -66,8 +66,8 @@ export interface FeedMapProps {
    */
   centerVerticalOffsetPx?: number;
   /**
-   * When `true`, show the user dot at `userLocationForDot`. When `false`, never show it.
-   * When omitted, legacy behavior: dot only after the locate control is used.
+   * When `true`, show the user dot at `userLocationForDot`. When `false` or omitted,
+   * never show it.
    */
   showUserLocationDot?: boolean;
   userLocationForDot?: { lat: number; lng: number };
@@ -115,8 +115,6 @@ const MIN_ZOOM = 3; // world
 const SELECTED_MIN_ZOOM = 12;
 /** Slightly closer framing when offsetting the pin (e.g. desktop feed + side panel). */
 const SELECTED_FOCUS_ZOOM = 12;
-/** Zoom for the locate control (single tap → center on user at the product default). */
-const USER_LOCATION_ZOOM = 12;
 /** Default fixed-camera zoom (e.g. desktop feed map beside the list). */
 export const DEFAULT_MAP_ZOOM = 12;
 /**
@@ -303,28 +301,13 @@ export function FeedMap({
     null,
   );
 
-  const [legacyLocatePosition, setLegacyLocatePosition] = useState<{
-    lat: number;
-    lng: number;
-  } | null>(null);
-  const [isLocating, setIsLocating] = useState(false);
-  const [locateError, setLocateError] = useState<string | null>(null);
   /** Latest zoom for +/- control disabled states (synced from the map). */
   const [mapZoomUi, setMapZoomUi] = useState<number | null>(null);
 
-  const legacyMode = showUserLocationDot === undefined;
   const effectiveUserLocation = useMemo(() => {
-    if (legacyMode) return legacyLocatePosition;
-    if (showUserLocationDot === false) return null;
+    if (showUserLocationDot !== true) return null;
     return userLocationForDot ?? null;
-  }, [
-    legacyMode,
-    showUserLocationDot,
-    userLocationForDot,
-    legacyLocatePosition,
-  ]);
-
-  const showLocateControl = legacyMode || showUserLocationDot === true;
+  }, [showUserLocationDot, userLocationForDot]);
 
   const recenterUsesSharedLocation = useMemo(() => {
     if (!center || !userLocationForDot || showUserLocationDot === false)
@@ -806,11 +789,13 @@ export function FeedMap({
     if (!userMarkerRef.current) {
       const { el, root } = createPinElement();
       el.style.pointerEvents = "none";
+      el.style.zIndex = "10";
       const marker = new mapboxgl.Marker({ element: el, anchor: "center" })
         .setLngLat([effectiveUserLocation.lng, effectiveUserLocation.lat])
         .addTo(map);
       userMarkerRef.current = { marker, root };
     } else {
+      userMarkerRef.current.marker.getElement().style.zIndex = "10";
       userMarkerRef.current.marker.setLngLat([
         effectiveUserLocation.lng,
         effectiveUserLocation.lat,
@@ -819,46 +804,6 @@ export function FeedMap({
 
     userMarkerRef.current.root.render(<UserLocationDot />);
   }, [effectiveUserLocation]);
-
-  // -----------------------------------------------------------------------
-  // 7. Locate button handler
-  // -----------------------------------------------------------------------
-  const handleLocate = useCallback(() => {
-    if (!legacyMode) {
-      if (userLocationForDot) {
-        mapRef.current?.flyTo({
-          center: [userLocationForDot.lng, userLocationForDot.lat],
-          zoom: USER_LOCATION_ZOOM,
-          duration: 600,
-        });
-      }
-      return;
-    }
-    if (!navigator.geolocation) {
-      setLocateError("Geolocation is not supported");
-      return;
-    }
-    setIsLocating(true);
-    setLocateError(null);
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords;
-        const loc = { lat: latitude, lng: longitude };
-        setLegacyLocatePosition(loc);
-        mapRef.current?.flyTo({
-          center: [longitude, latitude],
-          zoom: USER_LOCATION_ZOOM,
-          duration: 600,
-        });
-        setIsLocating(false);
-      },
-      (err) => {
-        setLocateError(err.message || "Could not get location");
-        setIsLocating(false);
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
-    );
-  }, [legacyMode, userLocationForDot]);
 
   const handleRecenter = useCallback(() => {
     const map = mapRef.current;
@@ -921,7 +866,7 @@ export function FeedMap({
     );
   }
 
-  const showBottomRightStack = showRecenterButton || showLocateControl;
+  const showBottomRightStack = showRecenterButton;
 
   return (
     <div className="relative h-full w-full min-h-[200px]">
@@ -945,33 +890,6 @@ export function FeedMap({
             >
               <Navigation size={18} aria-hidden strokeWidth={2} />
             </Button>
-          )}
-          {showLocateControl && (
-            <>
-              <button
-                type="button"
-                onClick={handleLocate}
-                disabled={isLocating}
-                className="flex h-10 w-10 items-center justify-center rounded-radius-sm bg-surface shadow-map text-text hover:bg-surface-alt disabled:opacity-60"
-                aria-label={
-                  isLocating
-                    ? "Getting your location…"
-                    : "Center map on your location"
-                }
-                title={
-                  isLocating
-                    ? "Getting your location…"
-                    : "Center map on your location"
-                }
-              >
-                <Locate size={18} className=" text-accent" aria-hidden />
-              </button>
-              {locateError && (
-                <span className="sr-only" role="alert">
-                  {locateError}
-                </span>
-              )}
-            </>
           )}
           {showRecenterButton && (
             <SecondaryZoomStackButton
