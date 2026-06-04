@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
-import { getOrCreateDevAuthUser } from "@/lib/devAuth";
-
-const DEV_EMAIL = "test@example.com";
-const DEV_PASSWORD = "testpass123";
+import { getDevAuthCredentials, getOrCreateDevAuthUser } from "@/lib/devAuth";
 
 export async function POST(request: NextRequest) {
   if (process.env.NODE_ENV !== "development") {
@@ -17,8 +14,13 @@ export async function POST(request: NextRequest) {
 
   const email = (body.email ?? "").trim().toLowerCase();
   const password = body.password ?? "";
+  const credentials = getDevAuthCredentials();
 
-  if (email !== DEV_EMAIL || password !== DEV_PASSWORD) {
+  if (
+    !credentials ||
+    email !== credentials.email ||
+    password !== credentials.password
+  ) {
     return NextResponse.json(
       { error: "Invalid email or password" },
       { status: 401 },

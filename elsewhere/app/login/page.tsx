@@ -13,9 +13,6 @@ import { setOAuthAuthIntent } from "@/lib/gatedAction";
 import { safeInternalPath } from "@/lib/safeNextPath";
 import { destinationAfterAuth } from "@/lib/authReturnPath";
 
-const DEV_EMAIL = "test@example.com";
-const DEV_PASSWORD = "testpass123";
-
 function setDevAuthCookieNow() {
   if (process.env.NODE_ENV !== "development" || typeof document === "undefined")
     return;
@@ -101,51 +98,55 @@ function LoginPageInner() {
     captureEvent("login_started", { method: "email" });
 
     const normalizedEmail = email.trim().toLowerCase();
-    if (
-      process.env.NODE_ENV === "development" &&
-      normalizedEmail === DEV_EMAIL &&
-      password === DEV_PASSWORD
-    ) {
-      setIsLoadingEmail(true);
+    setIsLoadingEmail(true);
+    const supabase = createClient();
+
+    if (process.env.NODE_ENV === "development") {
       const devRes = await fetch("/api/dev-auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: normalizedEmail, password }),
       });
-      if (!devRes.ok) {
+
+      if (devRes.ok) {
+        // API only ensures the user exists + sets dev_auth. A real Supabase session
+        // is required for client getSession() / middleware user checks.
+        const { error: devSignInError } =
+          await supabase.auth.signInWithPassword({
+            email: normalizedEmail,
+            password,
+          });
         setIsLoadingEmail(false);
-        setError("Dev login failed");
+        if (devSignInError) {
+          setError(devSignInError.message);
+          return;
+        }
+        localStorage.setItem("hasVisited", "true");
+        localStorage.removeItem("justLoggedOut");
+        setDevAuthCookieNow();
+        const {
+          data: { user: devUser },
+        } = await supabase.auth.getUser();
+        if (devUser) {
+          posthog.identify(devUser.id);
+        }
+        captureEvent("login_completed", { method: "email" });
+        await supabase.auth.getSession();
+        window.location.assign(destinationAfterAuth(nextSafe));
         return;
       }
-      // API only ensures the user exists + sets dev_auth. A real Supabase session
-      // is required for client getSession() / middleware user checks.
-      const supabaseDev = createClient();
-      const { error: devSignInError } = await supabaseDev.auth.signInWithPassword({
-        email: normalizedEmail,
-        password,
-      });
-      setIsLoadingEmail(false);
-      if (devSignInError) {
-        setError(devSignInError.message);
+
+      if (devRes.status !== 401) {
+        const body = await devRes.json().catch(() => ({}));
+        setIsLoadingEmail(false);
+        setError(
+          (body as { error?: string }).error ??
+            "Development login is unavailable",
+        );
         return;
       }
-      localStorage.setItem("hasVisited", "true");
-      localStorage.removeItem("justLoggedOut");
-      setDevAuthCookieNow();
-      const {
-        data: { user: devUser },
-      } = await supabaseDev.auth.getUser();
-      if (devUser) {
-        posthog.identify(devUser.id);
-      }
-      captureEvent("login_completed", { method: "email" });
-      await supabaseDev.auth.getSession();
-      window.location.assign(destinationAfterAuth(nextSafe));
-      return;
     }
 
-    setIsLoadingEmail(true);
-    const supabase = createClient();
     const { error: signInError } = await supabase.auth.signInWithPassword({
       email: normalizedEmail,
       password,

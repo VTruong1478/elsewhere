@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { User2 } from "lucide-react";
+import { getDevAuthCredentials } from "@/lib/devAuth";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { LogoutButton } from "./LogoutButton";
@@ -18,9 +19,10 @@ async function getProfileData() {
 
   if (!user) {
     if (devBypass) {
+      const devCredentials = getDevAuthCredentials();
       return {
         fullName: "Dev User",
-        email: "test@example.com",
+        email: devCredentials?.email ?? "dev@example.local",
         avatarUrl: null,
         stats: {
           placesRated: 0,

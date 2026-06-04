@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isAdminUser } from "@/lib/adminAuth";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -17,6 +18,9 @@ export async function PATCH(
   } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!isAdminUser(user)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   let body: { ref?: string; attribution?: unknown };

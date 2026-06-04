@@ -121,7 +121,9 @@ export const DEFAULT_MAP_ZOOM = 12;
  * Full-screen `/map` tab: wider fixed camera at `center` — pass as `zoom` on `FeedMap`.
  */
 export const MAP_TAB_FIXED_ZOOM = 8;
-const MAPBOX_STYLE = "mapbox://styles/vtruong1478/cmmgu21ou006c01rybm1m2nrt";
+const MAPBOX_STYLE =
+  process.env.NEXT_PUBLIC_MAPBOX_STYLE?.trim() ||
+  "mapbox://styles/mapbox/streets-v12";
 
 // ---------------------------------------------------------------------------
 // Marker DOM helpers – render React pin content into a plain DOM node so

@@ -3,5 +3,15 @@
 .env.local
 .env*.local
 
+# dependencies
+node_modules/
+
+# Supabase local CLI/project state (may include project refs or pooler URLs)
+**/supabase/.temp/
+**/supabase/.branches/
+
+# One-off script outputs / data exports
+**/scripts/output/
+
 # Separate repo — do not track as submodule/gitlink
 elsewhere-landing/

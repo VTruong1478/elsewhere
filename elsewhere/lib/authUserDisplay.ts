@@ -1,12 +1,5 @@
 import type { User } from "@supabase/supabase-js";
 
-/** Matches server dev seed user (`lib/devAuth.ts`). */
-export const DEV_TEST_EMAIL = "test@example.com";
-
-export function isDevTestAccountUser(user: User): boolean {
-  return (user.email ?? "").trim().toLowerCase() === DEV_TEST_EMAIL;
-}
-
 function pickString(v: unknown): string | null {
   if (typeof v !== "string") return null;
   const t = v.trim();

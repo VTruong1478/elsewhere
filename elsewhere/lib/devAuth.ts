@@ -2,11 +2,20 @@ import type { User } from "@supabase/supabase-js";
 import type { ReadonlyRequestCookies } from "next/dist/server/web/spec-extension/adapters/request-cookies";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 
-const DEV_EMAIL = "test@example.com";
-const DEV_PASSWORD = "testpass123";
 const DEV_COOKIE = "dev_auth";
 
 type ServiceRoleClient = ReturnType<typeof createServiceRoleClient>;
+
+export function getDevAuthCredentials(): {
+  email: string;
+  password: string;
+} | null {
+  if (process.env.NODE_ENV !== "development") return null;
+  const email = process.env.DEV_AUTH_EMAIL?.trim().toLowerCase();
+  const password = process.env.DEV_AUTH_PASSWORD;
+  if (!email || !password) return null;
+  return { email, password };
+}
 
 export function hasDevBypassCookie(cookieStore: ReadonlyRequestCookies): boolean {
   return (
@@ -22,6 +31,13 @@ export function hasDevBypassCookie(cookieStore: ReadonlyRequestCookies): boolean
 export async function getOrCreateDevAuthUser(
   serviceClient: ServiceRoleClient,
 ): Promise<User> {
+  const credentials = getDevAuthCredentials();
+  if (!credentials) {
+    throw new Error(
+      "DEV_AUTH_EMAIL and DEV_AUTH_PASSWORD are required for dev auth",
+    );
+  }
+
   let page = 1;
   const perPage = 200;
 
@@ -35,7 +51,7 @@ export async function getOrCreateDevAuthUser(
     }
     const users = data.users ?? [];
     const found = users.find(
-      (u) => (u.email ?? "").trim().toLowerCase() === DEV_EMAIL,
+      (u) => (u.email ?? "").trim().toLowerCase() === credentials.email,
     );
     if (found) return found;
     if (users.length < perPage) break;
@@ -44,8 +60,8 @@ export async function getOrCreateDevAuthUser(
 
   const { data: created, error: createError } =
     await serviceClient.auth.admin.createUser({
-      email: DEV_EMAIL,
-      password: DEV_PASSWORD,
+      email: credentials.email,
+      password: credentials.password,
       email_confirm: true,
     });
   if (createError || !created.user) {

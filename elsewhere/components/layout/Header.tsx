@@ -9,7 +9,6 @@ import { createClient } from "@/lib/supabase/client";
 import { hasDevBypassCookieClient } from "@/lib/devAuthClient";
 import {
   getHeaderFirstName,
-  isDevTestAccountUser,
   isGoogleAuthUser,
 } from "@/lib/authUserDisplay";
 
@@ -157,7 +156,7 @@ function HeaderProfileDev({ selected }: { selected: boolean }) {
 
 /**
  * Logged in: same avatar rules as /profile — `profiles.avatar_url` or User2.
- * Google users: first name; dev test account (email): "Dev"; others: "Profile".
+ * Google users: first name; others: "Profile".
  */
 function HeaderProfileLoggedIn({
   selected,
@@ -170,12 +169,7 @@ function HeaderProfileLoggedIn({
 }) {
   const google = isGoogleAuthUser(user);
   const firstName = getHeaderFirstName(user);
-  const label =
-    google && firstName
-      ? firstName
-      : isDevTestAccountUser(user)
-        ? "Dev"
-        : "Profile";
+  const label = google && firstName ? firstName : "Profile";
 
   return (
     <Link
