@@ -236,8 +236,10 @@ export function PlaceCard({ place }: { place: FeedItem }) {
               );
             }
 
-            const googleRef = place.google_photo_ref?.trim();
-            return googleRef ? (
+            const hasGooglePhoto =
+              (place.vibe_photo_ref?.trim() || place.google_photo_ref?.trim()) !=
+              null;
+            return hasGooglePhoto ? (
               <img
                 src={`/api/places/${place.id}/photo`}
                 alt=""

@@ -1,6 +1,6 @@
 # Elsewhere
 
-Elsewhere is a location-aware web app for finding places to work outside the house: cafes, libraries, tea shops, bookstores, and other third places with useful workability signals.
+Elsewhere is a location-aware web app for finding places to work outside the house: cafes, libraries, tea shops, and other third places with useful workability signals.
 
 It is currently focused on Northern Virginia, with Annandale as the fallback center when a user has not shared location or is outside the active service area.
 

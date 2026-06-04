@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
+  fetchFreshGooglePhotoRef,
+  fetchGooglePlacePhotoMedia,
   isValidGooglePlacesPhotoRef,
   MAX_GOOGLE_PLACE_PHOTO_BYTES,
 } from "@/lib/googlePlacePhoto";
@@ -10,7 +12,7 @@ const MAX_MAX_WIDTH = 4800;
 
 /**
  * Proxies Google Places (New) photo media so the API key stays server-side.
- * Query: ref or photoName; optional maxWidthPx (default 800).
+ * Query: ref or photoName; optional maxWidthPx (default 800), googlePlaceId (refresh stale refs).
  *
  * Ref must match Places API photo resource shape. Response size is capped.
  * Note: Anonymous feed imagery relies on this route; auth is not required here
@@ -52,39 +54,29 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const mediaName = ref.endsWith("/media")
-    ? ref
-    : `${ref.replace(/\/$/, "")}/media`;
-  const url = `https://places.googleapis.com/v1/${mediaName}?maxWidthPx=${maxWidthPx}&key=${encodeURIComponent(key)}`;
+  const googlePlaceId = request.nextUrl.searchParams.get("googlePlaceId");
 
   try {
-    const res = await fetch(url, { redirect: "follow" });
-    if (!res.ok) {
-      return NextResponse.json(
-        { error: "Photo unavailable" },
-        { status: res.status === 404 ? 404 : 502 },
-      );
-    }
+    let media = await fetchGooglePlacePhotoMedia(ref, key, maxWidthPx);
 
-    const contentLength = res.headers.get("content-length");
-    if (contentLength != null) {
-      const n = parseInt(contentLength, 10);
-      if (!Number.isNaN(n) && n > MAX_GOOGLE_PLACE_PHOTO_BYTES) {
-        return NextResponse.json({ error: "Photo too large" }, { status: 413 });
+    if (!media && googlePlaceId) {
+      const freshRef = await fetchFreshGooglePhotoRef(googlePlaceId, key);
+      if (freshRef) {
+        media = await fetchGooglePlacePhotoMedia(freshRef, key, maxWidthPx);
       }
     }
 
-    const contentType =
-      res.headers.get("content-type") || "image/jpeg";
-    const body = await res.arrayBuffer();
-    if (body.byteLength > MAX_GOOGLE_PLACE_PHOTO_BYTES) {
-      return NextResponse.json({ error: "Photo too large" }, { status: 413 });
+    if (!media) {
+      return NextResponse.json(
+        { error: "Photo unavailable" },
+        { status: 404 },
+      );
     }
 
-    return new NextResponse(body, {
+    return new NextResponse(media.body, {
       status: 200,
       headers: {
-        "Content-Type": contentType,
+        "Content-Type": media.contentType,
         "Cache-Control": "public, max-age=86400",
       },
     });
