@@ -183,11 +183,13 @@ function FeedContent() {
           </div>
           <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto py-4 px-16 pb-8">
             {locationCtx.locationStatusMessage && (
-              <p className="text-body-s text-text-tertiary px-4 pb-8 text-center">
-                <LocationStatusMessageBody
-                  message={locationCtx.locationStatusMessage}
-                />
-              </p>
+              <div className="sticky top-0 z-10 bg-surface-alt rounded-radius-md p-4">
+                <p className="text-body-s text-text-tertiary px-4 pb-8 text-center">
+                  <LocationStatusMessageBody
+                    message={locationCtx.locationStatusMessage}
+                  />
+                </p>
+              </div>
             )}
             {showSkeletons && (
               <div className="space-y-4">

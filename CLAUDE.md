@@ -31,21 +31,25 @@ Elsewhere is a place-discovery app for work-friendly venues (cafes, libraries, b
 **Business logic lives in `lib/` or route handlers — never inline in components.**
 
 **Database access:**
+
 - Client Components: never touch the DB directly. Use `fetch()` to call API routes.
 - Server Components / route handlers: use `lib/supabase/server.ts` for user-scoped reads.
 - Route handlers performing writes or cross-user reads: use `lib/supabase/service-role.ts`.
 - Never import `service-role.ts` into Client Components (it's `server-only`).
 
 **Server vs Client Components:**
+
 - Default to Server Components. Add `"use client"` only when needed (interactivity, browser APIs, Zustand, TanStack Query hooks).
 - `mapbox-gl` must be used in a Client Component. Never statically import it server-side.
 
 **API routes:**
+
 - All mutations go through `app/api/` route handlers. No client-side direct DB writes.
 - Response shape is always `{ data, error }`. Match this exactly.
 - Authenticate with `supabase.auth.getUser()` — never trust headers or cookies directly.
 
 **State management:**
+
 - Server state (feed, place detail): TanStack Query.
 - Map/list selection sync: Zustand (`store/usePlaceStore.ts` — `selectedPlaceId`, `hoveredPlaceId`).
 - Pending auth actions: `sessionStorage` via `lib/gatedAction.ts`.
@@ -83,18 +87,18 @@ Elsewhere is a place-discovery app for work-friendly venues (cafes, libraries, b
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| Framework | Next.js 16, App Router |
-| Language | TypeScript 5, React 19 |
-| Database | Supabase (Postgres 17) |
-| Auth | Supabase Auth — email/password + Google OAuth |
-| Styling | Tailwind CSS v3 with custom design tokens |
-| Map | `mapbox-gl` (primary). `@vis.gl/react-google-maps` is installed but secondary |
-| Server state | TanStack Query v5 |
-| Client state | Zustand v5 |
-| Analytics | PostHog |
-| Deployment | Vercel (`iad1`) |
+| Layer        | Technology                                                                    |
+| ------------ | ----------------------------------------------------------------------------- |
+| Framework    | Next.js 16, App Router                                                        |
+| Language     | TypeScript 5, React 19                                                        |
+| Database     | Supabase (Postgres 17)                                                        |
+| Auth         | Supabase Auth — email/password + Google OAuth                                 |
+| Styling      | Tailwind CSS v3 with custom design tokens                                     |
+| Map          | `mapbox-gl` (primary). `@vis.gl/react-google-maps` is installed but secondary |
+| Server state | TanStack Query v5                                                             |
+| Client state | Zustand v5                                                                    |
+| Analytics    | PostHog                                                                       |
+| Deployment   | Vercel (`iad1`)                                                               |
 
 All app code is in `elsewhere/` (the Next.js root). Do not touch `elsewhere-landing/` unless explicitly asked. Planning docs at the monorepo root (`backend-plan.md`, `frontend-plan.md`) are authoritative — read them before making schema or API changes.
 
@@ -107,11 +111,13 @@ All app code is in `elsewhere/` (the Next.js root). Do not touch `elsewhere-land
 **Middleware** (`middleware.ts`) refreshes sessions on every request and redirects unauthenticated users to `/signup?next=<path>` (not `/login`). Public paths include `/feed`, `/map`, `/places/[id]` — but NOT `/places/[id]/rate`.
 
 **Three Supabase clients — use the right one:**
+
 - `lib/supabase/client.ts` — browser only, Client Components
 - `lib/supabase/server.ts` — Server Components and route handlers, user-scoped
 - `lib/supabase/service-role.ts` — route handlers only, bypasses RLS (`server-only`)
 
 **Gated actions** (save/rate/upload photo) when unauthenticated:
+
 1. `ensureAuthForGatedAction()` stores the pending intent in `sessionStorage`
 2. Redirects to `/signup?next=<returnPath>`
 3. `ResumePendingGatedActions` component resumes the action after auth completes
@@ -125,6 +131,7 @@ All app code is in `elsewhere/` (the Next.js root). Do not touch `elsewhere-land
 Read `supabase/schema-dev.sql` for the authoritative column names and types. There is no generated `database.types.ts` — types are hand-written in `types/` and inline in route handlers. Schema drift is a real risk; check migrations before assuming a column exists.
 
 **Core tables:**
+
 - `places` — venue data. Never write from client. Set `is_active = false` to deactivate; never hard-delete.
 - `place_stats` — aggregated rating counts, managed entirely by Postgres triggers. Never write directly.
 - `ratings` — one row per user per place. Upserted via `POST /api/places/[id]/rate`.
@@ -133,6 +140,7 @@ Read `supabase/schema-dev.sql` for the authoritative column names and types. The
 - `place_submissions` — user-submitted missing places; `submitter_name`/`submitter_avatar_url` are denormalized at write time.
 
 **Enum values** (current, post-migration):
+
 - `place_type`: `cafe`, `library`, `bookstore`, `tea_shop`
 - `noise_level`: `silent`, `quiet`, `vibrant`
 - `tables_label`: `limited`, `mixed`, `plentiful`
@@ -149,11 +157,13 @@ Read `supabase/schema-dev.sql` for the authoritative column names and types. The
 ## Key Conventions
 
 **Tailwind:**
+
 - Use custom design tokens, not default Tailwind colors. Primary = `bg-primary` / `text-primary` (`#4F5D3F`).
 - Typography: `.text-display-*`, `.text-heading-*`, `.text-body-*`, `.text-label-*` — not default Tailwind text classes.
 - Desktop breakpoint: `min-[1025px]:` — not `lg:` (which is 1024px).
 
 **Photos:**
+
 - `places.google_photo_ref` is a reference string, never a URL. Always proxy through `GET /api/place-photo?ref=...`.
 - User photos are stored in Supabase Storage (`user-photos` bucket). Serve via `GET /api/storage/user-photos/...`. Never expose the raw storage URL.
 - Vibe photo priority: `vibe_photo_path` (admin-set user upload) → `vibe_photo_ref` (admin-set Google ref) → `google_photo_ref` (default).
@@ -217,3 +227,7 @@ Check all of the following before considering a task done:
 - [ ] Tailwind uses custom tokens, not default colors; breakpoint is `min-[1025px]:` not `lg:`
 - [ ] No new files created when extending an existing file would suffice
 - [ ] No unrelated files modified
+
+## Additional context
+
+See FRONTEND.md, BACKEND.md, and .cursorrules for extended conventions.

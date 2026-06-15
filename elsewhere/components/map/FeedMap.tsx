@@ -323,6 +323,14 @@ export function FeedMap({
 
   const lastEmptyCenterFlyKeyRef = useRef("");
   /**
+   * Tracks the center key last applied to the map camera. Initialized to null
+   * so the first effective run (after map creation) can record the starting
+   * center without flying. When center later changes (e.g. location resolves
+   * from the Annandale fallback to the user's real position), the effect flies
+   * to the new center.
+   */
+  const lastCenterKeyRef = useRef<string | null>(null);
+  /**
    * Mirror of `selectedPlaceId` so the "fit bounds" effect can read it without
    * re-running on selection changes. Dismissing the detail panel must leave the
    * camera where the user left it (no snap-back to fallback center + zoom).
@@ -404,6 +412,7 @@ export function FeedMap({
       lastBoundsKeyRef.current = "";
       lastEmptyCenterFlyKeyRef.current = "";
       lastFlyKeyRef.current = null;
+      lastCenterKeyRef.current = null;
     };
     // Only run once on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -444,6 +453,34 @@ export function FeedMap({
       map.off("click", clearHover);
     };
   }, [setHoveredPlaceId, token]);
+
+  // -----------------------------------------------------------------------
+  // 2b. Re-center when the logical center changes after map init
+  //
+  // The fit-bounds effect (below) is gated by hasAutoFittedRef / a places-key
+  // dedup and will not fly when only the center prop changes (e.g. location
+  // resolving from the Annandale fallback to the user's real position). This
+  // effect handles that case independently.
+  // -----------------------------------------------------------------------
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !center) return;
+
+    const key = `${center.lat.toFixed(4)}\0${center.lng.toFixed(4)}`;
+
+    // First effective run after map creation: record the starting center.
+    // The map was already initialized here — no fly needed.
+    if (lastCenterKeyRef.current === null) {
+      lastCenterKeyRef.current = key;
+      return;
+    }
+
+    if (key === lastCenterKeyRef.current) return;
+    lastCenterKeyRef.current = key;
+
+    map.flyTo({ center: [center.lng, center.lat], zoom, duration: 600 });
+  }, [center?.lat, center?.lng, zoom]);
 
   // Map tab: allow auto-fit again when search/filter changes (not on zoom/radius refetch).
   useEffect(() => {
