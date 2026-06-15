@@ -182,7 +182,7 @@ function FeedContent() {
             <FilterChips />
             {locationCtx.locationStatusMessage && (
               <div className="px-16">
-                <div className="rounded-radius-sm border border-status-medium px-4 py-4 bg-status-medium-light">
+                <div className="rounded-radius-sm  px-4 py-4 bg-surface-chip">
                   <p className="text-body-s text-text-secondary text-center">
                     <LocationStatusMessageBody
                       message={locationCtx.locationStatusMessage}
