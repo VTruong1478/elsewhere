@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useLayoutEffect, useState } from "react";
 import type { User } from "@supabase/supabase-js";
-import { Home, Bookmark, CircleUser, User2 } from "lucide-react";
+import { Home, Bookmark, CircleUser, User2, Users } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { hasDevBypassCookieClient } from "@/lib/devAuthClient";
 import {
@@ -12,7 +12,7 @@ import {
   isGoogleAuthUser,
 } from "@/lib/authUserDisplay";
 
-export type HeaderRoute = "feed" | "saved" | string;
+export type HeaderRoute = "feed" | "saved" | "social" | string;
 
 export interface HeaderProps {
   /** Current route for highlighting the nav item */
@@ -23,12 +23,13 @@ export interface HeaderProps {
 }
 
 const NAV_ITEMS: {
-  route: "feed" | "saved";
+  route: "feed" | "saved" | "social";
   href: string;
   label: string;
   icon: typeof Home;
 }[] = [
   { route: "feed", href: "/feed", label: "Feed", icon: Home },
+  { route: "social", href: "/social", label: "Social", icon: Users },
   { route: "saved", href: "/saved", label: "Saved", icon: Bookmark },
 ];
 
@@ -263,9 +264,11 @@ export function Header({
     currentRoute ??
     (pathname === "/saved"
       ? "saved"
-      : pathname === "/profile"
-        ? "profile"
-        : "feed");
+      : pathname === "/social"
+        ? "social"
+        : pathname === "/profile"
+          ? "profile"
+          : "feed");
 
   return (
     <header
