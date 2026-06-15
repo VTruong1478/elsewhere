@@ -1,7 +1,7 @@
 /**
  * MatchRing — percentage score inside a circular ring.
  * Uses SVG for precise 4px stroke. Ring color from score:
- * 80–100 High (green), 60–79 Medium (yellow), 0–59 Low (orange/red).
+ * 70–100 High (green), 50–69 Medium (yellow), 0–49 Low (red).
  * Hex values from tailwind.config.js theme.extend.colors.
  */
 const SVG_COLORS = {
@@ -16,9 +16,9 @@ interface MatchRingProps {
 }
 
 function getRingColor(score: number): string {
-  if (score >= 80) return SVG_COLORS["status-high"]; /* 80–100: green */
-  if (score >= 60) return SVG_COLORS["status-medium"]; /* 60–79: yellow */
-  return SVG_COLORS["status-low"]; /* 0–59: orange/red */
+  if (score >= 70) return SVG_COLORS["status-high"]; /* 70–100: green */
+  if (score >= 50) return SVG_COLORS["status-medium"]; /* 50–69: yellow */
+  return SVG_COLORS["status-low"]; /* 0–49: red */
 }
 
 const SIZE = 48;

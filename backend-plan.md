@@ -518,6 +518,12 @@ match_score_percent = Math.round(match_score * 100)
 
 If `rating_count < 1` or `avg_overall_rating` is null, return `match_score_percent: null`.
 
+**Match score color tiers** (used by MatchRing, map pins, and any other score display):
+- 70–100 → `status-high` (green)
+- 50–69 → `status-medium` (yellow)
+- 0–49 → `status-low` (red)
+- null → gray ("--")
+
 ### Dominant label logic
 
 For each metric, the dominant label is the level with the highest count in place_stats. Ties use the middle value. When `rating_count = 0`, all dominant labels are null.

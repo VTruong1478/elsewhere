@@ -19,8 +19,8 @@ interface MapMarkerProps {
 }
 
 function getMarkerColor(percent: number): string {
-  if (percent >= 80) return SVG_COLORS['status-high'];
-  if (percent >= 60) return SVG_COLORS['status-medium'];
+  if (percent >= 70) return SVG_COLORS['status-high'];
+  if (percent >= 50) return SVG_COLORS['status-medium'];
   return SVG_COLORS['status-low'];
 }
 

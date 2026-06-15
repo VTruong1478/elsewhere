@@ -26,7 +26,7 @@ const TIER_COLORS = {
 
 function getTierColor(score: number | null): string {
   if (score == null || Number.isNaN(score)) return TIER_COLORS.none;
-  if (score >= 75) return TIER_COLORS.high;
+  if (score >= 70) return TIER_COLORS.high;
   if (score >= 50) return TIER_COLORS.medium;
   return TIER_COLORS.low;
 }

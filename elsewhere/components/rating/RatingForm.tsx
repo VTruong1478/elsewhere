@@ -196,7 +196,9 @@ export function RatingForm({
     null,
   );
   const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dragCounterRef = useRef(0);
   const hydratedFromDetailRef = useRef(false);
   const localPhotosRef = useRef<{ file: File; url: string }[]>([]);
 
@@ -439,6 +441,31 @@ export function RatingForm({
     e.target.value = "";
   }
 
+  function handleDragEnter(e: React.DragEvent) {
+    e.preventDefault();
+    dragCounterRef.current += 1;
+    setIsDragging(true);
+  }
+
+  function handleDragLeave(e: React.DragEvent) {
+    e.preventDefault();
+    dragCounterRef.current -= 1;
+    if (dragCounterRef.current === 0) setIsDragging(false);
+  }
+
+  function handleDragOver(e: React.DragEvent) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = canAddMorePhotos ? "copy" : "none";
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    dragCounterRef.current = 0;
+    setIsDragging(false);
+    if (!canAddMorePhotos) return;
+    void addPhotoFiles(e.dataTransfer.files);
+  }
+
   function removeServerPath(index: number) {
     setServerPaths((prev) => prev.filter((_, i) => i !== index));
   }
@@ -549,19 +576,31 @@ export function RatingForm({
       />
 
       {/* Photos — up to MAX_RATING_PHOTOS; multiple selection supported */}
-      <section className="space-y-12">
+      <section
+        className="space-y-12"
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+      >
         {photoCount === 0 ? (
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="flex w-full flex-col items-center rounded-radius-md border-2 border-dashed border-text-secondary bg-surface px-24 py-24 text-center focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            className={`flex w-full flex-col items-center rounded-radius-md border-2 border-dashed px-24 py-24 text-center transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+              isDragging
+                ? "border-accent bg-surface-chip"
+                : "border-text-secondary bg-surface"
+            }`}
           >
             <div className="flex h-40 w-40 items-center justify-center rounded-full bg-surface-chip">
               <Camera className="text-primary" size={24} aria-hidden />
             </div>
             <p className="mt-8 text-ui-label-xl text-text">Show us the vibe</p>
             <p className="max-w-xs text-body-s text-text-secondary">
-              Upload photos of the seating or workspace.
+              {isDragging
+                ? "Drop to upload"
+                : "Upload photos of the seating or workspace."}
             </p>
           </button>
         ) : (
@@ -609,7 +648,7 @@ export function RatingForm({
                   </button>
                 </div>
               ))}
-              {canAddMorePhotos ? (
+              {canAddMorePhotos && !isDragging ? (
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
@@ -623,6 +662,11 @@ export function RatingForm({
                 </button>
               ) : null}
             </div>
+            {isDragging && canAddMorePhotos ? (
+              <div className="flex w-full items-center justify-center rounded-radius-md border-2 border-dashed border-accent bg-surface-chip py-16 text-center">
+                <p className="text-ui-label-l text-accent">Drop photos here</p>
+              </div>
+            ) : null}
             {!canAddMorePhotos ? (
               <p className="text-body-s text-text-secondary text-center">
                 Photo limit reached.
