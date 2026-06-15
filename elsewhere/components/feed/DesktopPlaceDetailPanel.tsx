@@ -14,7 +14,13 @@ import {
 import { usePathname, useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bookmark, ChevronLeft, ChevronRight, X } from "lucide-react";
+import {
+  Bookmark,
+  ChevronLeft,
+  ChevronRight,
+  NotebookPen,
+  X,
+} from "lucide-react";
 import type { FeedItem } from "@/types/feed";
 import type { PlaceDetailResponse } from "@/types/placeDetail";
 import { StatusDot } from "@/components/ui/StatusDot";
@@ -558,8 +564,7 @@ export function DesktopPlaceDetailPanel({
         {
           id: normalizedId,
           name: previewFeedItem?.name ?? detail?.place?.name ?? "",
-          place_type:
-            previewFeedItem?.place_type ?? detail?.place?.place_type,
+          place_type: previewFeedItem?.place_type ?? detail?.place?.place_type,
           has_photos:
             previewMatches && previewFeedItem
               ? feedItemHasPhotos(previewFeedItem)
@@ -839,7 +844,7 @@ export function DesktopPlaceDetailPanel({
           </header>
         </div>
 
-        <div className="mt-8 min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-y-contain px-16 scrollbar-hide [-webkit-overflow-scrolling:touch]">
+        <div className="mt-8 min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-y-contain px-16 scrollbar-hide [-webkit-overflow-scrolling:touch] flex flex-col">
           {loadError && !place ? (
             <p className="text-body-m text-text-secondary pr-4">{loadError}</p>
           ) : null}
@@ -929,6 +934,20 @@ export function DesktopPlaceDetailPanel({
                   </div>
                 )}
               </div>
+
+              {stats !== null && ratingCount === 0 && (
+                <div className="flex flex-1 flex-col items-center justify-center min-h-[160px]">
+                  <NotebookPen
+                    className="text-text-tertiary mb-4"
+                    size={48}
+                    strokeWidth={1.5}
+                    aria-hidden
+                  />
+                  <p className="text-center text-heading-m text-text">
+                    Be the first to rate this place!
+                  </p>
+                </div>
+              )}
             </>
           ) : null}
         </div>

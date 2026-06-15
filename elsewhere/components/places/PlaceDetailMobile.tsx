@@ -5,7 +5,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bookmark, X } from "lucide-react";
+import { Bookmark, NotebookPen, X } from "lucide-react";
 import type { FeedItem } from "@/types/feed";
 import type { PlaceDetailResponse } from "@/types/placeDetail";
 import { FeedMap } from "@/components/map/FeedMap";
@@ -840,8 +840,7 @@ export function PlaceDetailMobile({
         {
           id: normalizedId,
           name: previewFeedItem?.name ?? detail?.place?.name ?? "",
-          place_type:
-            previewFeedItem?.place_type ?? detail?.place?.place_type,
+          place_type: previewFeedItem?.place_type ?? detail?.place?.place_type,
           has_photos:
             previewMatches && previewFeedItem
               ? feedItemHasPhotos(previewFeedItem)
@@ -1105,9 +1104,10 @@ export function PlaceDetailMobile({
         style={{
           height: heights?.full ?? "auto",
           transform: `translateY(${translateY}px)`,
-          transition: isDraggingRef.current || !isInitialSnapReady
-            ? "none"
-            : "transform 260ms ease-out",
+          transition:
+            isDraggingRef.current || !isInitialSnapReady
+              ? "none"
+              : "transform 260ms ease-out",
           visibility: isInitialSnapReady ? "visible" : "hidden",
         }}
       >
@@ -1217,7 +1217,7 @@ export function PlaceDetailMobile({
 
           <div
             ref={sheetScrollRef}
-            className="mt-8 min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-16 scrollbar-hide [-webkit-overflow-scrolling:touch] pb-[240px]"
+            className="mt-8 min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-16 scrollbar-hide [-webkit-overflow-scrolling:touch] pb-[240px] flex flex-col"
           >
             {loadError && !place ? (
               <p className="text-body-m text-text-secondary pr-4">
@@ -1310,6 +1310,20 @@ export function PlaceDetailMobile({
                     </div>
                   )}
                 </div>
+
+                {stats !== null && ratingCount === 0 && (
+                  <div className="flex flex-1 flex-col items-center justify-center min-h-[160px]">
+                    <NotebookPen
+                      className="text-text-tertiary mb-4"
+                      size={48}
+                      strokeWidth={1.5}
+                      aria-hidden
+                    />
+                    <p className="text-center text-heading-m text-text">
+                      Be the first to rate this place!
+                    </p>
+                  </div>
+                )}
               </>
             ) : null}
           </div>
