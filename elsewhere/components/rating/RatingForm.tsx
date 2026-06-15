@@ -354,6 +354,9 @@ export function RatingForm({
         queryClient.invalidateQueries({
           queryKey: placeDetailQueryKey(normalizedPlaceId),
         });
+        queryClient.invalidateQueries({
+          queryKey: ["place-user-photos", normalizedPlaceId],
+        });
       }
       if (returnTo) {
         const currentPath =

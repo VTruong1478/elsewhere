@@ -471,7 +471,7 @@ Upsert `user_preferences.radius_miles` for the current user.
 
 ## 7. Match Score Formula
 
-Computed server-side in the feed route handler. Never computed client-side.
+Computed server-side in `lib/matchScore.ts`. Never computed client-side.
 
 ### Step 1 — Derive implied preferences from rating history
 
@@ -479,12 +479,19 @@ For each metric (noise and vibe only — tables and outlets do not feed the scor
 
 ```
 For each level in the metric:
-  total_weight = SUM of overall_rating for all ratings where that level was selected
+  signal = max(0, overall_rating - 3)
+  -- 5 → 2.0,  4 → 1.0,  3.5 → 0.5,  3 and below → 0
+  total_signal = SUM of signal for all ratings where that level was selected
 
-implied_preference = level with the highest total_weight
+implied_preference = level with the highest total_signal
+                     (only set if max total_signal > 0)
 ```
 
-If the user has no ratings, skip match score entirely. Return `match_score_percent: null`. Feed sorts by distance only.
+Only positively-rated venues (4+ stars) contribute to preference signal. A place rated 3 stars or below has signal = 0 and does not influence implied preferences. This prevents mediocre visits from distorting the preference toward their noise/vibe category.
+
+If a user's highest total_signal for a metric is 0 (all ratings at 3 stars or below, or no ratings at all), that dimension has no implied preference. If both noise and vibe implied preferences are absent, skip personalized scoring and return `match_score_percent: null`. Feed sorts by distance only.
+
+Ties (two levels with equal positive total_signal) use the middle value as tiebreaker: noise → Quiet, vibe → Casual.
 
 ### Step 2 — Score each place
 
@@ -731,7 +738,7 @@ Before inviting any testers:
 Do not implement these. They are post-MVP.
 
 - Onboarding flow — no setup screen, radius defaults to 5 miles
-- Vibe, noise, outlet preferences stored in user_preferences — preferences are inferred from ratings only
+- Vibe, noise, outlet preferences stored in user_preferences — preferences are inferred from positively-rated (4+ star) venues only
 - Wifi as a rated metric — has_wifi is a place attribute set from Google API, not user-rated
 - Overall rating displayed publicly as a community score — it feeds the match score internally only
 - Bookstores filter chip — bookstore is a valid place_type but has no feed chip

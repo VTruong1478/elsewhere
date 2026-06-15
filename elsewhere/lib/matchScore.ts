@@ -170,20 +170,27 @@ export async function computeMatchScoresByPlaceId(params: {
       for (const r of rows) {
         const noise = noiseEnumToLabel(r.noise);
         const vibe = vibeEnumToLabel(r.vibe);
-        const weight = toNumber(r.overall_rating);
+        const rating = toNumber(r.overall_rating);
 
-        if (Number.isNaN(weight)) continue;
-        if (noise) noiseTotal[noise] += weight;
-        if (vibe) vibeTotal[vibe] += weight;
+        if (Number.isNaN(rating)) continue;
+        // Only positive experiences build preference signal.
+        // 5→2, 4→1, 3.5→0.5, 3 and below→0.
+        const signal = Math.max(0, rating - 3);
+        if (noise) noiseTotal[noise] += signal;
+        if (vibe) vibeTotal[vibe] += signal;
       }
 
       const noiseMax = Math.max(...noiseOrder.map((l) => noiseTotal[l]));
-      const noiseTied = noiseOrder.filter((l) => noiseTotal[l] === noiseMax);
-      impliedNoise = noiseTied.length > 1 ? "Quiet" : noiseTied[0] ?? null;
+      if (noiseMax > 0) {
+        const noiseTied = noiseOrder.filter((l) => noiseTotal[l] === noiseMax);
+        impliedNoise = noiseTied.length > 1 ? "Quiet" : noiseTied[0] ?? null;
+      }
 
       const vibeMax = Math.max(...vibeOrder.map((l) => vibeTotal[l]));
-      const vibeTied = vibeOrder.filter((l) => vibeTotal[l] === vibeMax);
-      impliedVibe = vibeTied.length > 1 ? "Casual" : vibeTied[0] ?? null;
+      if (vibeMax > 0) {
+        const vibeTied = vibeOrder.filter((l) => vibeTotal[l] === vibeMax);
+        impliedVibe = vibeTied.length > 1 ? "Casual" : vibeTied[0] ?? null;
+      }
     }
   }
 
