@@ -7,8 +7,10 @@ export type UserLocationState =
   | { status: "denied" }
   | { status: "ready"; lat: number; lng: number };
 
-export const LOCATION_STATUS_CASE1 =
-  "Showing places near Northern Virginia. Enable location to see spots near you.";
+export const LOCATION_STATUS_CASE1_BEFORE =
+  "Showing places near Northern Virginia. ";
+export const LOCATION_STATUS_CASE1_LINK = "Enable location";
+export const LOCATION_STATUS_CASE1_AFTER = " to see spots near you.";
 /** Text before the waitlist link (case 3). */
 export const LOCATION_STATUS_CASE3_BEFORE =
   "Elsewhere is only available in Northern Virginia right now. ";
@@ -20,7 +22,8 @@ export const LOCATION_STATUS_CASE4 =
 
 export type FeedLocationStatusMessage =
   | { kind: "plain"; text: string }
-  | { kind: "waitlist" };
+  | { kind: "waitlist" }
+  | { kind: "request-location" };
 
 export type FeedLocationCase = 1 | 2 | 3 | 4;
 
@@ -110,10 +113,7 @@ export function computeFeedLocationContext(
       mapCenter: ANNANDALE_FALLBACK,
       showUserLocationDot: false,
       userLocationForDot: null,
-      locationStatusMessage: {
-        kind: "plain",
-        text: LOCATION_STATUS_CASE1,
-      },
+      locationStatusMessage: { kind: "request-location" },
       feedQueryEnabled,
       locationCase: 1,
     };
