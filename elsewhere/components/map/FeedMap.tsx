@@ -7,7 +7,7 @@ import { Minus, Navigation, Plus } from "lucide-react";
 import type { FeedItem } from "@/types/feed";
 import { samePlaceId } from "@/lib/placeId";
 import { usePlaceStore } from "@/store/usePlaceStore";
-import { capturePlaceOpened, feedItemHasPhotos } from "@/lib/analytics";
+import { capturePlaceOpened } from "@/lib/analytics";
 import { Button, SecondaryZoomStackButton } from "@/components/ui/Button";
 import { ANNANDALE_FALLBACK } from "@/lib/locationRegion";
 
@@ -90,14 +90,8 @@ export interface FeedMapProps {
    */
   autoFitBoundsResetKey?: string;
   /**
-   * Reserved for future use; fixed-camera modes no longer wait on fetch. Map tab may
-   * still pass `!isFetching` for clarity — it does not change camera behavior.
-   */
-  feedPlacesReady?: boolean;
-  /**
    * When false (default): never `fitBounds` to show all pins — camera stays at this `zoom`
-   * over `center` (desktop feed uses {@link DEFAULT_MAP_ZOOM}; `/map` passes
-   * {@link MAP_TAB_FIXED_ZOOM}). When true (e.g. place detail map), allow fit-to-pins.
+   * over `center`. When true (e.g. place detail map), allow fit-to-pins.
    */
   allowPinFitBounds?: boolean;
   /**
@@ -117,10 +111,6 @@ const SELECTED_MIN_ZOOM = 12;
 const SELECTED_FOCUS_ZOOM = 12;
 /** Default fixed-camera zoom (e.g. desktop feed map beside the list). */
 export const DEFAULT_MAP_ZOOM = 12;
-/**
- * Full-screen `/map` tab: wider fixed camera at `center` — pass as `zoom` on `FeedMap`.
- */
-export const MAP_TAB_FIXED_ZOOM = 8;
 const MAPBOX_STYLE =
   process.env.NEXT_PUBLIC_MAPBOX_STYLE?.trim() ||
   "mapbox://styles/mapbox/streets-v12";
@@ -271,7 +261,6 @@ export function FeedMap({
   selectedMarkerScreenXRatio,
   autoFitBoundsOnPlacesChange = true,
   autoFitBoundsResetKey,
-  feedPlacesReady: _feedPlacesReady = true,
   allowPinFitBounds = false,
   showRecenterButton = false,
 }: FeedMapProps) {

@@ -133,7 +133,7 @@ async function compressToUploadBudget(file: File): Promise<File> {
  * Runtime validation is required because file picker filters can be bypassed
  * (drag/drop, MIME spoofing, or platform quirks). Never trust `accept` alone.
  */
-export function validateSelectedPhotoFileType(file: File): {
+function validateSelectedPhotoFileType(file: File): {
   ok: boolean;
   requiresHeicConversion: boolean;
 } {

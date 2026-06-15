@@ -13,7 +13,7 @@ import { StatusDot } from "@/components/ui/StatusDot";
 import { MetricTile } from "@/components/ui/MetricTile";
 import { Button } from "@/components/ui/Button";
 import { PlaceDetailCta } from "@/components/places/PlaceDetailCta";
-import { deriveOpeningState, hasOpenLate } from "@/lib/opening-hours";
+import { deriveOpeningState, hasOpenLate } from "@/lib/openingHours";
 import { normalizePlaceId } from "@/lib/placeId";
 import { fetchPlaceDetail, placeDetailQueryKey } from "@/lib/placeDetailQuery";
 import { usePlaceStore } from "@/store/usePlaceStore";

@@ -42,7 +42,7 @@ export function buildRateHref(
   return `/places/${placeId}/rate?${sp.toString()}`;
 }
 
-export function getPlaceAnalyticsPayload(
+function getPlaceAnalyticsPayload(
   place: {
     id: string;
     name: string;
@@ -62,7 +62,7 @@ export function getPlaceAnalyticsPayload(
   };
 }
 
-export function getPlaceAnalyticsPayloadFromFeedItem(
+function getPlaceAnalyticsPayloadFromFeedItem(
   place: FeedItem,
   source: AnalyticsSource,
 ): PlaceAnalyticsPayload {
@@ -78,7 +78,7 @@ export function getPlaceAnalyticsPayloadFromFeedItem(
 }
 
 /** Rating / contribution events: fixed shape every time (avoids funnel gaps). */
-export function getRatingPlaceAnalyticsPayload(
+function getRatingPlaceAnalyticsPayload(
   place: {
     id: string;
     name: string;

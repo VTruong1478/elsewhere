@@ -3,7 +3,6 @@ import {
   fetchFreshGooglePhotoRef,
   fetchGooglePlacePhotoMedia,
   isValidGooglePlacesPhotoRef,
-  MAX_GOOGLE_PLACE_PHOTO_BYTES,
 } from "@/lib/googlePlacePhoto";
 
 const DEFAULT_MAX_WIDTH = 800;

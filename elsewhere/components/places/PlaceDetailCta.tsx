@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { ensureAuthForGatedAction } from "@/lib/authGate";
 import type { AnalyticsSource } from "@/lib/analytics";
 
-export type RateGateContext = {
+type RateGateContext = {
   place_id: string;
   place_name: string;
   source: AnalyticsSource;

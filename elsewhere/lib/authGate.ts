@@ -4,7 +4,7 @@ import type { AnalyticsSource } from "@/lib/analytics";
 import type { GatedActionType } from "@/lib/gatedAction";
 import { persistPendingGatedAction } from "@/lib/gatedAction";
 
-export type GateContext = {
+type GateContext = {
   action_type: GatedActionType;
   source: AnalyticsSource;
   place_id: string;

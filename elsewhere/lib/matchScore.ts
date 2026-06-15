@@ -19,14 +19,14 @@ type PlaceStatsRowLike = {
   outlets_ample: number | bigint;
 };
 
-export type MatchScoresByPlaceId = Record<
+type MatchScoresByPlaceId = Record<
   string,
   {
-    match_score_percent: number | null;
-    dominant_noise: NoiseLabel | null;
-    dominant_vibe: VibeLabel | null;
-    dominant_tables: TablesLabel | null;
-    dominant_outlets: OutletsLabel | null;
+    matchScorePercent: number | null;
+    dominantNoise: NoiseLabel | null;
+    dominantVibe: VibeLabel | null;
+    dominantTables: TablesLabel | null;
+    dominantOutlets: OutletsLabel | null;
   }
 >;
 
@@ -195,47 +195,47 @@ export async function computeMatchScoresByPlaceId(params: {
   for (const place of places) {
     const ratingCount = toNumber(place.rating_count) || 0;
 
-    const dominant_noise =
+    const dominantNoise =
       ratingCount < 1 ? null : dominantNoiseFromCounts(place);
-    const dominant_vibe =
+    const dominantVibe =
       ratingCount < 1 ? null : dominantVibeFromCounts(place);
-    const dominant_tables =
+    const dominantTables =
       ratingCount < 1 ? null : dominantTablesFromCounts(place);
-    const dominant_outlets =
+    const dominantOutlets =
       ratingCount < 1 ? null : dominantOutletsFromCounts(place);
 
-    let match_score_percent: number | null = null;
+    let matchScorePercent: number | null = null;
 
     const avg = toNumber(place.avg_overall_rating);
     if (ratingCount >= 1 && !Number.isNaN(avg)) {
-      if (userHasRatings && impliedNoise && impliedVibe && dominant_noise && dominant_vibe) {
+      if (userHasRatings && impliedNoise && impliedVibe && dominantNoise && dominantVibe) {
         const noiseDiff = Math.abs(
-          noiseOrder.indexOf(dominant_noise as NoiseLabel) -
+          noiseOrder.indexOf(dominantNoise as NoiseLabel) -
             noiseOrder.indexOf(impliedNoise),
         );
         const vibeDiff = Math.abs(
-          vibeOrder.indexOf(dominant_vibe as VibeLabel) - vibeOrder.indexOf(impliedVibe),
+          vibeOrder.indexOf(dominantVibe as VibeLabel) - vibeOrder.indexOf(impliedVibe),
         );
 
-        const noise_match = noiseDiff === 0 ? 1 : noiseDiff === 1 ? 0.5 : 0;
-        const vibe_match = vibeDiff === 0 ? 1 : vibeDiff === 1 ? 0.5 : 0;
+        const noiseMatch = noiseDiff === 0 ? 1 : noiseDiff === 1 ? 0.5 : 0;
+        const vibeMatch = vibeDiff === 0 ? 1 : vibeDiff === 1 ? 0.5 : 0;
 
-        const base_score = (noise_match + vibe_match) / 2;
-        const place_quality = avg / 5.0;
-        const match_score = base_score * 0.7 + place_quality * 0.3;
-        match_score_percent = Math.round(match_score * 100);
+        const baseScore = (noiseMatch + vibeMatch) / 2;
+        const placeQuality = avg / 5.0;
+        const matchScore = baseScore * 0.7 + placeQuality * 0.3;
+        matchScorePercent = Math.round(matchScore * 100);
       } else {
         // Cold start fallback (no personal history): use community quality only.
-        match_score_percent = Math.round(Math.min(100, Math.max(0, (avg / 5) * 100)));
+        matchScorePercent = Math.round(Math.min(100, Math.max(0, (avg / 5) * 100)));
       }
     }
 
     resultsByPlaceId[place.id] = {
-      match_score_percent,
-      dominant_noise,
-      dominant_vibe,
-      dominant_tables,
-      dominant_outlets,
+      matchScorePercent,
+      dominantNoise,
+      dominantVibe,
+      dominantTables,
+      dominantOutlets,
     };
   }
 

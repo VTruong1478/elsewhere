@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { deriveOpeningState, hasOpenLate } from "@/lib/opening-hours";
+import { deriveOpeningState, hasOpenLate } from "@/lib/openingHours";
 import type { FeedItem } from "@/types/feed";
 import { computeMatchScoresByPlaceId } from "@/lib/matchScore";
 
@@ -32,7 +32,7 @@ export type PlaceStatsRow = {
   vibe_social: number | bigint;
 };
 
-export function getTop2Pills(pillsArrays: string[][]): string[] {
+function getTop2Pills(pillsArrays: string[][]): string[] {
   const count: Record<string, number> = {};
   for (const arr of pillsArrays) {
     for (const p of arr) {
@@ -63,7 +63,7 @@ function distanceMeters(
   return R * c;
 }
 
-export type BuildFeedItemsOptions = {
+type BuildFeedItemsOptions = {
   supabase: SupabaseClient;
   serviceRoleClient: SupabaseClient;
   /** Defaults to service role to avoid relying on client-visible ratings SELECT policies. */
@@ -191,11 +191,11 @@ export async function buildFeedItemsFromPlaces(
     const raw = row as Record<string, unknown>;
     const match = resultsByPlaceId[row.id];
 
-    const dominant_noise = match?.dominant_noise ?? null;
-    const dominant_vibe = match?.dominant_vibe ?? null;
-    const dominant_tables = match?.dominant_tables ?? null;
-    const dominant_outlets = match?.dominant_outlets ?? null;
-    const match_score_percent = match?.match_score_percent ?? null;
+    const dominantNoise = match?.dominantNoise ?? null;
+    const dominantVibe = match?.dominantVibe ?? null;
+    const dominantTables = match?.dominantTables ?? null;
+    const dominantOutlets = match?.dominantOutlets ?? null;
+    const matchScorePercent = match?.matchScorePercent ?? null;
 
     const googlePhotoRef =
       (row.google_photo_ref as string | null | undefined) ??
@@ -218,15 +218,15 @@ export async function buildFeedItemsFromPlaces(
       lat: Number(row.lat),
       lng: Number(row.lng),
       place_type: row.place_type,
-      noise: dominant_noise,
-      dominant_noise,
-      vibe: dominant_vibe,
-      dominant_vibe,
-      tables: dominant_tables,
-      dominant_tables,
-      outlets: dominant_outlets,
-      dominant_outlets,
-      match_score_percent,
+      noise: dominantNoise,
+      dominant_noise: dominantNoise,
+      vibe: dominantVibe,
+      dominant_vibe: dominantVibe,
+      tables: dominantTables,
+      dominant_tables: dominantTables,
+      outlets: dominantOutlets,
+      dominant_outlets: dominantOutlets,
+      match_score_percent: matchScorePercent,
       why_matched: [],
       open_now: opening.open_now,
       closes_at: opening.closes_at,
@@ -250,7 +250,7 @@ export async function buildFeedItemsFromPlaces(
       vibe_photo_attribution: vibePhotoAttribution,
       cost: row.cost ?? null,
       _distanceMeters: dist,
-      _matchScorePercent: match_score_percent,
+      _matchScorePercent: matchScorePercent,
       _ratingCount: ratingCount,
     };
   });

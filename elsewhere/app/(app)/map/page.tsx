@@ -16,7 +16,7 @@ import { FilterChips } from "@/components/feed/FilterChips";
 import { LocationStatusMessageBody } from "@/components/feed/LocationStatusMessageBody";
 import { FeedMap, DEFAULT_MAP_ZOOM } from "@/components/map/FeedMap";
 import { MapLoadingOverlay } from "@/components/map/MapLoadingOverlay";
-import { FeedEmptyState } from "@/components/feed/EmptyState";
+import { FeedEmptyState } from "@/components/feed/FeedEmptyState";
 import { MapPlacePreview } from "@/components/map/MapPlacePreview";
 import { PlaceDetailMobile } from "@/components/places/PlaceDetailMobile";
 import { Button } from "@/components/ui/Button";

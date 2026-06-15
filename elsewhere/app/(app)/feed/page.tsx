@@ -8,7 +8,7 @@ import { SearchBar } from "@/components/feed/SearchBar";
 import { FilterChips } from "@/components/feed/FilterChips";
 import { PlaceCard } from "@/components/feed/PlaceCard";
 import { PlaceCardSkeleton } from "@/components/feed/PlaceCardSkeleton";
-import { FeedEmptyState } from "@/components/feed/EmptyState";
+import { FeedEmptyState } from "@/components/feed/FeedEmptyState";
 import { LocationStatusMessageBody } from "@/components/feed/LocationStatusMessageBody";
 import { FeedMap, DEFAULT_MAP_ZOOM } from "@/components/map/FeedMap";
 import { MapLoadingOverlay } from "@/components/map/MapLoadingOverlay";

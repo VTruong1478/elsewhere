@@ -1,7 +1,7 @@
 const DEFAULT_TZ = 'America/New_York';
 
 /** Supports legacy (time: "0900"), Places API New (hour, minute), and optional date for local instants */
-export type PeriodEnd = {
+type PeriodEnd = {
   day?: number;
   time?: string;
   hour?: number;
@@ -12,7 +12,7 @@ export type PeriodEnd = {
   month?: number;
 };
 
-export type OpeningPeriod = {
+type OpeningPeriod = {
   open?: PeriodEnd;
   close?: PeriodEnd;
 };
@@ -250,7 +250,6 @@ export function deriveOpeningState(
   }
 
   let matchKind: MatchKind | null = null;
-  let openTime = 0;
   let closeTimeRaw = 0;
   let closesNextDayForMatch = false;
 
@@ -274,7 +273,6 @@ export function deriveOpeningState(
     }
     if (nowMinutes < closeT) {
       matchKind = 'close_day_carryover';
-      openTime = openT;
       closeTimeRaw = closeT;
       closesNextDayForMatch = true;
       break;
@@ -303,7 +301,6 @@ export function deriveOpeningState(
       }
       if (isOpen) {
         matchKind = 'open_day';
-        openTime = openT;
         closeTimeRaw = closeT;
         closesNextDayForMatch = closesNextDay;
         break;

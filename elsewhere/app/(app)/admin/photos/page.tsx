@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 type PlaceRow = {
   id: string;
@@ -62,7 +62,6 @@ export default function AdminPhotosPage() {
   });
 
   const places = placesQuery.data ?? [];
-  const placesWithGoogle = places.filter((p) => p.google_place_id);
 
   return (
     <div className="min-h-screen bg-surface p-4 ">

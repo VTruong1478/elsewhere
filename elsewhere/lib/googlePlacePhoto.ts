@@ -42,7 +42,7 @@ export async function fetchFreshGooglePhotoRef(
   return isValidGooglePlacesPhotoRef(ref) ? ref : null;
 }
 
-export type GooglePlacePhotoMedia = {
+type GooglePlacePhotoMedia = {
   body: ArrayBuffer;
   contentType: string;
   resolvedRef: string;
