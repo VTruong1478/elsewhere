@@ -24,6 +24,9 @@ module.exports = {
         "status-high": "#4F5D3F",
         "status-medium": "#C4943A",
         "status-low": "#A85C3A",
+        "status-high-light": "#E8EDE3",
+        "status-medium-light": "#FDF3E3",
+        "status-low-light": "#FAE8E3",
       },
       borderRadius: {
         "radius-sm": "8px",

@@ -174,23 +174,25 @@ function FeedContent() {
   return (
     <>
       <div className="flex min-h-0 w-full flex-1 flex-col lg:grid lg:grid-cols-12 lg:overflow-hidden">
-        <div className="scrollbar-hide flex min-h-0 w-full flex-col overflow-y-auto lg:col-span-4 lg:min-h-0">
-          <div className="shrink-0">
+        <div className="scrollbar-hide flex min-h-0 w-full flex-col lg:overflow-y-auto lg:col-span-4 lg:min-h-0">
+          <div className="shrink-0 sticky top-[72px] min-[1025px]:top-0 z-10 bg-background pb-2 lg:pb-16">
             <div className="px-16 lg:pt-16">
               <SearchBar />
             </div>
             <FilterChips />
-          </div>
-          <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto py-4 px-16 pb-8">
             {locationCtx.locationStatusMessage && (
-              <div className="sticky top-0 z-10 bg-surface-alt rounded-radius-md p-4">
-                <p className="text-body-s text-text-tertiary px-4 pb-8 text-center">
-                  <LocationStatusMessageBody
-                    message={locationCtx.locationStatusMessage}
-                  />
-                </p>
+              <div className="px-16">
+                <div className="rounded-radius-sm border border-status-medium p-4 bg-status-medium-light">
+                  <p className="text-body-s text-text-secondary px-4 py-4 text-center">
+                    <LocationStatusMessageBody
+                      message={locationCtx.locationStatusMessage}
+                    />
+                  </p>
+                </div>
               </div>
             )}
+          </div>
+          <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto py-4 px-16 pb-8">
             {showSkeletons && (
               <div className="space-y-4">
                 {Array.from({ length: 5 }).map((_, i) => (

@@ -11,7 +11,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <div className="hidden min-[1025px]:block">
         <Header />
       </div>
-      <div className="block min-[1025px]:hidden">
+      <div className="sticky top-0 z-40 block min-[1025px]:hidden">
         <RouteTopNav />
       </div>
       <main
