@@ -5,7 +5,10 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { User2 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { RatingCard, type RatingCardItem } from "@/components/social/RatingCard";
+import {
+  RatingCard,
+  type RatingCardItem,
+} from "@/components/social/RatingCard";
 import { PlaceCard } from "@/components/feed/PlaceCard";
 import { PlaceCardSkeleton } from "@/components/feed/PlaceCardSkeleton";
 import { UserListSheet } from "@/components/profile/UserListSheet";
@@ -13,7 +16,11 @@ import { Button } from "@/components/ui/Button";
 import { createClient } from "@/lib/supabase/client";
 import type { FeedItem } from "@/types/feed";
 
-type UserListItem = { id: string; full_name: string | null; avatar_url: string | null };
+type UserListItem = {
+  id: string;
+  full_name: string | null;
+  avatar_url: string | null;
+};
 
 type ProfileContentProps = {
   userId: string;
@@ -70,7 +77,8 @@ export function ProfileContent({
         credentials: "same-origin",
       });
       const body = await res.json();
-      if (!res.ok) throw new Error(body?.error ?? "Failed to load saved places");
+      if (!res.ok)
+        throw new Error(body?.error ?? "Failed to load saved places");
       return Array.isArray(body?.data) ? body.data : [];
     },
     enabled: activeTab === "saved",
@@ -113,13 +121,17 @@ export function ProfileContent({
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error((body as { error?: string }).error ?? "Failed to follow");
+        throw new Error(
+          (body as { error?: string }).error ?? "Failed to follow",
+        );
       }
     },
     onMutate: () => setIsFollowing(true),
     onError: () => setIsFollowing(false),
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["profile-followers", userId] });
+      queryClient.invalidateQueries({
+        queryKey: ["profile-followers", userId],
+      });
     },
   });
 
@@ -132,13 +144,17 @@ export function ProfileContent({
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error((body as { error?: string }).error ?? "Failed to unfollow");
+        throw new Error(
+          (body as { error?: string }).error ?? "Failed to unfollow",
+        );
       }
     },
     onMutate: () => setIsFollowing(false),
     onError: () => setIsFollowing(true),
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["profile-followers", userId] });
+      queryClient.invalidateQueries({
+        queryKey: ["profile-followers", userId],
+      });
     },
   });
 
@@ -215,33 +231,43 @@ export function ProfileContent({
       )}
 
       {/* Stats row */}
-      <div className="-mx-16 mb-24 overflow-x-auto px-16">
-        <div className="scrollbar-hide flex gap-8 pb-4">
+      <div className="flex gap-8">
           {/* Static stats */}
-          <div className="flex min-w-[72px] flex-col items-center rounded-radius-md bg-surface px-8 py-12 text-center">
-            <span className="text-heading-l text-text">{stats.placesRated}</span>
-            <span className="mt-4 text-body-s text-text-secondary">Places rated</span>
+          <div className="flex flex-1 flex-col items-center rounded-radius-md bg-surface px-8 py-12 text-center">
+            <span className="text-heading-l text-text">
+              {stats.placesRated}
+            </span>
+            <span className="mt-4 text-body-s text-text-secondary">
+              Places rated
+            </span>
           </div>
           {/* Followers button */}
           <button
             type="button"
             onClick={() => setFollowersOpen(true)}
-            className="flex min-w-[72px] flex-col items-center rounded-radius-md bg-surface px-8 py-12 text-center"
+            className="flex flex-1 flex-col items-center rounded-radius-md bg-surface px-8 py-12 text-center"
           >
-            <span className="text-heading-l text-text">{stats.followersCount}</span>
-            <span className="mt-4 text-body-s text-text-secondary">Followers</span>
+            <span className="text-heading-l text-text">
+              {stats.followersCount}
+            </span>
+            <span className="mt-4 text-body-s text-text-secondary">
+              Followers
+            </span>
           </button>
 
           {/* Following button */}
           <button
             type="button"
             onClick={() => setFollowingOpen(true)}
-            className="flex min-w-[72px] flex-col items-center rounded-radius-md bg-surface px-8 py-12 text-center"
+            className="flex flex-1 flex-col items-center rounded-radius-md bg-surface px-8 py-12 text-center"
           >
-            <span className="text-heading-l text-text">{stats.followingCount}</span>
-            <span className="mt-4 text-body-s text-text-secondary">Following</span>
+            <span className="text-heading-l text-text">
+              {stats.followingCount}
+            </span>
+            <span className="mt-4 text-body-s text-text-secondary">
+              Following
+            </span>
           </button>
-        </div>
       </div>
 
       {/* Tab switcher */}
@@ -303,7 +329,9 @@ export function ProfileContent({
                   className="mb-8 text-text-tertiary"
                   aria-hidden
                 />
-                <p className="text-body-m text-text-secondary">No ratings yet</p>
+                <p className="text-body-m text-text-secondary">
+                  No ratings yet
+                </p>
               </div>
             )}
           {!ratingsQuery.isLoading &&
@@ -311,7 +339,11 @@ export function ProfileContent({
             (ratingsQuery.data?.length ?? 0) > 0 && (
               <div className="space-y-12">
                 {ratingsQuery.data!.map((item) => (
-                  <RatingCard key={item.id} showUserHeader={false} item={item} />
+                  <RatingCard
+                    key={item.id}
+                    showUserHeader={false}
+                    item={item}
+                  />
                 ))}
               </div>
             )}
@@ -344,7 +376,9 @@ export function ProfileContent({
                   className="mb-8 text-text-tertiary"
                   aria-hidden
                 />
-                <p className="text-body-m text-text-secondary">No saved places yet</p>
+                <p className="text-body-m text-text-secondary">
+                  No saved places yet
+                </p>
               </div>
             )}
           {!savedQuery.isLoading &&
