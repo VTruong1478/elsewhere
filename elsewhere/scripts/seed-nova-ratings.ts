@@ -17,6 +17,17 @@
 import { createClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
 import path from "path";
+import {
+  type NoiseLevel,
+  type VibeLevel,
+  type TablesLabel,
+  type OutletsLabel,
+  NAME_OVERRIDES,
+  normalizeNoise,
+  normalizeVibe,
+  normalizeTables,
+  normalizeOutlets,
+} from "../lib/seedHelpers";
 
 dotenv.config({ path: path.resolve(process.cwd(), ".env.local") });
 
@@ -24,13 +35,6 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 const USER_ID = "d9dd2d19-a7d9-49bb-82f0-0ba2f4fd80df";
-
-// ── Enum types ───────────────────────────────────────────────────────────────
-
-type NoiseLevel = "silent" | "quiet" | "vibrant";
-type VibeLevel = "focused" | "casual" | "social";
-type TablesLabel = "limited" | "mixed" | "plentiful";
-type OutletsLabel = "scarce" | "some" | "ample";
 
 // ── Input data ───────────────────────────────────────────────────────────────
 
@@ -251,61 +255,6 @@ const RATINGS_INPUT: RatingInput[] = [
   },
 ];
 
-// ── Enum normalization ────────────────────────────────────────────────────────
-
-function normalizeNoise(raw: string): NoiseLevel {
-  const map: Record<string, NoiseLevel> = {
-    silent: "silent",
-    quiet: "quiet",
-    vibrant: "vibrant",
-    // input aliases
-    moderate: "quiet",
-    loud: "vibrant",
-  };
-  const v = map[raw.toLowerCase()];
-  if (!v) throw new Error(`Unknown noise value: "${raw}"`);
-  return v;
-}
-
-function normalizeVibe(raw: string): VibeLevel {
-  const map: Record<string, VibeLevel> = {
-    focused: "focused",
-    casual: "casual",
-    social: "social",
-    // input alias
-    cozy: "casual",
-  };
-  const v = map[raw.toLowerCase()];
-  if (!v) throw new Error(`Unknown vibe value: "${raw}"`);
-  return v;
-}
-
-function normalizeTables(raw: string): TablesLabel {
-  const map: Record<string, TablesLabel> = {
-    limited: "limited",
-    mixed: "mixed",
-    plentiful: "plentiful",
-    // input alias (scarce is an outlets value; map to limited)
-    scarce: "limited",
-  };
-  const v = map[raw.toLowerCase()];
-  if (!v) throw new Error(`Unknown tables value: "${raw}"`);
-  return v;
-}
-
-function normalizeOutlets(raw: string): OutletsLabel {
-  const map: Record<string, OutletsLabel> = {
-    scarce: "scarce",
-    some: "some",
-    ample: "ample",
-    // input alias
-    moderate: "some",
-  };
-  const v = map[raw.toLowerCase()];
-  if (!v) throw new Error(`Unknown outlets value: "${raw}"`);
-  return v;
-}
-
 // ── Rating row shape ──────────────────────────────────────────────────────────
 
 interface RatingRow {
@@ -324,7 +273,7 @@ interface RatingRow {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-async function main() {
+export async function main() {
   const isDryRun = process.argv.includes("--dry-run");
 
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
@@ -340,19 +289,6 @@ async function main() {
   console.log(`User: ${USER_ID}\n`);
 
   // Step 1: resolve place IDs ------------------------------------------------
-
-  // Maps seed entry name → canonical DB name for places stored under a different name.
-  const nameOverrides: Record<string, string> = {
-    "Rare Bird": "Rare Bird Coffee Roasters",
-    "De Clieu": "De Clieu Coffee & Sandwich - Fairfax",
-    "Common Culture": "Common Culture Specialty Coffee & Brunch",
-    "Simply Social": "Fairfax Simply Social Coffee",
-    "Bakery Museum and Co.": "Bakery Museum & Co",
-    "Tous les Jours": "Tous Les Jours Bakery Cafe",
-    "Chateau de Chantilly": "Chateau de Chantilly Cafe",
-    "Frame": "FRAME Coffee Roasters",
-    "Caffe Amouri": "Caffe Amouri Coffee Roaster",
-  };
 
   const placeNames = RATINGS_INPUT.map((r) => r.place_name);
 
@@ -375,7 +311,7 @@ async function main() {
   const resolved = new Map<string, string>(); // place_name → place_id
 
   for (const name of placeNames) {
-    const lookupName = nameOverrides[name] ?? name;
+    const lookupName = NAME_OVERRIDES[name] ?? name;
     const id = placeMap.get(lookupName.toLowerCase());
     if (id) {
       resolved.set(name, id);
@@ -471,7 +407,9 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}
