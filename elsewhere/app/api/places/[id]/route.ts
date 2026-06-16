@@ -202,7 +202,9 @@ export async function GET(
       is_saved = !!row;
     }
 
-    // 4) Notes / tips: `place_notes_public` (author_short_name, created_at, non-hidden notes).
+    // 4) Notes / tips: query `place_notes_public` (the view that filters hidden/empty
+    //    notes and computes author_short_name), then fetch user_id for each returned
+    //    rating so the client can link to /profile/[userId].
     type PlaceNotePublicRow = {
       rating_id: string;
       notes: string;
@@ -212,6 +214,7 @@ export async function GET(
 
     let notes: Array<{
       id: string;
+      rater_id: string;
       notes: string;
       created_at: string;
       author_short_name: string;
@@ -232,14 +235,27 @@ export async function GET(
       );
     }
 
-    notes = Array.isArray(placeNotesRows)
-      ? (placeNotesRows as PlaceNotePublicRow[]).map((row) => ({
-          id: String(row.rating_id),
-          notes: String(row.notes ?? ""),
-          created_at: new Date(row.created_at).toISOString(),
-          author_short_name: String(row.author_short_name ?? ""),
-        }))
-      : [];
+    if (Array.isArray(placeNotesRows) && placeNotesRows.length > 0) {
+      // Fetch user_id for each rating so the client can build /profile/[userId] links.
+      const ratingIds = (placeNotesRows as PlaceNotePublicRow[]).map(
+        (r) => r.rating_id,
+      );
+      const { data: raterRows } = await serviceClient
+        .from("ratings")
+        .select("id, user_id")
+        .in("id", ratingIds);
+      const raterIdMap = new Map<string, string>(
+        (raterRows ?? []).map((r) => [String(r.id), String(r.user_id)]),
+      );
+
+      notes = (placeNotesRows as PlaceNotePublicRow[]).map((row) => ({
+        id: String(row.rating_id),
+        rater_id: raterIdMap.get(row.rating_id) ?? "",
+        notes: String(row.notes ?? ""),
+        created_at: new Date(row.created_at).toISOString(),
+        author_short_name: String(row.author_short_name ?? ""),
+      }));
+    }
 
     return NextResponse.json({
       data: {

@@ -4,6 +4,7 @@ import type { PointerEvent as ReactPointerEvent } from "react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bookmark, NotebookPen, X } from "lucide-react";
 import type { FeedItem } from "@/types/feed";
@@ -1281,9 +1282,18 @@ export function PlaceDetailMobile({
                               {noteAuthorAvatarLetter(note.author_short_name)}
                             </div>
                             <div className="flex min-w-0 flex-1  gap-8">
-                              <span className="truncate text-ui-label-s font-bold text-text">
-                                {note.author_short_name}
-                              </span>
+                              {note.id === detail?.my_rating?.id ? (
+                                <span className="truncate text-ui-label-s font-bold text-text">
+                                  {note.author_short_name}
+                                </span>
+                              ) : (
+                                <Link
+                                  href={`/profile/${note.rater_id}`}
+                                  className="truncate text-ui-label-s font-bold text-accent text-link"
+                                >
+                                  {note.author_short_name}
+                                </Link>
+                              )}
                               <span
                                 className="shrink-0 text-ui-label-s font-normal text-text-tertiary"
                                 aria-hidden

@@ -34,6 +34,7 @@ export type PlaceDetailResponse = {
   is_saved: boolean;
   notes: Array<{
     id: string;
+    rater_id: string;
     notes: string;
     created_at: string;
     author_short_name: string;

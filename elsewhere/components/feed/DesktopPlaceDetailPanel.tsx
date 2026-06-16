@@ -12,6 +12,7 @@ import {
   useState,
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import Link from "next/link";
 import { createPortal } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -905,9 +906,18 @@ export function DesktopPlaceDetailPanel({
                             {noteAuthorAvatarLetter(note.author_short_name)}
                           </div>
                           <div className="flex min-w-0 flex-1  gap-8">
-                            <span className="truncate text-ui-label-s font-bold text-text">
-                              {note.author_short_name}
-                            </span>
+                            {note.id === detail?.my_rating?.id ? (
+                              <span className="truncate text-ui-label-s font-bold text-text">
+                                {note.author_short_name}
+                              </span>
+                            ) : (
+                              <Link
+                                href={`/profile/${note.rater_id}`}
+                                className="truncate text-ui-label-s font-bold text-accent text-link"
+                              >
+                                {note.author_short_name}
+                              </Link>
+                            )}
                             <span
                               className="shrink-0 text-ui-label-s font-normal text-text-tertiary"
                               aria-hidden

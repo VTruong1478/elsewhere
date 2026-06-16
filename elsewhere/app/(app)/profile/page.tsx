@@ -1,69 +1,66 @@
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
-import { User2 } from "lucide-react";
-import { getDevAuthCredentials } from "@/lib/devAuth";
+import { hasDevBypassCookie, tryGetOrCreateDevAuthUser } from "@/lib/devAuth";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
-import { LogoutButton } from "./LogoutButton";
+import { ProfileContent } from "@/components/profile/ProfileContent";
 
 async function getProfileData() {
   const supabase = await createClient();
   const cookieStore = await cookies();
-  const devBypass =
-    process.env.NODE_ENV === "development" &&
-    cookieStore.get("dev_auth")?.value === "1";
+  const devBypass = hasDevBypassCookie(cookieStore);
 
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) {
-    if (devBypass) {
-      const devCredentials = getDevAuthCredentials();
-      return {
-        fullName: "Dev User",
-        email: devCredentials?.email ?? "dev@example.local",
-        avatarUrl: null,
-        stats: {
-          placesRated: 0,
-          photosUploaded: 0,
-          placesSaved: 0,
-        },
-      };
-    }
+  const serviceClient = createServiceRoleClient();
+
+  const actingUser =
+    user ??
+    (devBypass ? await tryGetOrCreateDevAuthUser(serviceClient, "profile/page") : null);
+
+  if (!actingUser) {
     redirect(`/signup?next=${encodeURIComponent("/profile")}`);
   }
-
-  const serviceClient = createServiceRoleClient();
 
   const [
     { data: profile },
     { count: ratingsCount },
     { count: photosCount },
     { count: savedCount },
+    { count: followersCount },
+    { count: followingCount },
   ] = await Promise.all([
-    supabase
+    serviceClient
       .from("profiles")
       .select("full_name, avatar_url")
-      .eq("id", user.id)
+      .eq("id", actingUser.id)
       .maybeSingle(),
     serviceClient
       .from("ratings")
       .select("id", { count: "exact", head: true })
-      .eq("user_id", user.id),
+      .eq("user_id", actingUser.id),
     serviceClient
       .from("ratings")
       .select("id", { count: "exact", head: true })
-      .eq("user_id", user.id)
+      .eq("user_id", actingUser.id)
       .not("photo_path", "is", null),
-    // Same table + RLS as /api/saved and the Saved page so the count matches what you can load.
-    supabase
+    serviceClient
       .from("saved")
       .select("place_id", { count: "exact", head: true })
-      .eq("user_id", user.id),
+      .eq("user_id", actingUser.id),
+    serviceClient
+      .from("user_follows")
+      .select("follower_id", { count: "exact", head: true })
+      .eq("following_id", actingUser.id),
+    serviceClient
+      .from("user_follows")
+      .select("following_id", { count: "exact", head: true })
+      .eq("follower_id", actingUser.id),
   ]);
 
-  const email = user.email ?? "";
+  const email = actingUser.email ?? "";
   const fallbackName = email.includes("@") ? email.split("@")[0] : email;
   const fullName = (
     profile?.full_name ||
@@ -72,6 +69,7 @@ async function getProfileData() {
   ).trim();
 
   return {
+    userId: actingUser.id,
     fullName,
     email,
     avatarUrl: profile?.avatar_url ?? null,
@@ -79,63 +77,26 @@ async function getProfileData() {
       placesRated: ratingsCount ?? 0,
       photosUploaded: photosCount ?? 0,
       placesSaved: savedCount ?? 0,
+      followersCount: followersCount ?? 0,
+      followingCount: followingCount ?? 0,
     },
   };
 }
 
 export default async function ProfilePage() {
-  const { fullName, email, avatarUrl, stats } = await getProfileData();
+  const { userId, fullName, email, avatarUrl, stats } = await getProfileData();
 
   return (
-    <main className="min-h-screen w-full bg-background px-16 pt-40">
-      <div className="mx-auto flex max-w-md flex-col items-center text-center">
-        {/* Avatar */}
-        <div className="mb-16 h-80 w-80 flex items-center justify-center rounded-full bg-surface-alt text-text shadow-map">
-          {avatarUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={avatarUrl}
-              alt={fullName}
-              className="h-full w-full rounded-full object-cover"
-            />
-          ) : (
-            <User2 size={40} className="text-primary" aria-hidden />
-          )}
-        </div>
-
-        {/* Name and email */}
-        <h1 className="mb-4 text-heading-l text-text">{fullName}</h1>
-        {email && (
-          <p className="mb-24 text-body-m text-text-secondary">{email}</p>
-        )}
-
-        {/* Activity heading */}
-        <div className="mb-12 w-full text-left">
-          <h2 className="text-heading-m text-text">Your activity</h2>
-        </div>
-
-        {/* Stat cards */}
-        <div className="mb-16 grid w-full grid-cols-3 gap-8">
-          <div className="rounded-radius-md bg-surface px-12 py-16 text-center">
-            <p className="text-display-l text-text">{stats.placesRated ?? 0}</p>
-            <p className="mt-4 text-body-s text-text-secondary">Places rated</p>
-          </div>
-          <div className="rounded-radius-md bg-surface px-12 py-16 text-center">
-            <p className="text-display-l text-text">
-              {stats.photosUploaded ?? 0}
-            </p>
-            <p className="mt-4 text-body-s text-text-secondary">
-              Photos uploaded
-            </p>
-          </div>
-          <div className="rounded-radius-md bg-surface px-12 py-16 text-center">
-            <p className="text-display-l text-text">{stats.placesSaved ?? 0}</p>
-            <p className="mt-4 text-body-s text-text-secondary">Places saved</p>
-          </div>
-        </div>
-
-        {/* Logout */}
-        <LogoutButton />
+    <main className="min-h-screen w-full bg-background px-16 pt-40 pb-24">
+      <div className="mx-auto max-w-md">
+        <ProfileContent
+          userId={userId}
+          fullName={fullName}
+          email={email}
+          avatarUrl={avatarUrl}
+          stats={stats}
+          isOwnProfile={true}
+        />
       </div>
     </main>
   );
