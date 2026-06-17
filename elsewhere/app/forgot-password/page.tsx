@@ -1,24 +1,13 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
-import Image from "next/image";
+import { Suspense, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { MapPin } from "lucide-react";
-import posthog from "posthog-js";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { captureEvent } from "@/lib/analytics";
-import { setOAuthAuthIntent } from "@/lib/gatedAction";
 import { safeInternalPath } from "@/lib/safeNextPath";
-import { destinationAfterAuth } from "@/lib/authReturnPath";
-
-function setDevAuthCookieNow() {
-  if (process.env.NODE_ENV !== "development" || typeof document === "undefined")
-    return;
-  document.cookie = "dev_auth=1; path=/; max-age=86400; samesite=lax";
-}
 
 function AuthIllustration() {
   return (
@@ -69,142 +58,60 @@ function AuthIllustration() {
   );
 }
 
-function LoginPageInner() {
-  const router = useRouter();
+function ForgotPasswordPageInner() {
   const searchParams = useSearchParams();
   const nextSafe = safeInternalPath(searchParams.get("next"));
 
-  useEffect(() => {
-    const supabase = createClient();
-    void supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session?.user) return;
-      window.location.replace(destinationAfterAuth(nextSafe));
-    });
-  }, [nextSafe]);
-
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [isLoadingEmail, setIsLoadingEmail] = useState(false);
-  const [isLoadingGoogle, setIsLoadingGoogle] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  function signupHref() {
-    if (!nextSafe) return "/signup";
-    return `/signup?next=${encodeURIComponent(nextSafe)}`;
-  }
-
-  function forgotPasswordHref() {
-    if (!nextSafe) return "/forgot-password";
-    return `/forgot-password?next=${encodeURIComponent(nextSafe)}`;
-  }
-
-  async function handleEmailSignIn(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    captureEvent("login_started", { method: "email" });
 
     const normalizedEmail = email.trim().toLowerCase();
-    setIsLoadingEmail(true);
-    const supabase = createClient();
-
-    if (process.env.NODE_ENV === "development") {
-      const devRes = await fetch("/api/dev-auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: normalizedEmail, password }),
-      });
-
-      if (devRes.ok) {
-        // API only ensures the user exists + sets dev_auth. A real Supabase session
-        // is required for client getSession() / middleware user checks.
-        const { error: devSignInError } =
-          await supabase.auth.signInWithPassword({
-            email: normalizedEmail,
-            password,
-          });
-        setIsLoadingEmail(false);
-        if (devSignInError) {
-          setError(devSignInError.message);
-          return;
-        }
-        localStorage.setItem("hasVisited", "true");
-        localStorage.removeItem("justLoggedOut");
-        setDevAuthCookieNow();
-        const {
-          data: { user: devUser },
-        } = await supabase.auth.getUser();
-        if (devUser) {
-          posthog.identify(devUser.id);
-        }
-        captureEvent("login_completed", { method: "email" });
-        await supabase.auth.getSession();
-        window.location.assign(destinationAfterAuth(nextSafe));
-        return;
-      }
-
-      if (devRes.status !== 401) {
-        const body = await devRes.json().catch(() => ({}));
-        setIsLoadingEmail(false);
-        setError(
-          (body as { error?: string }).error ??
-            "Development login is unavailable",
-        );
-        return;
-      }
-    }
-
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: normalizedEmail,
-      password,
-    });
-    setIsLoadingEmail(false);
-
-    if (signInError) {
-      setError(signInError.message);
+    if (!normalizedEmail) {
+      setError("Please enter your email address.");
       return;
     }
 
-    localStorage.setItem("hasVisited", "true");
-    localStorage.removeItem("justLoggedOut");
-    setDevAuthCookieNow();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (user) {
-      posthog.identify(user.id);
-    }
-    captureEvent("login_completed", { method: "email" });
-    await supabase.auth.getSession();
-    window.location.assign(destinationAfterAuth(nextSafe));
-  }
-
-  async function handleGoogleSignIn() {
-    setError(null);
-    captureEvent("login_started", { method: "oauth_google" });
-    setOAuthAuthIntent("login");
-    setIsLoadingGoogle(true);
+    setIsLoading(true);
     const supabase = createClient();
+
     const redirectTo = nextSafe
-      ? `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextSafe)}`
-      : `${window.location.origin}/auth/callback`;
-    const { error: signInError } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo },
-    });
-    setIsLoadingGoogle(false);
-    if (signInError) {
-      setError(signInError.message);
+      ? `${window.location.origin}/reset-password?next=${encodeURIComponent(nextSafe)}`
+      : `${window.location.origin}/reset-password`;
+
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(
+      normalizedEmail,
+      { redirectTo },
+    );
+    setIsLoading(false);
+
+    if (resetError) {
+      setError(resetError.message);
       return;
     }
 
-    localStorage.setItem("hasVisited", "true");
-    localStorage.removeItem("justLoggedOut");
+    setSubmitted(true);
   }
 
-  const authPanelContent = (
+  const authPanelContent = submitted ? (
     <>
-      <p className="text-ui-label-xl text-text-secondary">Welcome back!</p>
-      <form onSubmit={handleEmailSignIn} className="flex flex-col gap-16">
+      <p className="text-ui-label-xl text-text-secondary">Check your email</p>
+      <p className="text-body-l text-text">
+        Check your email for a reset link.
+      </p>
+    </>
+  ) : (
+    <>
+      <p className="text-ui-label-xl text-text-secondary">Reset your password</p>
+      <p className="text-body-m text-text-secondary">
+        Enter your email and we&apos;ll send you a reset link.
+      </p>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-16">
         <Input
           variant="field"
           id="email"
@@ -215,64 +122,14 @@ function LoginPageInner() {
           autoComplete="email"
           className="bg-surface"
         />
-        <Input
-          variant="field"
-          id="password"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="Password"
-          autoComplete="current-password"
-          className="bg-surface"
-        />
-        <Link
-          href={forgotPasswordHref()}
-          className="ml-auto text-body-l text-accent text-link"
-        >
-          Forgot password?
-        </Link>
         <Button
           type="submit"
-          disabled={isLoadingEmail}
+          disabled={isLoading}
           className="w-full text-ui-button disabled:opacity-50"
         >
-          {isLoadingEmail ? "Logging in..." : "Log in"}
+          {isLoading ? "Sending..." : "Send reset link"}
         </Button>
       </form>
-
-      <div className="flex items-center gap-16 text-text-tertiary">
-        <div className="h-px flex-1 bg-surface-alt" />
-        <span className="text-ui-label-l text-text-secondary">or</span>
-        <div className="h-px flex-1 bg-surface-alt" />
-      </div>
-
-      <Button
-        type="button"
-        variant="secondary"
-        onClick={() => void handleGoogleSignIn()}
-        disabled={isLoadingGoogle}
-        className="w-full !bg-surface disabled:opacity-50"
-      >
-        <span className="inline-flex items-center gap-8 text-ui-label-l">
-          <Image
-            src="/google-icon.svg"
-            alt=""
-            width={18}
-            height={18}
-            aria-hidden
-          />
-          <span>Continue with Google</span>
-        </span>
-      </Button>
-
-      <button
-        type="button"
-        onClick={() => router.push(signupHref())}
-        className="mx-auto mt-auto pb-16 text-body-l text-accent text-link"
-      >
-        Don&apos;t have an account? Sign up
-      </button>
-
       {error && <p className="text-body-s text-status-low">{error}</p>}
     </>
   );
@@ -292,20 +149,12 @@ function LoginPageInner() {
         <div className="grid min-h-0 flex-1 grid-cols-4 px-16 md:grid-cols-8 md:px-24">
           <section className="relative col-span-4 flex min-h-0 flex-1 flex-col pt-24 md:col-span-6 md:col-start-2">
             <div className="flex flex-col gap-16">{authPanelContent}</div>
-            <button
-              type="button"
-              onClick={() => {
-                try {
-                  localStorage.setItem("hasVisited", "true");
-                } catch {
-                  /* ignore */
-                }
-                router.push("/feed");
-              }}
+            <Link
+              href="/login"
               className="mx-auto mt-auto pb-16 text-body-l text-accent text-link"
             >
-              Browse without an account
-            </button>
+              Back to login
+            </Link>
           </section>
         </div>
       </div>
@@ -328,20 +177,12 @@ function LoginPageInner() {
                 {authPanelContent}
               </div>
 
-              <button
-                type="button"
-                onClick={() => {
-                  try {
-                    localStorage.setItem("hasVisited", "true");
-                  } catch {
-                    /* ignore */
-                  }
-                  router.push("/feed");
-                }}
+              <Link
+                href="/login"
                 className="mx-auto pb-16 text-body-l text-accent text-link lg:absolute lg:bottom-24 lg:left-1/2 lg:-translate-x-1/2 lg:pb-0"
               >
-                Browse without an account
-              </button>
+                Back to login
+              </Link>
             </section>
           </div>
         </div>
@@ -350,12 +191,12 @@ function LoginPageInner() {
   );
 }
 
-export default function LoginPage() {
+export default function ForgotPasswordPage() {
   return (
     <Suspense
       fallback={<div className="min-h-screen bg-background" aria-hidden />}
     >
-      <LoginPageInner />
+      <ForgotPasswordPageInner />
     </Suspense>
   );
 }
