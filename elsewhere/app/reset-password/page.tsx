@@ -72,20 +72,37 @@ function ResetPasswordPageInner() {
 
   useEffect(() => {
     const supabase = createClient();
-    let gotRecovery = false;
+    let settled = false;
 
+    function resolve(status: PageStatus) {
+      if (settled) return;
+      settled = true;
+      setPageStatus(status);
+    }
+
+    // Subscribe first so we don't miss events fired after this point.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event) => {
-        if (event === "PASSWORD_RECOVERY") {
-          gotRecovery = true;
-          setPageStatus("ready");
-        }
+        if (event === "PASSWORD_RECOVERY") resolve("ready");
       },
     );
 
-    // If PASSWORD_RECOVERY doesn't fire within 5s, the link is expired or missing
+    // createBrowserClient (from @supabase/ssr) auto-exchanges the ?code= PKCE
+    // token on initialisation — before React mounts — so PASSWORD_RECOVERY can
+    // fire before we subscribed above. getSession() catches that race.
+    void supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) resolve("ready");
+    });
+
+    // Safety net: if neither path resolves, clear any partial session and show
+    // expired. signOut is fire-and-forget; state updates synchronously so the
+    // UI responds immediately without waiting for the network round-trip.
     const timer = setTimeout(() => {
-      if (!gotRecovery) setPageStatus("expired");
+      if (!settled) {
+        settled = true;
+        void supabase.auth.signOut();
+        setPageStatus("expired");
+      }
     }, 5000);
 
     return () => {
@@ -188,12 +205,17 @@ function ResetPasswordPageInner() {
         <div className="grid min-h-0 flex-1 grid-cols-4 px-16 md:grid-cols-8 md:px-24">
           <section className="relative col-span-4 flex min-h-0 flex-1 flex-col pt-24 md:col-span-6 md:col-start-2">
             <div className="flex flex-col gap-16">{authPanelContent}</div>
-            <Link
-              href="/login"
+            <button
+              type="button"
+              onClick={() => {
+                void createClient().auth.signOut().then(() => {
+                  window.location.assign("/login");
+                });
+              }}
               className="mx-auto mt-auto pb-16 text-body-l text-accent text-link"
             >
               Back to login
-            </Link>
+            </button>
           </section>
         </div>
       </div>
@@ -216,12 +238,17 @@ function ResetPasswordPageInner() {
                 {authPanelContent}
               </div>
 
-              <Link
-                href="/login"
+              <button
+                type="button"
+                onClick={() => {
+                  void createClient().auth.signOut().then(() => {
+                    window.location.assign("/login");
+                  });
+                }}
                 className="mx-auto pb-16 text-body-l text-accent text-link lg:absolute lg:bottom-24 lg:left-1/2 lg:-translate-x-1/2 lg:pb-0"
               >
                 Back to login
-              </Link>
+              </button>
             </section>
           </div>
         </div>

@@ -102,13 +102,13 @@ describe('ForgotPasswordPage', () => {
     render(<ForgotPasswordPage />)
 
     fireEvent.change(screen.getAllByPlaceholderText('Email')[0], {
-      target: { value: '  Test@Example.com  ' },
+      target: { value: '  Elsewhere.App.Team@Gmail.com  ' },
     })
     fireEvent.click(screen.getAllByRole('button', { name: /send reset link/i })[0])
 
     await waitFor(() => {
       expect(mockResetPasswordForEmail).toHaveBeenCalledWith(
-        'test@example.com',
+        'elsewhere.app.team@gmail.com',
         expect.objectContaining({
           redirectTo: expect.stringContaining('/reset-password'),
         }),
@@ -120,7 +120,7 @@ describe('ForgotPasswordPage', () => {
     render(<ForgotPasswordPage />)
 
     fireEvent.change(screen.getAllByPlaceholderText('Email')[0], {
-      target: { value: 'user@example.com' },
+      target: { value: 'elsewhere.app.team@gmail.com' },
     })
     fireEvent.click(screen.getAllByRole('button', { name: /send reset link/i })[0])
 
@@ -144,7 +144,7 @@ describe('ForgotPasswordPage', () => {
     render(<ForgotPasswordPage />)
 
     fireEvent.change(screen.getAllByPlaceholderText('Email')[0], {
-      target: { value: 'oops@example.com' },
+      target: { value: 'elsewhere.app.team@gmail.com' },
     })
     fireEvent.click(screen.getAllByRole('button', { name: /send reset link/i })[0])
 
@@ -178,13 +178,13 @@ describe('ForgotPasswordPage', () => {
     render(<ForgotPasswordPage />)
 
     fireEvent.change(screen.getAllByPlaceholderText('Email')[0], {
-      target: { value: 'user@example.com' },
+      target: { value: 'elsewhere.app.team@gmail.com' },
     })
     fireEvent.click(screen.getAllByRole('button', { name: /send reset link/i })[0])
 
     await waitFor(() => {
       expect(mockResetPasswordForEmail).toHaveBeenCalledWith(
-        'user@example.com',
+        'elsewhere.app.team@gmail.com',
         expect.objectContaining({
           redirectTo: expect.stringContaining('next='),
         }),

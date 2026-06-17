@@ -84,6 +84,7 @@ describe('ResetPasswordPage', () => {
         }),
         updateUser: mockUpdateUser,
         getSession: mockGetSession,
+        signOut: vi.fn().mockResolvedValue({ error: null }),
       },
     } as ReturnType<typeof createClient>)
   })
