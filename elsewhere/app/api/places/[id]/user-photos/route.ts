@@ -40,17 +40,19 @@ export async function GET(
       .maybeSingle<{ google_photo_urls: string[] | null }>(),
   ]);
 
+  // Storage error is non-fatal: still return Google photos.
   if (storageResult.error) {
     console.error("[user-photos list]", storageResult.error);
-    return NextResponse.json(
-      { error: storageResult.error.message ?? "List failed" },
-      { status: 500 },
-    );
+  }
+  if (placeResult.error) {
+    console.error("[user-photos place query]", placeResult.error);
   }
 
-  const userPhotoUrls = (storageResult.data ?? [])
-    .filter((f) => f.name && isUserPhotoFile(f.name))
-    .map((f) => userPhotoProxyUrl(`${placeId}/${f.name}`));
+  const userPhotoUrls = storageResult.error
+    ? []
+    : (storageResult.data ?? [])
+        .filter((f) => f.name && isUserPhotoFile(f.name))
+        .map((f) => userPhotoProxyUrl(`${placeId}/${f.name}`));
 
   const googlePhotoUrls: string[] = (
     placeResult.data?.google_photo_urls ?? []
