@@ -63,9 +63,24 @@ function ForgotPasswordPageInner() {
   const nextSafe = safeInternalPath(searchParams.get("next"));
 
   const [email, setEmail] = useState("");
+  const [submittedEmail, setSubmittedEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isResending, setIsResending] = useState(false);
+  const [resent, setResent] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  async function sendResetEmail(emailAddress: string) {
+    const supabase = createClient();
+    const callbackUrl = new URL(`${window.location.origin}/auth/callback`);
+    callbackUrl.searchParams.set('type', 'recovery');
+    if (nextSafe) callbackUrl.searchParams.set('next', nextSafe);
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(
+      emailAddress,
+      { redirectTo: callbackUrl.toString() },
+    );
+    return resetError;
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -78,16 +93,7 @@ function ForgotPasswordPageInner() {
     }
 
     setIsLoading(true);
-    const supabase = createClient();
-
-    const redirectTo = nextSafe
-      ? `${window.location.origin}/reset-password?next=${encodeURIComponent(nextSafe)}`
-      : `${window.location.origin}/reset-password`;
-
-    const { error: resetError } = await supabase.auth.resetPasswordForEmail(
-      normalizedEmail,
-      { redirectTo },
-    );
+    const resetError = await sendResetEmail(normalizedEmail);
     setIsLoading(false);
 
     if (resetError) {
@@ -95,15 +101,44 @@ function ForgotPasswordPageInner() {
       return;
     }
 
+    setSubmittedEmail(normalizedEmail);
     setSubmitted(true);
+  }
+
+  async function handleResend() {
+    setIsResending(true);
+    setResent(false);
+    await sendResetEmail(submittedEmail);
+    setIsResending(false);
+    setResent(true);
+    setTimeout(() => setResent(false), 3000);
   }
 
   const authPanelContent = submitted ? (
     <>
       <p className="text-ui-label-xl text-text-secondary">Check your email</p>
-      <p className="text-body-l text-text">
-        Check your email for a reset link.
+      <p className="text-body-m text-text-secondary">
+        We sent a password reset link to{" "}
+        <span className="text-text font-medium">{submittedEmail}</span>.
+        Click the link in the email to reset your password.
       </p>
+      <div className="flex flex-col gap-12">
+        <button
+          type="button"
+          onClick={handleResend}
+          disabled={isResending}
+          className="text-body-m text-accent text-link disabled:opacity-50 text-left"
+        >
+          {resent
+            ? "Email resent"
+            : isResending
+              ? "Resending..."
+              : "Didn't receive it? Resend email"}
+        </button>
+        <Link href="/login" className="text-body-m text-accent text-link">
+          Back to login
+        </Link>
+      </div>
     </>
   ) : (
     <>

@@ -58,7 +58,7 @@ function AuthIllustration() {
   );
 }
 
-type PageStatus = "loading" | "ready" | "expired";
+type PageStatus = "loading" | "ready" | "expired" | "success";
 
 function ResetPasswordPageInner() {
   const searchParams = useSearchParams();
@@ -134,14 +134,23 @@ function ResetPasswordPageInner() {
       return;
     }
 
-    // Ensure session cookies are committed before navigation
-    await supabase.auth.getSession();
-    window.location.assign("/login?message=password-updated");
+    setPageStatus("success");
+    const dest = nextSafe ?? "/feed";
+    setTimeout(() => {
+      window.location.assign(dest);
+    }, 2000);
   }
 
   const authPanelContent =
     pageStatus === "loading" ? (
       <p className="text-body-l text-text-secondary">Verifying reset link…</p>
+    ) : pageStatus === "success" ? (
+      <>
+        <p className="text-ui-label-xl text-text-secondary">Password updated</p>
+        <p className="text-body-l text-text">
+          Your password has been updated. Redirecting you now…
+        </p>
+      </>
     ) : pageStatus === "expired" ? (
       <>
         <p className="text-ui-label-xl text-text-secondary">Link expired</p>
