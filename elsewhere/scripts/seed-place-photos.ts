@@ -1,6 +1,6 @@
 /**
- * Fetch Google Places photos, filter with Claude Haiku vision (interior/vibe shots only),
- * re-upload passing photos to Supabase Storage, and save public URLs to places.google_photo_urls.
+ * Fetch Google Places photos, re-upload to Supabase Storage, and save public URLs
+ * to places.google_photo_urls. Photos are reviewed manually via dev-tools/photo-review.html.
  *
  * PREREQUISITE — google_photo_urls text[] column must exist on public.places.
  * If missing, add it first:
@@ -14,11 +14,10 @@
  *   npx ts-node scripts/seed-place-photos.ts
  *
  * ENV (.env.local): NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
- *   GOOGLE_PLACES_API_KEY, ANTHROPIC_API_KEY
+ *   GOOGLE_PLACES_API_KEY
  */
 
 import { createClient } from "@supabase/supabase-js";
-import Anthropic from "@anthropic-ai/sdk";
 import dotenv from "dotenv";
 import path from "path";
 
@@ -27,12 +26,10 @@ dotenv.config({ path: path.resolve(process.cwd(), ".env.local") });
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const GOOGLE_PLACES_API_KEY = process.env.GOOGLE_PLACES_API_KEY;
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 
 const MAX_PHOTOS_PER_PLACE = 8;
 const MAX_PHOTOS_TO_FETCH = 20;
 const GOOGLE_DELAY_MS = 500;
-const HAIKU_DELAY_MS = 200;
 
 // ── CLI parsing ───────────────────────────────────────────────────────────────
 
@@ -56,7 +53,6 @@ function validateEnv(): void {
   if (!SUPABASE_URL) missing.push("NEXT_PUBLIC_SUPABASE_URL");
   if (!SUPABASE_SERVICE_ROLE_KEY) missing.push("SUPABASE_SERVICE_ROLE_KEY");
   if (!GOOGLE_PLACES_API_KEY) missing.push("GOOGLE_PLACES_API_KEY");
-  if (!DRY_RUN && !ANTHROPIC_API_KEY) missing.push("ANTHROPIC_API_KEY");
   if (missing.length > 0) {
     throw new Error(
       `Missing required env vars in .env.local: ${missing.join(", ")}`
@@ -128,60 +124,6 @@ async function downloadPhoto(photoUri: string): Promise<Buffer> {
   return Buffer.from(arrayBuffer);
 }
 
-// ── Claude Haiku vision filter ────────────────────────────────────────────────
-
-const HAIKU_PROMPT = `You are helping filter photos for a work-friendly cafe and library discovery app.
-
-Does this photo show the INTERIOR of the venue — including seating areas, tables, atmosphere, or general indoor vibe?
-
-Answer with a single word: YES or NO.
-
-Do not explain your answer.`;
-
-async function isInteriorPhoto(
-  anthropic: Anthropic,
-  imageBuffer: Buffer
-): Promise<boolean> {
-  const base64 = imageBuffer.toString("base64");
-  let response: Anthropic.Message;
-  try {
-    response = await anthropic.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 10,
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "image",
-              source: {
-                type: "base64",
-                media_type: "image/jpeg",
-                data: base64,
-              },
-            },
-            {
-              type: "text",
-              text: HAIKU_PROMPT,
-            },
-          ],
-        },
-      ],
-    });
-  } catch (e) {
-    console.error(
-      "    Haiku API error:",
-      e instanceof Error ? e.message : String(e)
-    );
-    return false;
-  }
-  const text =
-    response.content[0]?.type === "text"
-      ? response.content[0].text.trim().toUpperCase()
-      : "";
-  return text === "YES";
-}
-
 // ── Supabase storage upload ───────────────────────────────────────────────────
 
 async function uploadToStorage(
@@ -223,7 +165,6 @@ interface PlaceResult {
 async function processPlace(
   place: PlaceRow,
   supabase: ReturnType<typeof createClient>,
-  anthropic: Anthropic,
   index: number,
   total: number
 ): Promise<PlaceResult> {
@@ -261,9 +202,9 @@ async function processPlace(
     return { name: place.name, status: "skipped", skipReason: "no photos from Google" };
   }
 
-  console.log(`  Found ${photoNames.length} Google photo(s). Running Haiku filter...`);
+  console.log(`  Found ${photoNames.length} Google photo(s). Uploading up to ${MAX_PHOTOS_PER_PLACE}...`);
 
-  // Steps 2-4: download → filter → upload
+  // Steps 2-3: download → upload (all photos, no filtering)
   const uploadedUrls: string[] = [];
 
   for (const photo of photoNames) {
@@ -288,15 +229,6 @@ async function processPlace(
       );
       continue;
     }
-
-    // Haiku vision filter
-    await sleep(HAIKU_DELAY_MS);
-    const isInterior = await isInteriorPhoto(anthropic, imageBuffer);
-    if (!isInterior) {
-      console.log(`    ${photoRef} → NO (exterior/other, skipped)`);
-      continue;
-    }
-    console.log(`    ${photoRef} → YES (interior)`);
 
     if (DRY_RUN) {
       // In dry-run, count it as passing without uploading
@@ -348,7 +280,7 @@ async function processPlace(
   };
 }
 
-// ── Dry-run per-place logic (metadata only — no downloads, no Haiku) ─────────
+// ── Dry-run per-place logic (metadata only — no downloads) ───────────────────
 
 async function processDryRunPlace(
   place: PlaceRow,
@@ -384,7 +316,7 @@ async function processDryRunPlace(
 
   const suffix =
     photoNames.length > MAX_PHOTOS_PER_PLACE
-      ? ` (would filter with Haiku, cap at ${MAX_PHOTOS_PER_PLACE})`
+      ? ` (capped at ${MAX_PHOTOS_PER_PLACE})`
       : "";
   console.log(
     `[DRY RUN] "${place.name}" — ${photoNames.length} photos available from Google${suffix}`
@@ -400,9 +332,8 @@ async function main(): Promise<void> {
   const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, {
     auth: { persistSession: false },
   });
-  const anthropic = DRY_RUN ? null : new Anthropic({ apiKey: ANTHROPIC_API_KEY! });
 
-  console.log(`Mode: ${DRY_RUN ? "DRY RUN (metadata only — no downloads, no Haiku)" : "LIVE"}`);
+  console.log(`Mode: ${DRY_RUN ? "DRY RUN (metadata only — no downloads)" : "LIVE"}`);
   if (SINGLE_PLACE_ID) console.log(`Single place: ${SINGLE_PLACE_ID}`);
   console.log();
 
@@ -435,7 +366,7 @@ async function main(): Promise<void> {
     try {
       const result = DRY_RUN
         ? await processDryRunPlace(place, i + 1, rows.length)
-        : await processPlace(place, supabase, anthropic!, i + 1, rows.length);
+        : await processPlace(place, supabase, i + 1, rows.length);
       results.push(result);
     } catch (e) {
       console.error(
@@ -452,18 +383,13 @@ async function main(): Promise<void> {
   const alreadyHad = results.filter((r) => r.status === "already_had_photos");
   const noPlaceId = skipped.filter((r) => r.skipReason === "no google_place_id");
   const totalPhotosAvailable = processed.reduce((sum, r) => sum + (r.photosAvailable ?? 0), 0);
-  const estimatedHaikuCalls = processed.reduce(
-    (sum, r) => sum + Math.min(r.photosAvailable ?? 0, MAX_PHOTOS_PER_PLACE),
-    0
-  );
 
   if (DRY_RUN) {
     console.log("\n=== Dry Run Summary ===");
     console.log(`Would process:       ${processed.length} places`);
     console.log(`Already done:        ${alreadyHad.length} places (skipped)`);
     console.log(`No google_place_id:  ${noPlaceId.length} places (skipped)`);
-    console.log(`Total photos available: ${totalPhotosAvailable}`);
-    console.log(`Estimated Haiku calls:  ${estimatedHaikuCalls} (capped at ${MAX_PHOTOS_PER_PLACE} per place)`);
+    console.log(`Total photos available: ${totalPhotosAvailable} (capped at ${MAX_PHOTOS_PER_PLACE} per place)`);
   } else {
     const totalUploaded = processed.reduce((sum, r) => sum + (r.photoCount ?? 0), 0);
     const errors = results.filter((r) => r.status === "error");
