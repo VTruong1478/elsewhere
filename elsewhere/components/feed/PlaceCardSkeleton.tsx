@@ -43,11 +43,11 @@ export function PlaceCardSkeleton() {
             key={i}
             className="flex min-w-0 w-full flex-col items-center justify-center rounded-radius-sm bg-surface-alt px-4 py-8 text-center"
           >
-            <span className="mb-8 h-8 w-12 animate-pulse rounded-radius-sm bg-surface" />
+            <span className="h-8 w-20 animate-pulse rounded-radius-sm bg-surface" />
             <div className="flex min-h-[20px] items-center justify-center">
-              <span className="h-5 w-5 animate-pulse rounded-radius-sm bg-surface" />
+              <span className="h-8 w-20 animate-pulse rounded-radius-sm bg-surface" />
             </div>
-            <span className="mt-8 h-8 w-14 animate-pulse rounded-radius-sm bg-surface" />
+            <span className="h-8 w-24 animate-pulse rounded-radius-sm bg-surface" />
           </div>
         ))}
       </div>
@@ -64,12 +64,10 @@ export function PlaceCardSkeleton() {
       <div className="flex flex-wrap items-center justify-between gap-8 px-16 pb-16">
         <div className="flex min-w-0 items-center gap-8">
           <span className="h-8 w-8 shrink-0 animate-pulse rounded-full bg-surface-alt" />
-          <div className="flex flex-col gap-8">
-            <span className="h-8 w-32 animate-pulse rounded-radius-sm bg-surface-alt" />
-            <span className="h-8 w-24 animate-pulse rounded-radius-sm bg-surface-alt" />
-          </div>
+          <span className="h-8 w-32 animate-pulse rounded-radius-sm bg-surface-alt" />
+          <span className="h-8 w-20 animate-pulse rounded-radius-sm bg-surface-alt" />
         </div>
-        <div className="inline-flex h-40 min-w-[72px] items-center justify-center rounded-radius-md bg-surface-alt px-24 py-8 animate-pulse" />
+        <div className="inline-flex h-[36px] min-w-[72px] animate-pulse items-center justify-center rounded-radius-md bg-surface-alt px-24" />
       </div>
     </article>
   );

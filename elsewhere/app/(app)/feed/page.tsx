@@ -194,7 +194,7 @@ function FeedContent() {
           </div>
           <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto py-4 px-16 pb-8">
             {showSkeletons && (
-              <div className="space-y-4">
+              <div className="space-y-12">
                 {Array.from({ length: 5 }).map((_, i) => (
                   <PlaceCardSkeleton key={i} />
                 ))}
