@@ -174,6 +174,7 @@ export async function GET(
       is_saved: savedPlaceIds.has(row.place_id),
       rater_id: userId,
       rater_name: null,
+      rater_username: null,
       rater_avatar: null,
     };
   });

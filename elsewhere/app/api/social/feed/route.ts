@@ -83,7 +83,7 @@ export async function GET() {
       .in("id", placeIds),
     serviceClient
       .from("profiles")
-      .select("id, full_name, avatar_url")
+      .select("id, full_name, avatar_url, username")
       .in("id", raterIds),
     serviceClient
       .from("place_stats")
@@ -188,6 +188,7 @@ export async function GET() {
       place_type: (place?.place_type as string | null) ?? "",
       rater_id: r.user_id as string,
       rater_name: (profile?.full_name as string | null) ?? null,
+      rater_username: (profile?.username as string | null) ?? null,
       rater_avatar: (profile?.avatar_url as string | null) ?? null,
       match_score_percent: matchScore?.matchScorePercent ?? null,
       is_saved: savedPlaceIds.has(placeId),

@@ -218,6 +218,7 @@ export async function GET(
       notes: string;
       created_at: string;
       author_short_name: string;
+      author_username: string | null;
     }> = [];
 
     const { data: placeNotesRows, error: placeNotesError } =
@@ -248,13 +249,29 @@ export async function GET(
         (raterRows ?? []).map((r) => [String(r.id), String(r.user_id)]),
       );
 
-      notes = (placeNotesRows as PlaceNotePublicRow[]).map((row) => ({
-        id: String(row.rating_id),
-        rater_id: raterIdMap.get(row.rating_id) ?? "",
-        notes: String(row.notes ?? ""),
-        created_at: new Date(row.created_at).toISOString(),
-        author_short_name: String(row.author_short_name ?? ""),
-      }));
+      const userIds = [...new Set(raterIdMap.values())].filter(Boolean);
+      const usernameMap = new Map<string, string | null>();
+      if (userIds.length > 0) {
+        const { data: profileRows } = await serviceClient
+          .from("profiles")
+          .select("id, username")
+          .in("id", userIds);
+        for (const p of profileRows ?? []) {
+          usernameMap.set(String(p.id), (p.username as string | null) ?? null);
+        }
+      }
+
+      notes = (placeNotesRows as PlaceNotePublicRow[]).map((row) => {
+        const raterId = raterIdMap.get(row.rating_id) ?? "";
+        return {
+          id: String(row.rating_id),
+          rater_id: raterId,
+          notes: String(row.notes ?? ""),
+          created_at: new Date(row.created_at).toISOString(),
+          author_short_name: String(row.author_short_name ?? ""),
+          author_username: usernameMap.get(raterId) ?? null,
+        };
+      });
     }
 
     return NextResponse.json({

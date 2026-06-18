@@ -10,6 +10,7 @@ type UserListItem = {
   id: string;
   full_name: string | null;
   avatar_url: string | null;
+  username: string | null;
 };
 
 type UserListSheetProps = {
@@ -108,12 +109,12 @@ export function UserListSheet({
                         />
                       ) : (
                         <span className="text-ui-label-m font-medium text-text-secondary">
-                          {(user.full_name ?? "?").charAt(0).toUpperCase()}
+                          {(user.username ?? user.full_name ?? "?").charAt(0).toUpperCase()}
                         </span>
                       )}
                     </div>
                     <span className="text-body-m text-accent text-link">
-                      {user.full_name ?? "Anonymous"}
+                      {user.username ? `@${user.username}` : (user.full_name ?? "Anonymous")}
                     </span>
                   </Link>
                 </li>

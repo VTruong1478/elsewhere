@@ -39,7 +39,7 @@ export default async function PublicProfilePage({
   ] = await Promise.all([
     serviceClient
       .from("profiles")
-      .select("id, full_name, avatar_url")
+      .select("id, full_name, avatar_url, username")
       .eq("id", userId)
       .maybeSingle(),
     serviceClient
@@ -88,6 +88,7 @@ export default async function PublicProfilePage({
   }
 
   const fullName = (profile.full_name ?? "").trim() || "Anonymous";
+  const username = (profile.username as string | null) ?? null;
   const isOwnProfile = viewer?.id === userId;
   const isFollowing = followRow != null;
 
@@ -96,6 +97,7 @@ export default async function PublicProfilePage({
       <div className="mx-auto max-w-md">
         <ProfileContent
           userId={userId}
+          username={username}
           fullName={fullName}
           email={null}
           avatarUrl={profile.avatar_url ?? null}

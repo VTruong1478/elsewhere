@@ -32,7 +32,7 @@ export async function GET(
 
   const { data: profileRows, error: profileError } = await serviceClient
     .from("profiles")
-    .select("id, full_name, avatar_url")
+    .select("id, full_name, avatar_url, username")
     .in("id", followingIds);
 
   if (profileError) {
@@ -55,6 +55,7 @@ export async function GET(
         id: p.id as string,
         full_name: (p.full_name as string | null) ?? null,
         avatar_url: (p.avatar_url as string | null) ?? null,
+        username: (p.username as string | null) ?? null,
       };
     })
     .filter((p): p is NonNullable<typeof p> => p !== null);

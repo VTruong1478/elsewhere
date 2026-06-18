@@ -1279,19 +1279,19 @@ export function PlaceDetailMobile({
                               className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-primary text-ui-label-s font-bold text-text-inverse"
                               aria-hidden
                             >
-                              {noteAuthorAvatarLetter(note.author_short_name)}
+                              {noteAuthorAvatarLetter(note.author_username ?? note.author_short_name)}
                             </div>
                             <div className="flex min-w-0 flex-1  gap-8">
                               {note.id === detail?.my_rating?.id ? (
                                 <span className="truncate text-ui-label-s font-bold text-text">
-                                  {note.author_short_name}
+                                  {note.author_username ? `@${note.author_username}` : note.author_short_name}
                                 </span>
                               ) : (
                                 <Link
                                   href={`/profile/${note.rater_id}`}
                                   className="truncate text-ui-label-s font-bold text-accent text-link"
                                 >
-                                  {note.author_short_name}
+                                  {note.author_username ? `@${note.author_username}` : note.author_short_name}
                                 </Link>
                               )}
                               <span

@@ -43,6 +43,14 @@ vi.mock('@/components/profile/UserListSheet', () => ({
   UserListSheet: () => null,
 }))
 
+vi.mock('@/components/profile/EditFullNameModal', () => ({
+  EditFullNameModal: () => null,
+}))
+
+vi.mock('@/components/profile/EditUsernameModal', () => ({
+  EditUsernameModal: () => null,
+}))
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const BASE_STATS = {

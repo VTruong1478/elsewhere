@@ -22,6 +22,7 @@ export type RatingCardItem = {
   is_saved: boolean;
   rater_id: string;
   rater_name: string | null;
+  rater_username: string | null;
   rater_avatar: string | null;
 };
 
@@ -120,7 +121,7 @@ export function RatingCard({
             <Link
               href={`/profile/${item.rater_id}`}
               className="flex h-32 w-32 shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-alt"
-              aria-label={`View ${item.rater_name ?? "Anonymous"}'s profile`}
+              aria-label={`View ${item.rater_username ? `@${item.rater_username}` : (item.rater_name ?? "Anonymous")}'s profile`}
             >
               {item.rater_avatar ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -132,7 +133,7 @@ export function RatingCard({
                 />
               ) : (
                 <span className="text-ui-label-s font-medium text-text-secondary">
-                  {(item.rater_name ?? "?").charAt(0).toUpperCase()}
+                  {(item.rater_username ?? item.rater_name ?? "?").charAt(0).toUpperCase()}
                 </span>
               )}
             </Link>
@@ -142,7 +143,7 @@ export function RatingCard({
                 href={`/profile/${item.rater_id}`}
                 className="font-medium text-accent text-link"
               >
-                {item.rater_name ?? "Anonymous"}
+                {item.rater_username ? `@${item.rater_username}` : (item.rater_name ?? "Anonymous")}
               </Link>
               {" rated "}
               <span className="font-medium text-text">

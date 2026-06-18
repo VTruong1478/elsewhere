@@ -38,7 +38,7 @@ export async function GET(
   ] = await Promise.all([
     serviceClient
       .from("profiles")
-      .select("id, full_name, avatar_url")
+      .select("id, full_name, avatar_url, username")
       .eq("id", userId)
       .maybeSingle(),
     serviceClient
@@ -84,6 +84,7 @@ export async function GET(
       id: profile.id,
       full_name: profile.full_name ?? null,
       avatar_url: profile.avatar_url ?? null,
+      username: (profile.username as string | null) ?? null,
       stats: {
         placesRated: ratingsCount ?? 0,
         photosUploaded: photosCount ?? 0,

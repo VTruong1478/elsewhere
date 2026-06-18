@@ -37,6 +37,7 @@ function makeItem(overrides: Partial<RatingCardItem> = {}): RatingCardItem {
     is_saved: false,
     rater_id: 'user-1',
     rater_name: 'Alice',
+    rater_username: null,
     rater_avatar: null,
     ...overrides,
   }

@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { ensureProfileFullName } from '@/lib/ensureProfileFullName';
+import { ensureProfileUsername } from '@/lib/ensureProfileUsername';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { destinationAfterAuth } from '@/lib/authReturnPath';
 import { safeInternalPath } from '@/lib/safeNextPath';
@@ -29,6 +30,7 @@ export async function GET(request: Request) {
       if (user) {
         const service = createServiceRoleClient();
         await ensureProfileFullName(service, user);
+        await ensureProfileUsername(service, user);
       }
       dest = destinationAfterAuth(nextPath);
     }

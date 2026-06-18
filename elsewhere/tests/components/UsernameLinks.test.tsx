@@ -90,6 +90,7 @@ const RATING_ITEM: RatingCardItem = {
   is_saved: false,
   rater_id: 'user-xyz',
   rater_name: 'Jordan',
+  rater_username: null,
   rater_avatar: null,
 }
 

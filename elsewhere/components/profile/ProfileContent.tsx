@@ -3,7 +3,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { User2 } from "lucide-react";
+import { PenLine, User2 } from "lucide-react";
+import { EditFullNameModal } from "@/components/profile/EditFullNameModal";
+import { EditUsernameModal } from "@/components/profile/EditUsernameModal";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   RatingCard,
@@ -20,10 +22,12 @@ type UserListItem = {
   id: string;
   full_name: string | null;
   avatar_url: string | null;
+  username: string | null;
 };
 
 type ProfileContentProps = {
   userId: string;
+  username?: string | null;
   fullName: string;
   email: string | null;
   avatarUrl: string | null;
@@ -40,6 +44,7 @@ type ProfileContentProps = {
 
 export function ProfileContent({
   userId,
+  username = null,
   fullName,
   email,
   avatarUrl,
@@ -54,6 +59,10 @@ export function ProfileContent({
   const [followersOpen, setFollowersOpen] = useState(false);
   const [followingOpen, setFollowingOpen] = useState(false);
   const [isFollowing, setIsFollowing] = useState(initialIsFollowing);
+  const [editFullNameOpen, setEditFullNameOpen] = useState(false);
+  const [editUsernameOpen, setEditUsernameOpen] = useState(false);
+  const [displayFullName, setDisplayFullName] = useState(fullName);
+  const [displayUsername, setDisplayUsername] = useState(username);
 
   // Ratings tab
   const ratingsQuery = useQuery<RatingCardItem[]>({
@@ -205,13 +214,63 @@ export function ProfileContent({
         </div>
       </div>
 
-      {/* Name */}
-      <h1 className="mb-4 text-center font-lora text-heading-l text-text">
-        {fullName}
-      </h1>
+      {/* Primary identifier: @username for known username, full name as fallback for public profiles */}
+      <div className="mb-4 flex items-center justify-center gap-8">
+        {displayUsername ? (
+          <>
+            <h1 className="font-lora text-heading-l text-text">
+              @{displayUsername}
+            </h1>
+            {isOwnProfile && (
+              <button
+                type="button"
+                onClick={() => setEditUsernameOpen(true)}
+                className="flex items-center justify-center text-text-tertiary"
+                aria-label="Edit username"
+              >
+                <PenLine size={16} aria-hidden />
+              </button>
+            )}
+          </>
+        ) : isOwnProfile ? (
+          <button
+            type="button"
+            onClick={() => setEditUsernameOpen(true)}
+            className="flex items-center gap-8 text-body-m text-accent"
+            aria-label="Set your username"
+          >
+            Set your username
+            <PenLine size={16} aria-hidden />
+          </button>
+        ) : (
+          // Public profile: no username set yet — fall back to full name as heading
+          <h1 className="font-lora text-heading-l text-text">{displayFullName}</h1>
+        )}
+      </div>
 
-      {/* Email */}
-      {email && (
+      {/* Secondary: full name (own profile only, or when username is shown on public profile) */}
+      {isOwnProfile ? (
+        <div className="mb-16 flex items-center justify-center gap-8">
+          <p className="text-body-m text-text-secondary">{displayFullName}</p>
+          <button
+            type="button"
+            onClick={() => setEditFullNameOpen(true)}
+            className="flex items-center justify-center text-text-tertiary"
+            aria-label="Edit full name"
+          >
+            <PenLine size={16} aria-hidden />
+          </button>
+        </div>
+      ) : (
+        displayUsername && displayFullName && (
+          <p className="mb-16 text-center text-body-m text-text-secondary">
+            {displayFullName}
+          </p>
+        )
+      )}
+
+      {/* Email — own profile only */}
+      {isOwnProfile && email && (
         <p className="mb-16 text-center text-body-m text-text-secondary">
           {email}
         </p>
@@ -404,6 +463,26 @@ export function ProfileContent({
             Log out &rarr;
           </button>
         </div>
+      )}
+
+      {/* Edit modals — own profile only */}
+      {isOwnProfile && (
+        <>
+          <EditFullNameModal
+            open={editFullNameOpen}
+            onClose={() => setEditFullNameOpen(false)}
+            currentFullName={displayFullName}
+            userId={userId}
+            onSave={(newName) => setDisplayFullName(newName)}
+          />
+          <EditUsernameModal
+            open={editUsernameOpen}
+            onClose={() => setEditUsernameOpen(false)}
+            currentUsername={displayUsername}
+            userId={userId}
+            onSave={(newUsername) => setDisplayUsername(newUsername)}
+          />
+        </>
       )}
 
       {/* Sheets */}

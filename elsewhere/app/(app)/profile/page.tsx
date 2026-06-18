@@ -34,7 +34,7 @@ async function getProfileData() {
   ] = await Promise.all([
     serviceClient
       .from("profiles")
-      .select("full_name, avatar_url")
+      .select("full_name, avatar_url, username")
       .eq("id", actingUser.id)
       .maybeSingle(),
     serviceClient
@@ -70,6 +70,7 @@ async function getProfileData() {
 
   return {
     userId: actingUser.id,
+    username: (profile?.username as string | null) ?? null,
     fullName,
     email,
     avatarUrl: profile?.avatar_url ?? null,
@@ -84,13 +85,14 @@ async function getProfileData() {
 }
 
 export default async function ProfilePage() {
-  const { userId, fullName, email, avatarUrl, stats } = await getProfileData();
+  const { userId, username, fullName, email, avatarUrl, stats } = await getProfileData();
 
   return (
     <main className="min-h-screen w-full bg-background px-16 pt-40 pb-24">
       <div className="mx-auto max-w-md">
         <ProfileContent
           userId={userId}
+          username={username}
           fullName={fullName}
           email={email}
           avatarUrl={avatarUrl}
