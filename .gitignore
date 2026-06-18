@@ -15,3 +15,6 @@ node_modules/
 
 # Separate repo — do not track as submodule/gitlink
 elsewhere-landing/
+
+# Local-only dev tools (contain hardcoded credentials, never deploy)
+dev-tools/

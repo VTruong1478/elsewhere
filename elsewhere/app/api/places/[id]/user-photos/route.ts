@@ -12,7 +12,8 @@ function isUserPhotoFile(name: string): boolean {
 
 /**
  * GET /api/places/[id]/user-photos
- * Lists objects under user-photos/{place_id}/ and returns public URLs (newest first).
+ * Returns photo URLs for a place: user-uploaded photos (storage) first,
+ * then Google photos (places.google_photo_urls) after.
  */
 export async function GET(
   _request: Request,
@@ -25,26 +26,35 @@ export async function GET(
   }
 
   const supabase = createServiceRoleClient();
-  const { data: files, error } = await supabase.storage.from(BUCKET).list(
-    placeId,
-    {
+
+  const [storageResult, placeResult] = await Promise.all([
+    supabase.storage.from(BUCKET).list(placeId, {
       limit: 100,
       offset: 0,
       sortBy: { column: "created_at", order: "desc" },
-    },
-  );
+    }),
+    supabase
+      .from("places")
+      .select("google_photo_urls")
+      .eq("id", placeId)
+      .maybeSingle<{ google_photo_urls: string[] | null }>(),
+  ]);
 
-  if (error) {
-    console.error("[user-photos list]", error);
+  if (storageResult.error) {
+    console.error("[user-photos list]", storageResult.error);
     return NextResponse.json(
-      { error: error.message ?? "List failed" },
+      { error: storageResult.error.message ?? "List failed" },
       { status: 500 },
     );
   }
 
-  const urls = (files ?? [])
+  const userPhotoUrls = (storageResult.data ?? [])
     .filter((f) => f.name && isUserPhotoFile(f.name))
     .map((f) => userPhotoProxyUrl(`${placeId}/${f.name}`));
 
-  return NextResponse.json({ urls });
+  const googlePhotoUrls: string[] = (
+    placeResult.data?.google_photo_urls ?? []
+  ).filter((u): u is string => typeof u === "string" && u.length > 0);
+
+  return NextResponse.json({ urls: [...userPhotoUrls, ...googlePhotoUrls] });
 }
