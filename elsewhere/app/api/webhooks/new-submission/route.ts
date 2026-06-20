@@ -8,6 +8,8 @@ interface PlaceSubmissionRecord {
   submitter_full_name?: string | null;
   submitted_from_search?: string | null;
   created_at?: string;
+  google_match_name?: string | null;
+  match_confidence?: string | null;
 }
 
 interface SupabaseWebhookPayload {
@@ -59,11 +61,18 @@ export async function POST(request: NextRequest) {
   }
 
   const record = payload.record;
+  const submission_id = record.id ?? "(unknown)";
   const place_name = record.place_name?.trim() ?? "(unknown)";
   const address_or_location = record.address_or_location?.trim() ?? "(unknown)";
   const submitter_full_name = record.submitter_full_name?.trim() || "anonymous";
   const submitted_from_search = record.submitted_from_search?.trim() || null;
   const created_at = record.created_at ?? new Date().toISOString();
+  const google_match_name = record.google_match_name?.trim() || null;
+  const match_confidence = record.match_confidence?.trim() || null;
+  const googleMatchDisplay =
+    google_match_name && match_confidence
+      ? `${google_match_name} (${match_confidence} confidence)`
+      : "No Google match found";
 
   console.log("[new-submission webhook] record parsed — place:", place_name, "| submitter:", submitter_full_name);
 
@@ -77,8 +86,11 @@ export async function POST(request: NextRequest) {
   console.log("[new-submission webhook] sending email to:", toEmail, "| RESEND_API_KEY prefix:", resendKeyPrefix);
 
   const searchLine = submitted_from_search
-    ? `<tr><td style="padding:4px 0;color:#6B6A62;">Submitted from search:</td><td style="padding:4px 0 4px 16px;">${escHtml(submitted_from_search)}</td></tr>`
+    ? `<tr><td style="padding:4px 0;color:#6B6A62;font-size:14px;white-space:nowrap;">From search</td><td style="padding:4px 0 4px 16px;color:#2F2F2F;font-size:14px;">${escHtml(submitted_from_search)}</td></tr>`
     : "";
+
+  const code = (s: string) =>
+    `<p style="margin:0 0 4px;background:#EFEBE0;border-radius:4px;padding:8px 12px;font-family:Courier New,Courier,monospace;font-size:12px;color:#2F2F2F;word-break:break-all;">${s}</p>`;
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -92,11 +104,10 @@ export async function POST(request: NextRequest) {
             <td>
               <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#9B9A91;">Elsewhere</p>
               <h1 style="margin:0 0 24px;font-size:24px;font-weight:700;color:#2F2F2F;line-height:1.3;">New place submission</h1>
+
               <table cellpadding="0" cellspacing="0" style="width:100%;border-top:1px solid #D2D4C7;margin-bottom:24px;">
                 <tr>
-                  <td style="padding:12px 0 4px;color:#6B6A62;font-size:14px;" colspan="2">
-                    A new place was submitted on Elsewhere.
-                  </td>
+                  <td style="padding:12px 0 4px;color:#6B6A62;font-size:14px;" colspan="2">A new place was submitted on Elsewhere.</td>
                 </tr>
                 <tr>
                   <td style="padding:4px 0;color:#6B6A62;font-size:14px;white-space:nowrap;">Place name</td>
@@ -115,10 +126,28 @@ export async function POST(request: NextRequest) {
                   <td style="padding:4px 0;color:#6B6A62;font-size:14px;white-space:nowrap;">Submitted at</td>
                   <td style="padding:4px 0 4px 16px;color:#2F2F2F;font-size:14px;">${escHtml(formatDate(created_at))}</td>
                 </tr>
+                <tr>
+                  <td style="padding:4px 0 12px;color:#6B6A62;font-size:14px;white-space:nowrap;">Google match</td>
+                  <td style="padding:4px 0 12px 16px;color:#2F2F2F;font-size:14px;">${escHtml(googleMatchDisplay)}</td>
+                </tr>
               </table>
-              <p style="margin:0;font-size:13px;color:#9B9A91;">
-                Review it in the
-                <a href="https://supabase.com/dashboard" style="color:#3E4F73;">place_submissions table in Supabase</a>.
+
+              <p style="margin:0 0 16px;font-size:14px;font-weight:700;color:#2F2F2F;border-top:1px solid #D2D4C7;padding-top:20px;">Next steps</p>
+
+              <p style="margin:0 0 6px;font-size:13px;color:#6B6A62;">1. Review and reject (if needed) in Supabase:</p>
+              ${code("https://supabase.com/dashboard/project/wkshgozqbbkwxoqwttga/editor/51144?schema=public&sort=created_at%3Aasc")}
+
+              <p style="margin:16px 0 6px;font-size:13px;color:#6B6A62;">2. If approved, run:</p>
+              ${code(`npx ts-node scripts/approve-and-seed.ts ${escHtml(submission_id)}`)}
+
+              <p style="margin:16px 0 6px;font-size:13px;color:#6B6A62;">3. Cull photos:</p>
+              ${code("Open dev-tools/photo-review.html")}
+
+              <p style="margin:16px 0 6px;font-size:13px;color:#6B6A62;">4. (Optional) Seed a rating:</p>
+              ${code("npx ts-node scripts/seed-ratings-from-source.ts --file {path}.json --user-id {id} --dry-run")}
+
+              <p style="margin:20px 0 0;font-size:13px;color:#9B9A91;border-top:1px solid #D2D4C7;padding-top:16px;">
+                Submission ID: <span style="font-family:Courier New,Courier,monospace;font-size:12px;color:#2F2F2F;">${escHtml(submission_id)}</span>
               </p>
             </td>
           </tr>

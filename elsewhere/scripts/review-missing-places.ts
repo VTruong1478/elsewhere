@@ -21,26 +21,20 @@
 import { createClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
 import path from "path";
+import {
+  type PlaceType,
+  type PlaceResource,
+  VALID_PLACE_TYPES,
+  fetchPlaceDetails,
+  inferPlaceType,
+  mapPlaceToRow,
+} from "../lib/seedHelpers";
 
 dotenv.config({ path: path.resolve(process.cwd(), ".env.local") });
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const GOOGLE_PLACES_API_KEY = process.env.GOOGLE_PLACES_API_KEY;
-
-const PLACE_DETAILS_URL = "https://places.googleapis.com/v1/places";
-const PLACE_DETAILS_FIELD_MASK = [
-  "id",
-  "displayName",
-  "formattedAddress",
-  "location",
-  "photos",
-  "currentOpeningHours",
-  "primaryType",
-].join(",");
-
-type PlaceType = "cafe" | "library" | "bookstore" | "tea_shop";
-const VALID_PLACE_TYPES = new Set<string>(["cafe", "library", "bookstore", "tea_shop"]);
 
 // ── CLI helpers ───────────────────────────────────────────────────────────────
 
@@ -52,98 +46,6 @@ function argvValue(flag: string): string | undefined {
 
 function argvFlag(flag: string): boolean {
   return process.argv.includes(flag);
-}
-
-// ── Google Places helpers (mirrors seed-places.ts — cannot import it directly) ──
-
-interface PlaceResource {
-  id?: string;
-  name?: string;
-  displayName?: { text?: string };
-  formattedAddress?: string;
-  location?: { latitude?: number; longitude?: number };
-  photos?: { name?: string }[];
-  currentOpeningHours?: {
-    openNow?: boolean;
-    weekdayDescriptions?: string[];
-    periods?: unknown[];
-  };
-  primaryType?: string;
-}
-
-async function fetchPlaceDetails(googlePlaceId: string): Promise<PlaceResource> {
-  if (!GOOGLE_PLACES_API_KEY) {
-    throw new Error("GOOGLE_PLACES_API_KEY is required in .env.local for --approve");
-  }
-  const id = googlePlaceId.startsWith("places/")
-    ? googlePlaceId.slice("places/".length)
-    : googlePlaceId;
-
-  const res = await fetch(`${PLACE_DETAILS_URL}/${encodeURIComponent(id)}`, {
-    headers: {
-      "X-Goog-Api-Key": GOOGLE_PLACES_API_KEY,
-      "X-Goog-FieldMask": PLACE_DETAILS_FIELD_MASK,
-    },
-  });
-
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Google Places API error ${res.status}: ${text}`);
-  }
-
-  return res.json() as Promise<PlaceResource>;
-}
-
-function roundCoord7(n: number): number {
-  return Math.round(n * 10_000_000) / 10_000_000;
-}
-
-function inferPlaceType(primaryType?: string): PlaceType {
-  if (!primaryType) return "cafe";
-  const t = primaryType.toLowerCase();
-  if (t.includes("library")) return "library";
-  if (t.includes("book_store") || t.includes("bookstore")) return "bookstore";
-  if (t.includes("tea")) return "tea_shop";
-  return "cafe";
-}
-
-function mapPlaceToRow(place: PlaceResource, placeType: PlaceType) {
-  const googlePlaceId = (place.id ?? place.name)?.trim();
-  if (!googlePlaceId) throw new Error("Google place has no id");
-
-  const latRaw = place.location?.latitude;
-  const lngRaw = place.location?.longitude;
-  if (latRaw == null || lngRaw == null) {
-    throw new Error("Google place has no coordinates");
-  }
-
-  const name = (place.displayName?.text ?? "Unknown").trim() || "Unknown";
-  const address = (place.formattedAddress ?? "").trim() || "Address unknown";
-
-  const rawPhoto = place.photos?.[0]?.name?.trim();
-  const googlePhotoRef = rawPhoto ? rawPhoto.replace(/\/media$/, "") : null;
-
-  const openingHours = place.currentOpeningHours
-    ? {
-        open_now: place.currentOpeningHours.openNow ?? null,
-        weekday_descriptions: place.currentOpeningHours.weekdayDescriptions ?? null,
-        periods: place.currentOpeningHours.periods ?? null,
-      }
-    : null;
-
-  return {
-    google_place_id: googlePlaceId,
-    name,
-    address,
-    lat: roundCoord7(latRaw),
-    lng: roundCoord7(lngRaw),
-    place_type: placeType,
-    google_photo_ref: googlePhotoRef,
-    opening_hours: openingHours,
-    has_wifi: null,
-    is_active: true,
-    created_by: null,
-  };
 }
 
 // ── Commands ──────────────────────────────────────────────────────────────────
@@ -260,10 +162,15 @@ async function approveSubmission(
     placeType = "cafe"; // will be overwritten below after fetch
   }
 
+  if (!GOOGLE_PLACES_API_KEY) {
+    console.error("GOOGLE_PLACES_API_KEY is required in .env.local for --approve");
+    process.exit(1);
+  }
+
   console.log(`Fetching Google place details for ${googlePlaceId}...`);
   let details: PlaceResource;
   try {
-    details = await fetchPlaceDetails(googlePlaceId);
+    details = await fetchPlaceDetails(googlePlaceId, GOOGLE_PLACES_API_KEY);
   } catch (e) {
     console.error(e instanceof Error ? e.message : String(e));
     process.exit(1);
@@ -296,16 +203,36 @@ async function approveSubmission(
   console.log(`  Photo ref:       ${placeRow.google_photo_ref ?? "(none)"}`);
   console.log();
 
-  const { error: upsertError } = await supabase
+  // Duplicate guard: skip insert if a place with this google_place_id already exists.
+  const { data: existingPlace } = await supabase
     .from("places")
-    .upsert([placeRow], { onConflict: "google_place_id" });
+    .select("id, name")
+    .eq("google_place_id", placeRow.google_place_id)
+    .maybeSingle();
+
+  if (existingPlace) {
+    console.log(`\n⚠ Place already exists: "${existingPlace.name}" (id: ${existingPlace.id})`);
+    console.log("No new place created. Submission marked as already added.\n");
+    const { error: dupUpdateError } = await supabase
+      .from("place_submissions")
+      .update({ status: "added", updated_at: new Date().toISOString() })
+      .eq("id", submissionId);
+    if (dupUpdateError) {
+      console.error("Failed to update submission status:", dupUpdateError.message);
+    }
+    return;
+  }
+
+  const { data: upserted, error: upsertError } = await supabase
+    .from("places")
+    .upsert([placeRow], { onConflict: "google_place_id" })
+    .select("id")
+    .single();
 
   if (upsertError) {
     console.error("Failed to upsert place:", upsertError.message);
     process.exit(1);
   }
-
-  console.log(`Upserted "${placeRow.name}" into places.`);
 
   const { error: updateError } = await supabase
     .from("place_submissions")
@@ -320,7 +247,12 @@ async function approveSubmission(
     process.exit(1);
   }
 
-  console.log(`Submission ${submissionId} marked as 'added'.`);
+  const newPlaceId = upserted.id as string;
+  console.log(`\n✓ Approved. New place created.\n`);
+  console.log(`Place ID:   ${newPlaceId}`);
+  console.log(`Place name: ${placeRow.name}`);
+  console.log(`\nNext step — seed photos:`);
+  console.log(`npx ts-node scripts/seed-place-photos.ts --place-id ${newPlaceId}`);
 }
 
 async function rejectSubmission(submissionId: string, notes: string | undefined) {
