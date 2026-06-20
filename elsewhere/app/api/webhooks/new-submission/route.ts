@@ -23,6 +23,15 @@ export async function POST(request: NextRequest) {
   const secret = process.env.SUPABASE_WEBHOOK_SECRET?.trim();
   const provided = request.headers.get("x-webhook-secret");
 
+  // [webhook debug] — temporary
+  const receivedSecret = request.headers.get("x-webhook-secret");
+  const expectedSecret = process.env.SUPABASE_WEBHOOK_SECRET;
+  console.log("[webhook debug] received length:", receivedSecret?.length);
+  console.log("[webhook debug] expected length:", expectedSecret?.length);
+  console.log("[webhook debug] received (masked):", receivedSecret ? receivedSecret.slice(0, 4) + "..." + receivedSecret.slice(-4) : "NULL");
+  console.log("[webhook debug] expected (masked):", expectedSecret ? expectedSecret.slice(0, 4) + "..." + expectedSecret.slice(-4) : "NULL");
+  console.log("[webhook debug] all header keys received:", [...request.headers.keys()]);
+
   if (!secret || !provided || provided !== secret) {
     console.warn(
       "[new-submission webhook] secret check failed —",
