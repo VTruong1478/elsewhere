@@ -21,16 +21,11 @@ export async function POST(request: NextRequest) {
   console.log("[new-submission webhook] request received");
 
   const secret = process.env.SUPABASE_WEBHOOK_SECRET?.trim();
-  const provided = request.headers.get("x-webhook-secret");
-
-  // [webhook debug] — temporary
-  const receivedSecret = request.headers.get("x-webhook-secret");
-  const expectedSecret = process.env.SUPABASE_WEBHOOK_SECRET;
-  console.log("[webhook debug] received length:", receivedSecret?.length);
-  console.log("[webhook debug] expected length:", expectedSecret?.length);
-  console.log("[webhook debug] received (masked):", receivedSecret ? receivedSecret.slice(0, 4) + "..." + receivedSecret.slice(-4) : "NULL");
-  console.log("[webhook debug] expected (masked):", expectedSecret ? expectedSecret.slice(0, 4) + "..." + expectedSecret.slice(-4) : "NULL");
-  console.log("[webhook debug] all header keys received:", [...request.headers.keys()]);
+  // Accept the secret from either the x-webhook-secret header or query param —
+  // Supabase appends custom headers as query params when the webhook URL includes them.
+  const provided =
+    request.headers.get("x-webhook-secret") ??
+    new URL(request.url).searchParams.get("x-webhook-secret");
 
   if (!secret || !provided || provided !== secret) {
     console.warn(
