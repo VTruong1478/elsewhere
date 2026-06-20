@@ -7,8 +7,8 @@ import { persistPendingGatedAction } from "@/lib/gatedAction";
 type GateContext = {
   action_type: GatedActionType;
   source: AnalyticsSource;
-  place_id: string;
-  place_name: string;
+  place_id?: string;
+  place_name?: string;
   place_type?: string;
   has_photos?: boolean;
   returnPath: string;
@@ -18,8 +18,8 @@ const gateProps = (ctx: GateContext): Record<string, unknown> =>
   ({
     action_type: ctx.action_type,
     source: ctx.source,
-    place_id: ctx.place_id,
-    place_name: ctx.place_name,
+    ...(ctx.place_id != null ? { place_id: ctx.place_id } : {}),
+    ...(ctx.place_name != null ? { place_name: ctx.place_name } : {}),
     ...(ctx.place_type != null && ctx.place_type !== ""
       ? { place_type: ctx.place_type }
       : {}),

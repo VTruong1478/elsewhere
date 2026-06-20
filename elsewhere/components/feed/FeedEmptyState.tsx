@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import { MapPin } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { AddMissingPlaceModal } from "@/components/feed/AddMissingPlaceModal";
+import { ensureAuthForGatedAction } from "@/lib/authGate";
 
 export type FeedEmptyStateVariant = "card" | "plain";
 
@@ -15,6 +17,9 @@ export function FeedEmptyState({
   variant?: FeedEmptyStateVariant;
 } = {}) {
   const [addPlaceOpen, setAddPlaceOpen] = useState(false);
+  const router = useRouter();
+
+  const source = variant === "plain" ? "feed" : "map";
 
   const shellClass =
     variant === "plain"
@@ -39,7 +44,24 @@ export function FeedEmptyState({
           </p>
           <button
             type="button"
-            onClick={() => setAddPlaceOpen(true)}
+            onClick={() => {
+              void (async () => {
+                const returnPath =
+                  typeof window !== "undefined"
+                    ? `${window.location.pathname}${window.location.search}`
+                    : "/feed";
+                if (
+                  !(await ensureAuthForGatedAction(router.push, {
+                    action_type: "submit_missing_place",
+                    source,
+                    returnPath,
+                  }))
+                ) {
+                  return;
+                }
+                setAddPlaceOpen(true);
+              })();
+            }}
             className="mx-auto mt-8 text-body-m text-accent text-link"
           >
             Add a missing place

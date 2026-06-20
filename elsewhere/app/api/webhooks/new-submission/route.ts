@@ -18,19 +18,30 @@ interface SupabaseWebhookPayload {
 }
 
 export async function POST(request: NextRequest) {
+  console.log("[new-submission webhook] request received");
+
   const secret = process.env.SUPABASE_WEBHOOK_SECRET?.trim();
   const provided = request.headers.get("x-webhook-secret");
 
   if (!secret || !provided || provided !== secret) {
+    console.warn(
+      "[new-submission webhook] secret check failed —",
+      !secret ? "SUPABASE_WEBHOOK_SECRET not set in env" : "header value mismatch",
+    );
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  console.log("[new-submission webhook] secret check passed");
 
   let payload: SupabaseWebhookPayload;
   try {
     payload = (await request.json()) as SupabaseWebhookPayload;
   } catch {
+    console.error("[new-submission webhook] failed to parse request body as JSON");
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
+
+  console.log("[new-submission webhook] payload type:", payload.type, "table:", payload.table, "schema:", payload.schema);
 
   if (
     payload.type !== "INSERT" ||
@@ -50,11 +61,16 @@ export async function POST(request: NextRequest) {
   const submitted_from_search = record.submitted_from_search?.trim() || null;
   const created_at = record.created_at ?? new Date().toISOString();
 
+  console.log("[new-submission webhook] record parsed — place:", place_name, "| submitter:", submitter_full_name);
+
   const toEmail = process.env.DEVELOPER_NOTIFICATION_EMAIL?.trim();
   if (!toEmail) {
     console.error("[new-submission webhook] DEVELOPER_NOTIFICATION_EMAIL is not set — skipping email");
     return NextResponse.json({ ok: true });
   }
+
+  const resendKeyPrefix = process.env.RESEND_API_KEY?.trim().slice(0, 8) ?? "(not set)";
+  console.log("[new-submission webhook] sending email to:", toEmail, "| RESEND_API_KEY prefix:", resendKeyPrefix);
 
   const searchLine = submitted_from_search
     ? `<tr><td style="padding:4px 0;color:#6B6A62;">Submitted from search:</td><td style="padding:4px 0 4px 16px;">${escHtml(submitted_from_search)}</td></tr>`
@@ -111,7 +127,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const resend = createResendClient();
-    const { error } = await resend.emails.send({
+    const { data, error } = await resend.emails.send({
       from: EMAIL_FROM,
       to: toEmail,
       subject: `New place submission: ${place_name}`,
@@ -119,10 +135,12 @@ export async function POST(request: NextRequest) {
     });
 
     if (error) {
-      console.error("[new-submission webhook] Resend error:", error);
+      console.error("[new-submission webhook] Resend returned an error:", JSON.stringify(error));
+    } else {
+      console.log("[new-submission webhook] email sent successfully, Resend id:", data?.id);
     }
   } catch (err) {
-    console.error("[new-submission webhook] Failed to send email:", err);
+    console.error("[new-submission webhook] exception calling Resend:", err instanceof Error ? err.message : String(err));
   }
 
   return NextResponse.json({ ok: true });

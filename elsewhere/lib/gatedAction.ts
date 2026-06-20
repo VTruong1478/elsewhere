@@ -4,7 +4,8 @@ import type { AnalyticsSource } from "@/lib/analytics";
 export type GatedActionType =
   | "save_place"
   | "rate_place"
-  | "upload_photo";
+  | "upload_photo"
+  | "submit_missing_place";
 
 const PENDING_KEY = "elsewhere:pendingGatedAction";
 const OAUTH_INTENT_KEY = "elsewhere:oauthAuthIntent";
