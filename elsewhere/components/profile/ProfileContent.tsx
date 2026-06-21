@@ -141,6 +141,7 @@ export function ProfileContent({
       queryClient.invalidateQueries({
         queryKey: ["profile-followers", userId],
       });
+      queryClient.invalidateQueries({ queryKey: ["social-feed"] });
     },
   });
 
@@ -164,6 +165,7 @@ export function ProfileContent({
       queryClient.invalidateQueries({
         queryKey: ["profile-followers", userId],
       });
+      queryClient.invalidateQueries({ queryKey: ["social-feed"] });
     },
   });
 
