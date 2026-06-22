@@ -79,7 +79,7 @@ export async function GET() {
   ] = await Promise.all([
     serviceClient
       .from("places")
-      .select("id, name, place_type")
+      .select("id, name, place_type, google_photo_ref")
       .in("id", placeIds),
     serviceClient
       .from("profiles")
@@ -186,6 +186,7 @@ export async function GET() {
       place_id: placeId,
       place_name: (place?.name as string | null) ?? "Unknown place",
       place_type: (place?.place_type as string | null) ?? "",
+      google_photo_ref: (place?.google_photo_ref as string | null) ?? null,
       rater_id: r.user_id as string,
       rater_name: (profile?.full_name as string | null) ?? null,
       rater_username: (profile?.username as string | null) ?? null,

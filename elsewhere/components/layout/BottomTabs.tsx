@@ -3,12 +3,11 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Map, Bookmark, CircleUserRound, Users } from "lucide-react";
+import { Home, Map, Bookmark, CircleUserRound } from "lucide-react";
 
 const tabs = [
   { href: "/feed", label: "Feed", icon: Home },
   { href: "/map", label: "Map", icon: Map },
-  { href: "/social", label: "Social", icon: Users },
   { href: "/saved", label: "Saved", icon: Bookmark },
   { href: "/profile", label: "Profile", icon: CircleUserRound },
 ] as const;

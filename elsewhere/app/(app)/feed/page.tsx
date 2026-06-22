@@ -27,6 +27,8 @@ import {
   TutorialModal,
   TUTORIAL_PENDING_KEY,
 } from "@/components/onboarding/TutorialModal";
+import { SocialFeedSection } from "@/components/social/SocialFeedSection";
+import { PeopleToFollowSection } from "@/components/social/PeopleToFollowSection";
 
 function fetchFeed(params: {
   lat: number;
@@ -193,6 +195,8 @@ function FeedContent() {
             )}
           </div>
           <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto py-4 px-16 pb-8">
+            <SocialFeedSection />
+            <PeopleToFollowSection />
             {showSkeletons && (
               <div className="space-y-12">
                 {Array.from({ length: 5 }).map((_, i) => (

@@ -97,6 +97,13 @@ vi.mock('@/hooks/useUserLocation', () => ({
   useUserLocation: vi.fn(() => ({ status: 'denied' })),
 }))
 
+vi.mock('@/components/social/SocialFeedSection', () => ({
+  SocialFeedSection: () => null,
+}))
+vi.mock('@/components/social/PeopleToFollowSection', () => ({
+  PeopleToFollowSection: () => null,
+}))
+
 // ── matchMedia stub (required by PlaceCard's useLayoutEffect) ─────────────────
 
 function stubMatchMedia(matches = false) {
@@ -263,8 +270,11 @@ describe('PlaceCard', () => {
 describe('FeedPage', () => {
   beforeEach(() => {
     stubMatchMedia(false)
-    // Reset useUserLocation to a known default
     vi.mocked(useUserLocation).mockReturnValue({ status: 'denied' })
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ data: [] }),
+    })
   })
 
   afterEach(() => {

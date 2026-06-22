@@ -4,12 +4,22 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Bookmark } from "lucide-react";
+import {
+  MessageCircle,
+  Heart,
+  Headphones,
+  Plug,
+  Volume1,
+  Volume2,
+  VolumeX,
+} from "lucide-react";
+import { PiPicnicTableBold } from "react-icons/pi";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Button } from "@/components/ui/Button";
 import { MatchRing } from "@/components/ui/MatchRing";
 import { usePlaceStore } from "@/store/usePlaceStore";
 import { userPhotoProxyUrl } from "@/lib/userPhotoProxyUrl";
+import { SocialPlaceCard } from "@/components/social/SocialPlaceCard";
+import { formatPlaceTypeForDisplay } from "@/lib/placeTypeDisplay";
 
 export type RatingCardItem = {
   id: string;
@@ -24,6 +34,17 @@ export type RatingCardItem = {
   rater_name: string | null;
   rater_username: string | null;
   rater_avatar: string | null;
+  place_type?: string | null;
+  google_photo_ref?: string | null;
+  place_category?: string | null;
+  place_thumbnail_url?: string | null;
+  distance?: string | null;
+  noise?: string | null;
+  vibe?: string | null;
+  tables?: string | null;
+  outlets?: string | null;
+  like_count?: number;
+  comment_count?: number;
 };
 
 function timeAgo(iso: string): string {
@@ -52,6 +73,32 @@ export function RatingCard({
   const [notesExpanded, setNotesExpanded] = useState(false);
   const [notesClamped, setNotesClamped] = useState(false);
   const notesRef = useRef<HTMLParagraphElement>(null);
+  const metricsRef = useRef<HTMLDivElement>(null);
+  const metricsDrag = useRef({ active: false, startX: 0, scrollLeft: 0 });
+
+  function onMetricsMouseDown(e: React.MouseEvent<HTMLDivElement>) {
+    const el = metricsRef.current;
+    if (!el) return;
+    metricsDrag.current = { active: true, startX: e.pageX - el.offsetLeft, scrollLeft: el.scrollLeft };
+    el.style.cursor = "grabbing";
+    el.style.userSelect = "none";
+  }
+
+  function onMetricsMouseMove(e: React.MouseEvent<HTMLDivElement>) {
+    const el = metricsRef.current;
+    if (!metricsDrag.current.active || !el) return;
+    e.preventDefault();
+    const x = e.pageX - el.offsetLeft;
+    el.scrollLeft = metricsDrag.current.scrollLeft - (x - metricsDrag.current.startX);
+  }
+
+  function onMetricsMouseUp() {
+    metricsDrag.current.active = false;
+    const el = metricsRef.current;
+    if (!el) return;
+    el.style.cursor = "grab";
+    el.style.removeProperty("user-select");
+  }
 
   useEffect(() => {
     if (notesRef.current) {
@@ -105,14 +152,21 @@ export function RatingCard({
     },
   });
 
-  function handlePlaceClick(e: React.MouseEvent) {
-    e.preventDefault();
+  function handlePlaceNavigate() {
     setSelectedPlaceId(item.place_id);
     router.push(`/places/${item.place_id}`);
   }
 
+  function handleBookmark() {
+    if (isSaved) {
+      unsaveMutation.mutate();
+    } else {
+      saveMutation.mutate();
+    }
+  }
+
   return (
-    <article className="overflow-hidden rounded-radius-md border border-surface-alt bg-surface p-16">
+    <article className="flex flex-col gap-16 rounded-radius-md border border-surface-alt bg-surface p-16">
       {/* Top row */}
       {showUserHeader ? (
         <div className="flex items-start justify-between gap-12">
@@ -133,25 +187,23 @@ export function RatingCard({
                 />
               ) : (
                 <span className="text-ui-label-s font-medium text-text-secondary">
-                  {(item.rater_username ?? item.rater_name ?? "?").charAt(0).toUpperCase()}
+                  {(item.rater_username ?? item.rater_name ?? "?")
+                    .charAt(0)
+                    .toUpperCase()}
                 </span>
               )}
             </Link>
 
-            <p className="min-w-0 text-body-s text-text-secondary">
+            <p className="min-w-0 text-ui-label-m text-text-secondary">
               <Link
                 href={`/profile/${item.rater_id}`}
-                className="font-medium text-accent text-link"
+                className="text-accent"
               >
-                {item.rater_username ? `@${item.rater_username}` : (item.rater_name ?? "Anonymous")}
+                {item.rater_username
+                  ? `@${item.rater_username}`
+                  : (item.rater_name ?? "Anonymous")}
               </Link>
-              {" rated "}
-              <span className="font-medium text-text">
-                {item.place_name}
-              </span>
-              <span className="ml-8 text-text-tertiary">
-                · {timeAgo(item.created_at)}
-              </span>
+              <span className="ml-8 font-normal">· {timeAgo(item.created_at)}</span>
             </p>
           </div>
           {item.match_score_percent != null && (
@@ -161,19 +213,10 @@ export function RatingCard({
           )}
         </div>
       ) : (
-        <div className="flex items-start justify-between gap-12">
-          <div className="min-w-0">
-            <a
-              href={`/places/${item.place_id}`}
-              onClick={handlePlaceClick}
-              className="text-body-m font-medium text-text hover:underline"
-            >
-              {item.place_name}
-            </a>
-            <p className="mt-4 text-body-s text-text-tertiary">
-              {timeAgo(item.created_at)}
-            </p>
-          </div>
+        <div className="flex items-center justify-between">
+          <p className="text-ui-label-m text-text-secondary">
+            {timeAgo(item.created_at)}
+          </p>
           {item.match_score_percent != null && (
             <div className="shrink-0">
               <MatchRing score={item.match_score_percent} />
@@ -182,24 +225,9 @@ export function RatingCard({
         </div>
       )}
 
-      {/* Photo strip */}
-      {item.photo_paths.length > 0 && (
-        <div className="scrollbar-hide mt-12 flex gap-8 overflow-x-auto">
-          {item.photo_paths.map((path) => (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              key={path}
-              src={userPhotoProxyUrl(path)}
-              alt=""
-              className="h-[120px] w-auto shrink-0 rounded-radius-sm object-cover"
-            />
-          ))}
-        </div>
-      )}
-
       {/* Notes */}
       {item.notes && (
-        <div className="mt-10">
+        <div>
           <p
             ref={notesRef}
             className={`text-body-s text-text-secondary ${notesExpanded ? "" : "line-clamp-3"}`}
@@ -218,34 +246,121 @@ export function RatingCard({
         </div>
       )}
 
-      {/* Bottom row: bookmark */}
-      <div className="mt-12 flex justify-end">
-        <Button
-          variant="secondaryIcon"
-          type="button"
-          onClick={() => {
-            if (isSaved) {
-              unsaveMutation.mutate();
-            } else {
-              saveMutation.mutate();
-            }
-          }}
-          disabled={saveMutation.isPending || unsaveMutation.isPending}
-          aria-label={
-            isSaved
-              ? `Remove ${item.place_name} from saved places`
-              : `Save ${item.place_name}`
-          }
-          aria-pressed={isSaved}
+      {/* Metric chips */}
+      {(item.noise || item.vibe || item.tables || item.outlets) && (
+        <div
+          ref={metricsRef}
+          className="scrollbar-hide flex gap-8 overflow-x-auto cursor-grab"
+          onMouseDown={onMetricsMouseDown}
+          onMouseMove={onMetricsMouseMove}
+          onMouseUp={onMetricsMouseUp}
+          onMouseLeave={onMetricsMouseUp}
         >
-          <Bookmark
-            size={18}
-            aria-hidden
-            fill={isSaved ? "currentColor" : "none"}
-            stroke="currentColor"
-            strokeWidth={2}
-          />
-        </Button>
+          {item.noise && (
+            <div className="flex shrink-0 items-center gap-8 rounded-radius-sm bg-surface-chip px-8 py-4">
+              <span className="text-accent">
+                {item.noise === "silent" ? (
+                  <VolumeX size={20} aria-hidden />
+                ) : item.noise === "quiet" ? (
+                  <Volume1 size={20} aria-hidden />
+                ) : (
+                  <Volume2 size={20} aria-hidden />
+                )}
+              </span>
+              <span className="text-ui-overline text-text-secondary">
+                {item.noise}
+              </span>
+            </div>
+          )}
+          {item.vibe && (
+            <div className="flex shrink-0 items-center gap-8 rounded-radius-sm bg-surface-chip px-8 py-4">
+              <span className="text-accent">
+                <Headphones size={20} aria-hidden />
+              </span>
+              <span className="text-ui-overline text-text-secondary">
+                {item.vibe}
+              </span>
+            </div>
+          )}
+          {item.tables && (
+            <div className="flex shrink-0 items-center gap-8 rounded-radius-sm bg-surface-chip px-8 py-4">
+              <span className="text-accent">
+                <PiPicnicTableBold size={20} aria-hidden />
+              </span>
+              <span className="text-ui-overline text-text-secondary">
+                {item.tables}
+              </span>
+            </div>
+          )}
+          {item.outlets && (
+            <div className="flex shrink-0 items-center gap-8 rounded-radius-sm bg-surface-chip px-8 py-4">
+              <span className="text-accent">
+                <Plug size={20} aria-hidden />
+              </span>
+              <span className="text-ui-overline text-text-secondary">
+                {item.outlets}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Social Place Card */}
+      <SocialPlaceCard
+        placeId={item.place_id}
+        placeName={item.place_name}
+        placeCategory={
+          item.place_category ??
+          (item.place_type ? formatPlaceTypeForDisplay(item.place_type) : null)
+        }
+        distance={item.distance}
+        thumbnailUrl={
+          item.place_thumbnail_url ??
+          (item.google_photo_ref ? `/api/places/${item.place_id}/photo` : null)
+        }
+        isSaved={isSaved}
+        onBookmark={handleBookmark}
+        isBookmarkPending={saveMutation.isPending || unsaveMutation.isPending}
+        onPlaceClick={handlePlaceNavigate}
+      />
+
+      {/* Photo gallery */}
+      {item.photo_paths.length > 0 && (
+        <div className="scrollbar-hide flex gap-16 overflow-x-auto">
+          {item.photo_paths.map((path) => (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              key={path}
+              src={userPhotoProxyUrl(path)}
+              alt=""
+              className="h-[120px] w-auto shrink-0 rounded-radius-sm object-cover"
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Action row */}
+      <div className="flex items-center gap-16">
+        <button
+          type="button"
+          aria-label="Comment"
+          className="flex items-center gap-8 text-primary"
+        >
+          <MessageCircle size={18} aria-hidden />
+          {item.comment_count != null && (
+            <span className="text-ui-label-m">{item.comment_count}</span>
+          )}
+        </button>
+        <button
+          type="button"
+          aria-label="Like"
+          className="flex items-center gap-8 text-primary"
+        >
+          <Heart size={18} aria-hidden />
+          {item.like_count != null && (
+            <span className="text-ui-label-m">{item.like_count}</span>
+          )}
+        </button>
       </div>
     </article>
   );
