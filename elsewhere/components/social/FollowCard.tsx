@@ -28,7 +28,7 @@ export function FollowCard({
         className="absolute right-16 top-16 flex items-center justify-center text-primary"
         aria-label="Dismiss"
       >
-        <X size={8} aria-hidden />
+        <X size={16} aria-hidden />
       </button>
 
       <div className="flex flex-col items-center gap-16">
@@ -50,7 +50,9 @@ export function FollowCard({
 
         <div className="flex flex-col items-center gap-4">
           <span className="text-ui-label-m text-accent">@{username}</span>
-          <span className="text-ui-label-m text-text-secondary">{relevanceText}</span>
+          <span className="text-ui-label-m text-text-secondary">
+            {relevanceText}
+          </span>
         </div>
 
         <Button variant="secondary" onClick={onFollow} className="w-full">
