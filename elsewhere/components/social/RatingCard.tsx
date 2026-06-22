@@ -79,7 +79,11 @@ export function RatingCard({
   function onMetricsMouseDown(e: React.MouseEvent<HTMLDivElement>) {
     const el = metricsRef.current;
     if (!el) return;
-    metricsDrag.current = { active: true, startX: e.pageX - el.offsetLeft, scrollLeft: el.scrollLeft };
+    metricsDrag.current = {
+      active: true,
+      startX: e.pageX - el.offsetLeft,
+      scrollLeft: el.scrollLeft,
+    };
     el.style.cursor = "grabbing";
     el.style.userSelect = "none";
   }
@@ -89,7 +93,8 @@ export function RatingCard({
     if (!metricsDrag.current.active || !el) return;
     e.preventDefault();
     const x = e.pageX - el.offsetLeft;
-    el.scrollLeft = metricsDrag.current.scrollLeft - (x - metricsDrag.current.startX);
+    el.scrollLeft =
+      metricsDrag.current.scrollLeft - (x - metricsDrag.current.startX);
   }
 
   function onMetricsMouseUp() {
@@ -154,7 +159,11 @@ export function RatingCard({
 
   function handlePlaceNavigate() {
     setSelectedPlaceId(item.place_id);
-    router.push(`/places/${item.place_id}`);
+    // Desktop (≥1025px): setSelectedPlaceId alone opens the detail panel overlay on the feed.
+    // Mobile/tablet: navigate to the standalone place detail page.
+    if (window.matchMedia("(max-width: 1024px)").matches) {
+      router.push(`/places/${item.place_id}`);
+    }
   }
 
   function handleBookmark() {
@@ -170,7 +179,7 @@ export function RatingCard({
       {/* Top row */}
       {showUserHeader ? (
         <div className="flex items-start justify-between gap-12">
-          <div className="flex min-w-0 items-center gap-10">
+          <div className="flex min-w-0 items-center gap-2">
             {/* Avatar */}
             <Link
               href={`/profile/${item.rater_id}`}
@@ -195,15 +204,14 @@ export function RatingCard({
             </Link>
 
             <p className="min-w-0 text-ui-label-m text-text-secondary">
-              <Link
-                href={`/profile/${item.rater_id}`}
-                className="text-accent"
-              >
+              <Link href={`/profile/${item.rater_id}`} className="text-accent">
                 {item.rater_username
                   ? `@${item.rater_username}`
                   : (item.rater_name ?? "Anonymous")}
               </Link>
-              <span className="ml-8 font-normal">· {timeAgo(item.created_at)}</span>
+              <span className="ml-8 font-normal">
+                · {timeAgo(item.created_at)}
+              </span>
             </p>
           </div>
           {item.match_score_percent != null && (

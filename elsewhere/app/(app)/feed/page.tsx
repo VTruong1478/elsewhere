@@ -154,12 +154,6 @@ function FeedContent() {
     });
   }, [query.isSuccess, locationCtx.feedQueryEnabled, places.length, q, filter]);
 
-  useEffect(() => {
-    if (!selectedPlaceId) return;
-    const el = document.querySelector(`[data-place-id="${selectedPlaceId}"]`);
-    el?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }, [selectedPlaceId]);
-
   const showSkeletons =
     locationState.status === "loading" ||
     (locationCtx.feedQueryEnabled &&
