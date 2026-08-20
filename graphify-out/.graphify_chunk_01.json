@@ -1,0 +1,771 @@
+{
+  "nodes": [
+    {
+      "id": "claude_elsewhere_app",
+      "label": "Elsewhere App",
+      "file_type": "document",
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/CLAUDE.md",
+      "source_location": "line 1-4",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "claude_three_supabase_clients",
+      "label": "Three Supabase Clients Architecture Rule",
+      "file_type": "rationale",
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/CLAUDE.md",
+      "source_location": "line 113-117",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "claude_api_response_shape",
+      "label": "API Response Shape { data, error }",
+      "file_type": "rationale",
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/CLAUDE.md",
+      "source_location": "line 46-49",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "claude_gated_actions_pattern",
+      "label": "Gated Actions Pattern (save/rate when unauthenticated)",
+      "file_type": "concept",
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/CLAUDE.md",
+      "source_location": "line 119-124",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "claude_feed_rpc_pattern",
+      "label": "Feed RPC Pattern (get_feed_places via service role)",
+      "file_type": "concept",
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/CLAUDE.md",
+      "source_location": "line 151-153",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "claude_match_score_concept",
+      "label": "Match Score Concept (70% preference + 30% community quality)",
+      "file_type": "concept",
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/CLAUDE.md",
+      "source_location": "line 153",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "claude_dev_philosophy",
+      "label": "Development Philosophy (smallest change, read first, no scope creep)",
+      "file_type": "rationale",
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/CLAUDE.md",
+      "source_location": "line 9-17",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "readme_repo_overview",
+      "label": "Elsewhere Repo Overview",
+      "file_type": "document",
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/README.md",
+      "source_location": "line 1-30",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "backend_plan_places_table",
+      "label": "places Table Schema",
+      "file_type": "document",
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/backend-plan.md",
+      "source_location": "line 96-116",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "backend_plan_place_stats_table",
+      "label": "place_stats Table Schema",
+      "file_type": "document",
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/backend-plan.md",
+      "source_location": "line 119-139",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "backend_plan_ratings_table",
+      "label": "ratings Table Schema",
+      "file_type": "document",
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/backend-plan.md",
+      "source_location": "line 142-160",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "backend_plan_saved_table",
+      "label": "saved Table Schema",
+      "file_type": "document",
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/backend-plan.md",
+      "source_location": "line 162-170",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "backend_plan_profiles_table",
+      "label": "profiles Table Schema",
+      "file_type": "document",
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/backend-plan.md",
+      "source_location": "line 70-78",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "backend_plan_user_preferences_table",
+      "label": "user_preferences Table Schema",
+      "file_type": "document",
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/backend-plan.md",
+      "source_location": "line 80-90",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "backend_plan_ratings_public_view",
+      "label": "ratings_public View (hides user_id from client)",
+      "file_type": "document",
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/backend-plan.md",
+      "source_location": "line 177-194",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "backend_plan_update_place_stats_fn",
+      "label": "update_place_stats Trigger Function",
+      "file_type": "document",
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/backend-plan.md",
+      "source_location": "line 196-265",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "backend_plan_handle_new_user_fn",
+      "label": "handle_new_user Trigger Function",
+      "file_type": "document",
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/backend-plan.md",
+      "source_location": "line 272-289",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "backend_plan_rls_policies",
+      "label": "Row Level Security Policies",
+      "file_type": "rationale",
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/backend-plan.md",
+      "source_location": "line 295-332",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "backend_plan_match_score_formula",
+      "label": "Match Score Formula (noise+vibe preference blend with community quality)",
+      "file_type": "concept",
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/backend-plan.md",
+      "source_location": "line 474-554",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "backend_plan_get_feed_route",
+      "label": "GET /api/feed Route Handler",
+      "file_type": "document",
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/backend-plan.md",
+      "source_location": "line 380-432",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "backend_plan_rate_limits",
+      "label": "API Rate Limits (100 ratings/day, 5 place submissions/day)",
+      "file_type": "rationale",
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/backend-plan.md",
+      "source_location": "line 693-713",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "backend_plan_photo_proxy",
+      "label": "Photo Proxy Pattern (never store Google photo URL, only ref)",
+      "file_type": "rationale",
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/backend-plan.md",
+      "source_location": "line 3-14",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "elsewhere__vercel_readme_vercel_project_link",
+      "label": "Vercel Project Link Config",
+      "file_type": "document",
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/elsewhere/.vercel/README.txt",
+      "source_location": "line 1-11",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "elsewhere_readme_app_overview",
+      "label": "Elsewhere App Directory Overview",
+      "file_type": "document",
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/elsewhere/README.md",
+      "source_location": "line 1-42",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "elsewhere_docs_auth_routing_audit_product_rules",
+      "label": "Auth Routing Product Rules (guest vs locked paths)",
+      "file_type": "rationale",
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/elsewhere/docs/auth-routing-audit.md",
+      "source_location": "line 5-11",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "elsewhere_docs_auth_routing_audit_routing_matrix",
+      "label": "Auth Routing Matrix (entry point behavior table)",
+      "file_type": "document",
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/elsewhere/docs/auth-routing-audit.md",
+      "source_location": "line 15-25",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "elsewhere_docs_auth_routing_audit_logic_map",
+      "label": "Auth Logic File Map (concern to file mapping)",
+      "file_type": "document",
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/elsewhere/docs/auth-routing-audit.md",
+      "source_location": "line 29-38",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "elsewhere_docs_auth_routing_audit_edge_cases",
+      "label": "Auth Edge Cases (expired sessions, stale hasVisited, OAuth+tutorial)",
+      "file_type": "document",
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/elsewhere/docs/auth-routing-audit.md",
+      "source_location": "line 41-52",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "frontend_plan_design_tokens",
+      "label": "Design Tokens System (colors, typography, spacing, radii, shadows)",
+      "file_type": "document",
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/frontend-plan.md",
+      "source_location": "line 20-113",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "frontend_plan_color_tokens",
+      "label": "Color Token Table (#4F5D3F primary, status tiers, overlay-selected)",
+      "file_type": "document",
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/frontend-plan.md",
+      "source_location": "line 33-52",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "frontend_plan_typography_tokens",
+      "label": "Typography Tokens (Lora for headings, DM Sans for body/UI)",
+      "file_type": "document",
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/frontend-plan.md",
+      "source_location": "line 55-85",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "frontend_plan_breakpoints",
+      "label": "Breakpoints and Grid System (mobile/tablet/desktop, min-[1025px]:)",
+      "file_type": "document",
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/frontend-plan.md",
+      "source_location": "line 115-135",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "frontend_plan_component_inventory",
+      "label": "Component Inventory (PlaceCard, filter chips, map pins, auth screens)",
+      "file_type": "document",
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/frontend-plan.md",
+      "source_location": "line 139-308",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "frontend_plan_zustand_store_shape",
+      "label": "Zustand Store Shape (selectedPlaceId, hoveredPlaceId)",
+      "file_type": "concept",
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/frontend-plan.md",
+      "source_location": "line 313-341",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "frontend_plan_skeleton_states",
+      "label": "Skeleton Loading States (animate-pulse, no spinners, shape-matched)",
+      "file_type": "rationale",
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/frontend-plan.md",
+      "source_location": "line 179-192",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "frontend_plan_accessibility",
+      "label": "Accessibility WCAG AA (contrast, focus, tap targets, reduced motion)",
+      "file_type": "document",
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/frontend-plan.md",
+      "source_location": "line 222-244",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "frontend_plan_interaction_states",
+      "label": "Interaction States (overlay-selected #FFFFFF 15% only, no other overlays)",
+      "file_type": "rationale",
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/frontend-plan.md",
+      "source_location": "line 204-214",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "frontend_plan_match_score_display",
+      "label": "Match Score Display Color Tiers (70-100 green, 50-69 yellow, 0-49 red)",
+      "file_type": "concept",
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/frontend-plan.md",
+      "source_location": "line 152-155",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    }
+  ],
+  "edges": [
+    {
+      "source": "backend_plan_update_place_stats_fn",
+      "target": "backend_plan_place_stats_table",
+      "relation": "shares_data_with",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/backend-plan.md",
+      "source_location": "line 196-265",
+      "weight": 1.0
+    },
+    {
+      "source": "backend_plan_update_place_stats_fn",
+      "target": "backend_plan_ratings_table",
+      "relation": "shares_data_with",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/backend-plan.md",
+      "source_location": "line 262-264",
+      "weight": 1.0
+    },
+    {
+      "source": "backend_plan_handle_new_user_fn",
+      "target": "backend_plan_profiles_table",
+      "relation": "shares_data_with",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/backend-plan.md",
+      "source_location": "line 277-280",
+      "weight": 1.0
+    },
+    {
+      "source": "backend_plan_handle_new_user_fn",
+      "target": "backend_plan_user_preferences_table",
+      "relation": "shares_data_with",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/backend-plan.md",
+      "source_location": "line 282-284",
+      "weight": 1.0
+    },
+    {
+      "source": "backend_plan_ratings_public_view",
+      "target": "backend_plan_ratings_table",
+      "relation": "shares_data_with",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/backend-plan.md",
+      "source_location": "line 177-194",
+      "weight": 1.0
+    },
+    {
+      "source": "backend_plan_rls_policies",
+      "target": "backend_plan_ratings_public_view",
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/backend-plan.md",
+      "source_location": "line 192-193",
+      "weight": 1.0
+    },
+    {
+      "source": "backend_plan_get_feed_route",
+      "target": "backend_plan_match_score_formula",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/backend-plan.md",
+      "source_location": "line 398",
+      "weight": 1.0
+    },
+    {
+      "source": "backend_plan_get_feed_route",
+      "target": "backend_plan_places_table",
+      "relation": "shares_data_with",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/backend-plan.md",
+      "source_location": "line 394",
+      "weight": 1.0
+    },
+    {
+      "source": "backend_plan_get_feed_route",
+      "target": "backend_plan_place_stats_table",
+      "relation": "shares_data_with",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/backend-plan.md",
+      "source_location": "line 394",
+      "weight": 1.0
+    },
+    {
+      "source": "backend_plan_get_feed_route",
+      "target": "backend_plan_user_preferences_table",
+      "relation": "shares_data_with",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/backend-plan.md",
+      "source_location": "line 391",
+      "weight": 1.0
+    },
+    {
+      "source": "backend_plan_get_feed_route",
+      "target": "backend_plan_ratings_table",
+      "relation": "shares_data_with",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/backend-plan.md",
+      "source_location": "line 392",
+      "weight": 1.0
+    },
+    {
+      "source": "backend_plan_places_table",
+      "target": "backend_plan_place_stats_table",
+      "relation": "shares_data_with",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/backend-plan.md",
+      "source_location": "line 119-121",
+      "weight": 1.0
+    },
+    {
+      "source": "backend_plan_photo_proxy",
+      "target": "backend_plan_places_table",
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/backend-plan.md",
+      "source_location": "line 4",
+      "weight": 1.0
+    },
+    {
+      "source": "backend_plan_rate_limits",
+      "target": "backend_plan_ratings_table",
+      "relation": "shares_data_with",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/backend-plan.md",
+      "source_location": "line 700-712",
+      "weight": 1.0
+    },
+    {
+      "source": "claude_feed_rpc_pattern",
+      "target": "backend_plan_get_feed_route",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/CLAUDE.md",
+      "source_location": "line 151",
+      "weight": 1.0
+    },
+    {
+      "source": "frontend_plan_match_score_display",
+      "target": "backend_plan_match_score_formula",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/backend-plan.md",
+      "source_location": "line 528-533",
+      "weight": 1.0
+    },
+    {
+      "source": "frontend_plan_design_tokens",
+      "target": "frontend_plan_color_tokens",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/frontend-plan.md",
+      "source_location": "line 23-25",
+      "weight": 1.0
+    },
+    {
+      "source": "frontend_plan_design_tokens",
+      "target": "frontend_plan_typography_tokens",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/frontend-plan.md",
+      "source_location": "line 26-27",
+      "weight": 1.0
+    },
+    {
+      "source": "frontend_plan_zustand_store_shape",
+      "target": "frontend_plan_component_inventory",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/frontend-plan.md",
+      "source_location": "line 334-340",
+      "weight": 1.0
+    },
+    {
+      "source": "frontend_plan_skeleton_states",
+      "target": "frontend_plan_component_inventory",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/frontend-plan.md",
+      "source_location": "line 181-192",
+      "weight": 1.0
+    },
+    {
+      "source": "elsewhere_docs_auth_routing_audit_product_rules",
+      "target": "elsewhere_docs_auth_routing_audit_routing_matrix",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/elsewhere/docs/auth-routing-audit.md",
+      "source_location": "line 5-25",
+      "weight": 1.0
+    },
+    {
+      "source": "elsewhere_docs_auth_routing_audit_edge_cases",
+      "target": "elsewhere_docs_auth_routing_audit_routing_matrix",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/elsewhere/docs/auth-routing-audit.md",
+      "source_location": "line 41-52",
+      "weight": 1.0
+    },
+    {
+      "source": "elsewhere_docs_auth_routing_audit_logic_map",
+      "target": "elsewhere_docs_auth_routing_audit_routing_matrix",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/elsewhere/docs/auth-routing-audit.md",
+      "source_location": "line 29-38",
+      "weight": 1.0
+    },
+    {
+      "source": "claude_match_score_concept",
+      "target": "backend_plan_match_score_formula",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/CLAUDE.md",
+      "source_location": "line 153",
+      "weight": 1.0
+    },
+    {
+      "source": "claude_gated_actions_pattern",
+      "target": "elsewhere_docs_auth_routing_audit_routing_matrix",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/CLAUDE.md",
+      "source_location": "line 119-124",
+      "weight": 1.0
+    },
+    {
+      "source": "claude_three_supabase_clients",
+      "target": "backend_plan_rls_policies",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/CLAUDE.md",
+      "source_location": "line 113-117",
+      "weight": 1.0
+    },
+    {
+      "source": "claude_api_response_shape",
+      "target": "backend_plan_get_feed_route",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/CLAUDE.md",
+      "source_location": "line 46-49",
+      "weight": 1.0
+    },
+    {
+      "source": "claude_elsewhere_app",
+      "target": "readme_repo_overview",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/CLAUDE.md",
+      "source_location": "line 1-4",
+      "weight": 1.0
+    },
+    {
+      "source": "elsewhere_readme_app_overview",
+      "target": "readme_repo_overview",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/elsewhere/README.md",
+      "source_location": "line 1-5",
+      "weight": 1.0
+    },
+    {
+      "source": "claude_dev_philosophy",
+      "target": "claude_elsewhere_app",
+      "relation": "rationale_for",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/CLAUDE.md",
+      "source_location": "line 9-17",
+      "weight": 1.0
+    }
+  ],
+  "hyperedges": [
+    {
+      "id": "auth_gated_return_flow",
+      "label": "Gated Auth Return Flow",
+      "nodes": [
+        "claude_gated_actions_pattern",
+        "elsewhere_docs_auth_routing_audit_routing_matrix",
+        "elsewhere_docs_auth_routing_audit_logic_map",
+        "elsewhere_docs_auth_routing_audit_product_rules"
+      ],
+      "relation": "participate_in",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/elsewhere/docs/auth-routing-audit.md"
+    },
+    {
+      "id": "match_score_system",
+      "label": "Match Score System (formula, concept, display tiers)",
+      "nodes": [
+        "backend_plan_match_score_formula",
+        "claude_match_score_concept",
+        "frontend_plan_match_score_display"
+      ],
+      "relation": "form",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/backend-plan.md"
+    },
+    {
+      "id": "core_db_schema",
+      "label": "Core Database Schema (places, stats, ratings, saves, profiles)",
+      "nodes": [
+        "backend_plan_places_table",
+        "backend_plan_place_stats_table",
+        "backend_plan_ratings_table",
+        "backend_plan_saved_table",
+        "backend_plan_profiles_table",
+        "backend_plan_user_preferences_table"
+      ],
+      "relation": "form",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/vinhantruong/Desktop/elsewhere/backend-plan.md"
+    }
+  ],
+  "input_tokens": 15720,
+  "output_tokens": 4200
+}

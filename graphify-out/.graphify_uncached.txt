@@ -1,0 +1,14 @@
+/Users/vinhantruong/Desktop/elsewhere/CLAUDE.md
+/Users/vinhantruong/Desktop/elsewhere/README.md
+/Users/vinhantruong/Desktop/elsewhere/backend-plan.md
+/Users/vinhantruong/Desktop/elsewhere/elsewhere/.vercel/README.txt
+/Users/vinhantruong/Desktop/elsewhere/elsewhere/README.md
+/Users/vinhantruong/Desktop/elsewhere/elsewhere/docs/auth-routing-audit.md
+/Users/vinhantruong/Desktop/elsewhere/frontend-plan.md
+/Users/vinhantruong/Desktop/elsewhere/elsewhere/app/icon.png
+/Users/vinhantruong/Desktop/elsewhere/elsewhere/public/file.svg
+/Users/vinhantruong/Desktop/elsewhere/elsewhere/public/globe.svg
+/Users/vinhantruong/Desktop/elsewhere/elsewhere/public/google-icon.svg
+/Users/vinhantruong/Desktop/elsewhere/elsewhere/public/next.svg
+/Users/vinhantruong/Desktop/elsewhere/elsewhere/public/vercel.svg
+/Users/vinhantruong/Desktop/elsewhere/elsewhere/public/window.svg
