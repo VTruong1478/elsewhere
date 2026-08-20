@@ -81,10 +81,10 @@ function FeedContent() {
 
   const [isLgDesktop, setIsLgDesktop] = useState(() => {
     if (typeof window === "undefined") return false;
-    return window.matchMedia("(min-width: 1024px)").matches;
+    return window.matchMedia("(min-width: 1025px)").matches;
   });
   useEffect(() => {
-    const mq = window.matchMedia("(min-width: 1024px)");
+    const mq = window.matchMedia("(min-width: 1025px)");
     const sync = () => setIsLgDesktop(mq.matches);
     sync();
     mq.addEventListener("change", sync);

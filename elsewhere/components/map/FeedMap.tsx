@@ -294,6 +294,8 @@ export function FeedMap({
 
   /** Latest zoom for +/- control disabled states (synced from the map). */
   const [mapZoomUi, setMapZoomUi] = useState<number | null>(null);
+  /** Set when Mapbox reports a fatal load error (bad style, expired token, offline). */
+  const [mapFailed, setMapFailed] = useState(false);
 
   const effectiveUserLocation = useMemo(() => {
     if (showUserLocationDot !== true) return null;
@@ -362,6 +364,19 @@ export function FeedMap({
     });
 
     map.touchZoomRotate.disableRotation();
+
+    // Without this, a style/tile/token failure leaves a blank grey container
+    // with no state and no message.
+    map.on("error", (e: { error?: { status?: number; message?: string } }) => {
+      const status = e?.error?.status;
+      // 4xx on the style or token is unrecoverable; tile blips are not.
+      if (status === 401 || status === 403 || status === 404) {
+        console.error("[FeedMap] fatal Mapbox error:", e?.error?.message);
+        setMapFailed(true);
+      } else {
+        console.error("[FeedMap] Mapbox error:", e?.error?.message);
+      }
+    });
 
     mapRef.current = map;
 
@@ -873,22 +888,16 @@ export function FeedMap({
   // -----------------------------------------------------------------------
   // Render
   // -----------------------------------------------------------------------
-  if (!token) {
+  if (!token || mapFailed) {
+    // End-user wording: the previous copy told visitors to edit .env.local.
     return (
-      <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-surface-alt px-4 text-center text-text-secondary">
-        <p className="text-body-m font-medium">
-          Map unavailable: missing access token
-        </p>
+      <div
+        role="alert"
+        className="flex h-full w-full flex-col items-center justify-center gap-8 bg-surface-alt px-16 text-center text-text-secondary"
+      >
+        <p className="text-ui-label-l text-text">Map unavailable</p>
         <p className="text-body-s">
-          Add{" "}
-          <code className="rounded bg-surface-chip px-1 py-0.5 font-mono text-ui-caption">
-            NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN
-          </code>{" "}
-          to{" "}
-          <code className="rounded bg-surface-chip px-1 py-0.5 font-mono text-ui-caption">
-            .env.local
-          </code>
-          , then restart the dev server.
+          The map couldn&rsquo;t be loaded right now. The list view still works.
         </p>
       </div>
     );

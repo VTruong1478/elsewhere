@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import {
+  hasDevBypassCookie,
+  tryGetOrCreateDevAuthUser,
+} from "@/lib/devAuth";
 
 export async function GET(
   _req: NextRequest,
@@ -7,6 +13,25 @@ export async function GET(
 ) {
   const { userId } = await params;
   const serviceClient = createServiceRoleClient();
+
+  // Social graph is visible to other signed-in users, but not anonymously.
+  const supabase = await createClient();
+  const cookieStore = await cookies();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const actingUser =
+    user ??
+    (hasDevBypassCookie(cookieStore)
+      ? await tryGetOrCreateDevAuthUser(serviceClient, "user/following")
+      : null);
+
+  if (!actingUser) {
+    return NextResponse.json(
+      { data: null, error: "Authentication required" },
+      { status: 401 },
+    );
+  }
 
   // Fetch IDs of users that userId follows
   const { data: followRows, error: followError } = await serviceClient
@@ -19,7 +44,7 @@ export async function GET(
   if (followError) {
     console.error("[user/following] follow error:", followError);
     return NextResponse.json(
-      { data: null, error: followError.message ?? "Failed to load following" },
+      { data: null, error: "Failed to load following" },
       { status: 500 },
     );
   }
@@ -38,7 +63,7 @@ export async function GET(
   if (profileError) {
     console.error("[user/following] profiles error:", profileError);
     return NextResponse.json(
-      { data: null, error: profileError.message ?? "Failed to load following profiles" },
+      { data: null, error: "Failed to load following profiles" },
       { status: 500 },
     );
   }

@@ -7,6 +7,7 @@ import {
   hasDevBypassCookie,
   tryGetOrCreateDevAuthUser,
 } from "@/lib/devAuth";
+import { normalizePlaceId } from "@/lib/placeId";
 
 const NOISE_VALUES = ["silent", "quiet", "vibrant"] as const;
 const VIBE_VALUES = ["focused", "casual", "social"] as const;
@@ -15,6 +16,8 @@ const OUTLETS_VALUES = ["scarce", "some", "ample"] as const;
 const MAX_RATINGS_PER_DAY = 100;
 /** Cap for user-uploaded images attached to one rating (storage paths). */
 const MAX_RATING_PHOTOS = 6;
+/** Storage bucket holding user rating photos (see upload-photo route). */
+const PHOTO_BUCKET = "user-photos";
 
 function isRatingsPermissionDenied(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
@@ -43,11 +46,24 @@ function isValidOverallRating(v: unknown): v is number {
  * Normalize and validate storage paths from the client.
  * Accepts `photo_paths` array and/or legacy `photo_path` string.
  */
-function sanitizeRatingPhotoPaths(
+type SupabaseLike = { storage: { from: (b: string) => { list: (prefix: string, opts: { search: string; limit: number }) => Promise<{ data: { name: string }[] | null; error: unknown }> } } };
+
+/**
+ * Normalize and validate storage paths from the client.
+ * Accepts `photo_paths` array and/or legacy `photo_path` string.
+ *
+ * A path is only accepted when it is shaped `[user-photos/]<placeId>/<userId>-<...>`
+ * AND the object actually exists in the bucket. The place segment must match the
+ * route's place: without that check a caller could attach photos uploaded under a
+ * different place to this rating.
+ */
+async function sanitizeRatingPhotoPaths(
   photo_paths: unknown,
   photo_path: unknown,
   userId: string,
-): { paths: string[]; error?: string } {
+  placeId: string,
+  storageClient: SupabaseLike,
+): Promise<{ paths: string[]; error?: string }> {
   const raw: string[] = [];
   if (Array.isArray(photo_paths)) {
     for (const item of photo_paths) {
@@ -58,16 +74,41 @@ function sanitizeRatingPhotoPaths(
     raw.push(String(photo_path).trim());
   }
 
+  const ownershipError = "Each photo path must belong to your account";
   const seen = new Set<string>();
   const out: string[] = [];
+
   for (const p of raw) {
-    if (!p.includes(userId)) {
-      return {
-        paths: [],
-        error: "Each photo path must belong to your account",
-      };
-    }
     if (seen.has(p)) continue;
+
+    // Accept both the bucket-prefixed form returned by upload-photo and a bare path.
+    const withoutBucket = p.startsWith(`${PHOTO_BUCKET}/`)
+      ? p.slice(PHOTO_BUCKET.length + 1)
+      : p;
+
+    const segments = withoutBucket.split("/");
+    if (segments.length !== 2) return { paths: [], error: ownershipError };
+
+    const [pathPlaceId, fileName] = segments;
+    if (!pathPlaceId || !fileName) return { paths: [], error: ownershipError };
+    if (normalizePlaceId(pathPlaceId) !== normalizePlaceId(placeId)) {
+      return { paths: [], error: ownershipError };
+    }
+    if (!fileName.startsWith(`${userId}-`)) {
+      return { paths: [], error: ownershipError };
+    }
+
+    const { data: found, error: listError } = await storageClient.storage
+      .from(PHOTO_BUCKET)
+      .list(pathPlaceId, { search: fileName, limit: 1 });
+    if (listError) {
+      console.error("[rate] photo existence check failed:", listError);
+      return { paths: [], error: "Could not verify uploaded photos" };
+    }
+    if (!found?.some((f) => f.name === fileName)) {
+      return { paths: [], error: ownershipError };
+    }
+
     seen.add(p);
     out.push(p);
     if (out.length > MAX_RATING_PHOTOS) {
@@ -230,7 +271,13 @@ export async function POST(
   }
 
   const { paths: ratingPhotoPaths, error: photoPathsError } =
-    sanitizeRatingPhotoPaths(photo_paths, photo_path, actingUser.id);
+    await sanitizeRatingPhotoPaths(
+      photo_paths,
+      photo_path,
+      actingUser.id,
+      placeId,
+      serviceClient,
+    );
   if (photoPathsError) {
     return NextResponse.json({ error: photoPathsError }, { status: 400 });
   }
@@ -328,16 +375,20 @@ export async function PATCH(
     );
   }
 
-  const { paths, error: photoErr } = sanitizeRatingPhotoPaths(
+  const { paths, error: photoErr } = await sanitizeRatingPhotoPaths(
     hasPathsKey ? body.photo_paths : null,
     hasPathsKey ? null : body.photo_path,
     actingUser.id,
+    placeId,
+    serviceClient,
   );
   if (photoErr) {
     return NextResponse.json({ error: photoErr }, { status: 400 });
   }
 
-  let { error } = await writer
+  // `.select("id")` so we can tell "updated" from "matched nothing" — without it
+  // a PATCH against a rating that does not exist reported success.
+  let { data: updated, error } = await writer
     .from("ratings")
     .update({
       photo_paths: paths,
@@ -345,7 +396,8 @@ export async function PATCH(
       updated_at: new Date().toISOString(),
     })
     .eq("place_id", placeId)
-    .eq("user_id", actingUser.id);
+    .eq("user_id", actingUser.id)
+    .select("id");
 
   if (user && isRatingsPermissionDenied(error)) {
     const retry = await serviceClient
@@ -356,8 +408,10 @@ export async function PATCH(
         updated_at: new Date().toISOString(),
       })
       .eq("place_id", placeId)
-      .eq("user_id", actingUser.id);
+      .eq("user_id", actingUser.id)
+      .select("id");
     error = retry.error;
+    updated = retry.data;
   }
 
   if (error) {
@@ -365,6 +419,13 @@ export async function PATCH(
     return NextResponse.json(
       { error: error.message ?? "Failed to update rating" },
       { status: 500 },
+    );
+  }
+
+  if (!updated || updated.length === 0) {
+    return NextResponse.json(
+      { error: "No rating to update for this place" },
+      { status: 404 },
     );
   }
 

@@ -1,10 +1,6 @@
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { isValidGooglePlacesPhotoRef } from "@/lib/googlePlacePhoto";
-import { userPhotoProxyUrl } from "@/lib/userPhotoProxyUrl";
-import { PhotoAttribution } from "@/components/ui/PhotoAttribution";
-import type { PhotoAttributionPayload } from "@/components/ui/PhotoAttribution";
 import { PlaceDetailPageMobile } from "@/components/places/PlaceDetailPageMobile";
+import { PlaceDetailPageDesktop } from "@/components/places/PlaceDetailPageDesktop";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -17,24 +13,11 @@ export default async function PlaceDetailPage({ params }: PageProps) {
   const supabase = await createClient();
   const { data: place, error } = await supabase
     .from("places")
-    .select(
-      "id, name, address, lat, lng, vibe_photo_ref, google_photo_ref, vibe_photo_attribution, opening_hours, timezone",
-    )
+    .select("id, lat, lng")
     .eq("id", id)
     .single();
 
   const placeRow = !error && place ? place : null;
-
-  const vibeRef = placeRow
-    ? ((placeRow.vibe_photo_ref as string | null)?.trim() ?? null)
-    : null;
-  const googleRef = placeRow
-    ? ((placeRow.google_photo_ref as string | null)?.trim() ?? null)
-    : null;
-  const attribution =
-    placeRow
-      ? ((placeRow.vibe_photo_attribution as PhotoAttributionPayload) ?? null)
-      : null;
 
   const initialCenter = placeRow
     ? { lat: Number(placeRow.lat), lng: Number(placeRow.lng) }
@@ -42,53 +25,9 @@ export default async function PlaceDetailPage({ params }: PageProps) {
 
   return (
     <>
-      {/* Desktop/tablet >= lg: keep existing layout unchanged */}
-      <div className="hidden min-h-screen bg-surface p-4 lg:block">
-        <div className="mx-auto max-w-2xl">
-          <Link
-            href="/feed"
-            className="text-ui-label-m text-text-tertiary hover:text-text"
-          >
-            ← Back to feed
-          </Link>
-          <h1 className="font-lora text-heading-l text-text mt-4">
-            {(placeRow?.name as string) ?? "Place"}
-          </h1>
-          <p className="text-body-m text-text-secondary mt-1">
-            {(placeRow?.address as string) ?? ""}
-          </p>
-          {(vibeRef || googleRef) && (
-            <div className="mt-6">
-              {vibeRef && isValidGooglePlacesPhotoRef(vibeRef) ? (
-                <img
-                  src={`/api/place-photo?ref=${encodeURIComponent(vibeRef)}`}
-                  alt=""
-                  className="w-full rounded-radius-md object-cover"
-                />
-              ) : vibeRef ? (
-                <img
-                  src={userPhotoProxyUrl(
-                    vibeRef.startsWith("user-photos/")
-                      ? vibeRef.slice("user-photos/".length)
-                      : vibeRef,
-                  )}
-                  alt=""
-                  className="w-full rounded-radius-md object-cover"
-                />
-              ) : googleRef ? (
-                <img
-                  src={`/api/places/${id}/photo`}
-                  alt=""
-                  className="w-full rounded-radius-md object-cover"
-                />
-              ) : null}
-              <PhotoAttribution
-                attribution={attribution}
-                className="mt-2"
-              />
-            </div>
-          )}
-        </div>
+      {/* Desktop >= lg: same detail panel the feed renders, for full parity. */}
+      <div className="hidden lg:block">
+        <PlaceDetailPageDesktop placeId={id} initialCenter={initialCenter} />
       </div>
 
       {/* Mobile/tablet < lg: map background + draggable place bottom sheet (same as map marker) */}

@@ -20,6 +20,11 @@ import { usePlaceStore } from "@/store/usePlaceStore";
 import { userPhotoProxyUrl } from "@/lib/userPhotoProxyUrl";
 import { SocialPlaceCard } from "@/components/social/SocialPlaceCard";
 import { formatPlaceTypeForDisplay } from "@/lib/placeTypeDisplay";
+import { useToast } from "@/components/ui/Toast";
+import { ensureAuthForGatedAction } from "@/lib/authGate";
+import { timeAgo } from "@/lib/timeAgo";
+import { patchRatingSocialCounts } from "@/lib/ratingSocialCache";
+import { RatingCommentsThread } from "@/components/social/RatingCommentsThread";
 
 export type RatingCardItem = {
   id: string;
@@ -45,19 +50,9 @@ export type RatingCardItem = {
   outlets?: string | null;
   like_count?: number;
   comment_count?: number;
+  viewer_has_liked?: boolean;
 };
 
-function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const minutes = Math.floor(diff / 60000);
-  if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(diff / 3600000);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(diff / 86400000);
-  if (days < 30) return `${days}d ago`;
-  return new Date(iso).toLocaleDateString();
-}
 
 export function RatingCard({
   item,
@@ -69,12 +64,96 @@ export function RatingCard({
   const router = useRouter();
   const { setSelectedPlaceId } = usePlaceStore();
   const queryClient = useQueryClient();
+  const { showToast } = useToast();
   const [isSaved, setIsSaved] = useState(item.is_saved);
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  const [likeCount, setLikeCount] = useState(item.like_count ?? 0);
+  const [hasLiked, setHasLiked] = useState(item.viewer_has_liked ?? false);
+  const [commentCount, setCommentCount] = useState(item.comment_count ?? 0);
   const [notesExpanded, setNotesExpanded] = useState(false);
   const [notesClamped, setNotesClamped] = useState(false);
   const notesRef = useRef<HTMLParagraphElement>(null);
   const metricsRef = useRef<HTMLDivElement>(null);
   const metricsDrag = useRef({ active: false, startX: 0, scrollLeft: 0 });
+
+  useEffect(() => {
+    setLikeCount(item.like_count ?? 0);
+    setHasLiked(item.viewer_has_liked ?? false);
+    setCommentCount(item.comment_count ?? 0);
+  }, [item.like_count, item.viewer_has_liked, item.comment_count]);
+
+  const likeMutation = useMutation({
+    mutationFn: async (nextLiked: boolean) => {
+      const res = await fetch(
+        `/api/social/ratings/${encodeURIComponent(item.id)}/likes`,
+        {
+          method: nextLiked ? "POST" : "DELETE",
+          credentials: "same-origin",
+        },
+      );
+      if (!res.ok) {
+        const json = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(json.error ?? "Failed to update like");
+      }
+      const json = (await res.json()) as {
+        data: { like_count: number; viewer_has_liked: boolean } | null;
+      };
+      return json.data;
+    },
+    onMutate: (nextLiked) => {
+      const previous = { hasLiked, likeCount };
+      setHasLiked(nextLiked);
+      const optimisticCount = previous.likeCount + (nextLiked ? 1 : -1);
+      setLikeCount(Math.max(0, optimisticCount));
+      patchRatingSocialCounts(queryClient, item.id, {
+        viewer_has_liked: nextLiked,
+        like_count: Math.max(0, optimisticCount),
+      });
+      return previous;
+    },
+    onError: (err, _next, previous) => {
+      if (previous) {
+        setHasLiked(previous.hasLiked);
+        setLikeCount(previous.likeCount);
+        patchRatingSocialCounts(queryClient, item.id, {
+          viewer_has_liked: previous.hasLiked,
+          like_count: previous.likeCount,
+        });
+      }
+      showToast(err instanceof Error ? err.message : "Couldn't update like");
+    },
+    onSuccess: (server) => {
+      // Server counts are authoritative, so concurrent likes self-heal without
+      // refetching the feed.
+      if (!server) return;
+      setHasLiked(server.viewer_has_liked);
+      setLikeCount(server.like_count);
+      patchRatingSocialCounts(queryClient, item.id, {
+        viewer_has_liked: server.viewer_has_liked,
+        like_count: server.like_count,
+      });
+    },
+  });
+
+  function handleLikeToggle() {
+    void (async () => {
+      const returnPath =
+        typeof window !== "undefined"
+          ? `${window.location.pathname}${window.location.search}`
+          : "/feed";
+
+      const allowed = await ensureAuthForGatedAction(router.push, {
+        action_type: "like_rating",
+        source: "feed",
+        place_id: item.place_id,
+        place_name: item.place_name,
+        returnPath,
+      });
+      if (!allowed) return;
+
+      likeMutation.mutate(!hasLiked);
+    })();
+  }
 
   function onMetricsMouseDown(e: React.MouseEvent<HTMLDivElement>) {
     const el = metricsRef.current;
@@ -129,7 +208,10 @@ export function RatingCard({
       }
     },
     onMutate: () => setIsSaved(true),
-    onError: () => setIsSaved(false),
+    onError: (err) => {
+      setIsSaved(false);
+      showToast(err instanceof Error ? err.message : "Couldn't save that place");
+    },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["saved-places"] });
       queryClient.invalidateQueries({ queryKey: ["feed"] });
@@ -150,7 +232,10 @@ export function RatingCard({
       }
     },
     onMutate: () => setIsSaved(false),
-    onError: () => setIsSaved(true),
+    onError: (err) => {
+      setIsSaved(true);
+      showToast(err instanceof Error ? err.message : "Couldn't remove that save");
+    },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["saved-places"] });
       queryClient.invalidateQueries({ queryKey: ["feed"] });
@@ -167,11 +252,29 @@ export function RatingCard({
   }
 
   function handleBookmark() {
-    if (isSaved) {
-      unsaveMutation.mutate();
-    } else {
-      saveMutation.mutate();
-    }
+    void (async () => {
+      // Rendered on public profile pages too, so a logged-out visitor could
+      // tap this and get a silent 401 rollback instead of a sign-in prompt.
+      const returnPath =
+        typeof window !== "undefined"
+          ? `${window.location.pathname}${window.location.search}`
+          : "/feed";
+
+      const allowed = await ensureAuthForGatedAction(router.push, {
+        action_type: "save_place",
+        source: "feed",
+        place_id: item.place_id,
+        place_name: item.place_name,
+        returnPath,
+      });
+      if (!allowed) return;
+
+      if (isSaved) {
+        unsaveMutation.mutate();
+      } else {
+        saveMutation.mutate();
+      }
+    })();
   }
 
   return (
@@ -351,25 +454,39 @@ export function RatingCard({
       <div className="flex items-center gap-16">
         <button
           type="button"
-          aria-label="Comment"
+          aria-label={commentsOpen ? "Hide comments" : "Show comments"}
+          aria-expanded={commentsOpen}
+          onClick={() => setCommentsOpen((open) => !open)}
           className="flex items-center gap-8 text-primary"
         >
           <MessageCircle size={18} aria-hidden />
-          {item.comment_count != null && (
-            <span className="text-ui-label-m">{item.comment_count}</span>
-          )}
+          <span className="text-ui-label-m">{commentCount}</span>
         </button>
         <button
           type="button"
-          aria-label="Like"
+          aria-label={hasLiked ? "Unlike" : "Like"}
+          aria-pressed={hasLiked}
+          onClick={handleLikeToggle}
+          disabled={likeMutation.isPending}
           className="flex items-center gap-8 text-primary"
         >
-          <Heart size={18} aria-hidden />
-          {item.like_count != null && (
-            <span className="text-ui-label-m">{item.like_count}</span>
-          )}
+          <Heart
+            size={18}
+            aria-hidden
+            className={hasLiked ? "fill-current text-accent" : ""}
+          />
+          <span className="text-ui-label-m">{likeCount}</span>
         </button>
       </div>
+
+      {commentsOpen && (
+        <RatingCommentsThread
+          ratingId={item.id}
+          placeId={item.place_id}
+          placeName={item.place_name}
+          onCountChange={setCommentCount}
+        />
+      )}
     </article>
   );
 }

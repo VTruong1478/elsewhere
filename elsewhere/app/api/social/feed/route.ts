@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { hasDevBypassCookie, tryGetOrCreateDevAuthUser } from "@/lib/devAuth";
+import { fetchRatingSocialCounts } from "@/lib/ratingSocial";
 import { computeMatchScoresByPlaceId } from "@/lib/matchScore";
 
 // Tune these constants to adjust feed density without a code change.
@@ -249,6 +250,14 @@ export async function GET(request: NextRequest) {
     (profileRows ?? []).map((p) => [p.id as string, p]),
   );
 
+  // Degrades to zeros if the RPC is unavailable — a counts failure must not
+  // blank the feed.
+  const socialByRatingId = await fetchRatingSocialCounts(
+    serviceClient,
+    paginatedRows.map((r) => r.id as string),
+    actingUser.id,
+  );
+
   const data = paginatedRows.map((r) => {
     const placeId = r.place_id as string;
     const place = placeById.get(placeId);
@@ -267,6 +276,10 @@ export async function GET(request: NextRequest) {
         ? (r.photo_paths as string[])
         : [],
       created_at: r.created_at as string,
+      like_count: socialByRatingId.get(r.id as string)?.like_count ?? 0,
+      comment_count: socialByRatingId.get(r.id as string)?.comment_count ?? 0,
+      viewer_has_liked:
+        socialByRatingId.get(r.id as string)?.viewer_has_liked ?? false,
       place_id: placeId,
       place_name: (place?.name as string | null) ?? "Unknown place",
       place_type: (place?.place_type as string | null) ?? "",

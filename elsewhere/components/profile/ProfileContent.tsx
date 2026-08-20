@@ -17,6 +17,7 @@ import { UserListSheet } from "@/components/profile/UserListSheet";
 import { Button } from "@/components/ui/Button";
 import { createClient } from "@/lib/supabase/client";
 import type { FeedItem } from "@/types/feed";
+import { useToast } from "@/components/ui/Toast";
 
 type UserListItem = {
   id: string;
@@ -54,6 +55,7 @@ export function ProfileContent({
 }: ProfileContentProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { showToast } = useToast();
 
   const [activeTab, setActiveTab] = useState<"ratings" | "saved">("ratings");
   const [followersOpen, setFollowersOpen] = useState(false);
@@ -136,7 +138,10 @@ export function ProfileContent({
       }
     },
     onMutate: () => setIsFollowing(true),
-    onError: () => setIsFollowing(false),
+    onError: (err) => {
+      setIsFollowing(false);
+      showToast(err instanceof Error ? err.message : "Couldn't follow that person");
+    },
     onSettled: () => {
       queryClient.invalidateQueries({
         queryKey: ["profile-followers", userId],
@@ -160,7 +165,10 @@ export function ProfileContent({
       }
     },
     onMutate: () => setIsFollowing(false),
-    onError: () => setIsFollowing(true),
+    onError: (err) => {
+      setIsFollowing(true);
+      showToast(err instanceof Error ? err.message : "Couldn't unfollow that person");
+    },
     onSettled: () => {
       queryClient.invalidateQueries({
         queryKey: ["profile-followers", userId],

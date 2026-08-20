@@ -2,7 +2,7 @@ import posthog from "posthog-js";
 import type { FeedItem } from "@/types/feed";
 import { safeInternalPath } from "@/lib/safeNextPath";
 
-export type AnalyticsSource = "feed" | "map" | "saved";
+export type AnalyticsSource = "feed" | "map" | "saved" | "profile";
 
 export type PlaceAnalyticsPayload = {
   source: AnalyticsSource;
@@ -22,7 +22,14 @@ function isPostHogConfigured(): boolean {
 export function parseAnalyticsSource(
   raw: string | null | undefined,
 ): AnalyticsSource | null {
-  if (raw === "feed" || raw === "map" || raw === "saved") return raw;
+  if (
+    raw === "feed" ||
+    raw === "map" ||
+    raw === "saved" ||
+    raw === "profile"
+  ) {
+    return raw;
+  }
   return null;
 }
 

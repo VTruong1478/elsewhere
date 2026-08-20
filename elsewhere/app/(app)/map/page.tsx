@@ -132,14 +132,14 @@ function MapContent() {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [mobileSelectionOffsetPx, setMobileSelectionOffsetPx] = useState(0);
 
-  /** Tailwind `lg` (1024px): mount exactly one FeedMap — mobile vs desktop branch. */
+  /** Tailwind `lg` (1025px, see tailwind.config.js): mount exactly one FeedMap. */
   const [isLg, setIsLg] = useState(
     () =>
       typeof window !== "undefined" &&
-      window.matchMedia("(min-width: 1024px)").matches,
+      window.matchMedia("(min-width: 1025px)").matches,
   );
   useLayoutEffect(() => {
-    const mq = window.matchMedia("(min-width: 1024px)");
+    const mq = window.matchMedia("(min-width: 1025px)");
     const sync = () => setIsLg(mq.matches);
     sync();
     mq.addEventListener("change", sync);
@@ -193,6 +193,15 @@ function MapContent() {
         radiusMilesRef.current = newRadius;
         patchRadiusMutation.mutate(newRadius, {
           onSuccess: () => {
+            queryClient.invalidateQueries({
+              queryKey: ["feed", "map"],
+              exact: false,
+              refetchType: "active",
+            });
+          },
+          onError: () => {
+            // Guests get a 401 here on every zoom. Keep the map usable by
+            // refetching at the new radius even though it was not persisted.
             queryClient.invalidateQueries({
               queryKey: ["feed", "map"],
               exact: false,
@@ -333,6 +342,29 @@ function MapContent() {
   } as const;
 
   // isFetching covers first paint and refetches (e.g. filter) while placeholderData may
+  const mapHasError = feedRequest.feedQueryEnabled && query.isError;
+
+  const mapErrorOverlay = mapHasError ? (
+    <div className="pointer-events-auto absolute inset-0 z-30 flex items-center justify-center px-16">
+      <div
+        role="alert"
+        className="flex max-w-sm flex-col items-center gap-12 rounded-radius-md bg-surface px-24 py-24 text-center shadow-map"
+      >
+        <p className="font-lora text-heading-m text-text">
+          Couldn&rsquo;t load places
+        </p>
+        <p className="text-body-m text-text-secondary">
+          {query.error instanceof Error
+            ? query.error.message
+            : "Something went wrong."}
+        </p>
+        <Button variant="primary" onClick={() => query.refetch()}>
+          Try again
+        </Button>
+      </div>
+    </div>
+  ) : null;
+
   // keep previous pins; search debounce and location still gate loading separately.
   const showMapLoading =
     mapSearchPending ||
@@ -363,6 +395,7 @@ function MapContent() {
           <div className="relative min-h-0 flex-1">
             <FeedMap {...feedMapSharedProps} />
             {showMapLoading ? <MapLoadingOverlay /> : null}
+            {mapErrorOverlay}
             {mapPanelState === "map_search_no_results" ? (
               <div className="pointer-events-auto absolute inset-0 z-30 flex items-center justify-center px-16">
                 <FeedEmptyState
@@ -406,6 +439,7 @@ function MapContent() {
               }
             />
             {showMapLoading ? <MapLoadingOverlay /> : null}
+            {mapErrorOverlay}
             {mapPanelState === "map_search_no_results" ? (
               <div className="pointer-events-auto absolute inset-0 z-30 flex items-center justify-center px-16">
                 <FeedEmptyState

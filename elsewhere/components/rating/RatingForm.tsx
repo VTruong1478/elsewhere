@@ -278,10 +278,18 @@ export function RatingForm({
       payload: RatingPayload;
       newFiles: File[];
     }) => {
-      await submitRating(placeId, payload);
-      if (newFiles.length === 0) return;
-      setIsUploadingPhotos(true);
+      // Photos upload BEFORE the rating is written. Previously the rating was
+      // saved first, so a failed upload told the user the whole submit failed
+      // even though their rating had been stored — and re-submitting
+      // re-uploaded every photo.
       const paths = [...(payload.photo_paths ?? [])];
+
+      if (newFiles.length === 0) {
+        await submitRating(placeId, payload);
+        return;
+      }
+
+      setIsUploadingPhotos(true);
       try {
         for (const file of newFiles) {
           const formData = new FormData();
@@ -312,18 +320,12 @@ export function RatingForm({
           const { path } = (await uploadRes.json()) as { path: string };
           paths.push(path);
         }
-        const patchRes = await fetch(`/api/places/${placeId}/rate`, {
-          method: "PATCH",
-          credentials: "same-origin",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ photo_paths: paths }),
-        });
-        if (!patchRes.ok) {
-          throw new Error("Failed to save photos to rating");
-        }
       } finally {
         setIsUploadingPhotos(false);
       }
+
+      // One write, with the photos already attached.
+      await submitRating(placeId, { ...payload, photo_paths: paths });
       captureRatingFunnelEvent(
         "photo_uploaded",
         ratingFunnelPlaceSnapshot(true),
@@ -735,9 +737,42 @@ export function RatingForm({
           </p>
         </div>
         <div
-          className="flex items-center justify-center gap-4"
+          className="flex items-center justify-center gap-4 rounded-radius-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           role="slider"
-          aria-label="Overall rating, drag to select half stars"
+          tabIndex={0}
+          aria-label="Overall rating, use arrow keys to select half stars"
+          onKeyDown={(e) => {
+            // Required field: without keyboard support the rating flow cannot
+            // be completed without a pointer.
+            const STEP = 0.5;
+            const MIN = 0.5;
+            const MAX = 5;
+            const current = overallRating ?? 0;
+            let next: number | null = null;
+
+            switch (e.key) {
+              case "ArrowRight":
+              case "ArrowUp":
+                next = Math.min(MAX, (current || 0) + STEP);
+                break;
+              case "ArrowLeft":
+              case "ArrowDown":
+                next = Math.max(MIN, (current || MIN) - STEP);
+                break;
+              case "Home":
+                next = MIN;
+                break;
+              case "End":
+                next = MAX;
+                break;
+              default:
+                return;
+            }
+
+            e.preventDefault();
+            ensureRatingStarted();
+            setOverallRating(next);
+          }}
           aria-valuemin={0.5}
           aria-valuemax={5}
           aria-valuenow={overallRating ?? 0}

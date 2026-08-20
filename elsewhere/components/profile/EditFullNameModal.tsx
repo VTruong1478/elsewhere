@@ -7,7 +7,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Modal } from "@/components/ui/Modal";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
-import { createClient } from "@/lib/supabase/client";
+import { FULL_NAME_MAX_LENGTH } from "@/lib/constants/profile";
 
 type EditFullNameModalProps = {
   open: boolean;
@@ -38,22 +38,35 @@ export function EditFullNameModal({
     setIsSaving(true);
     setError(null);
 
-    const supabase = createClient();
-    const { error: updateError } = await supabase
-      .from("profiles")
-      .update({ full_name: trimmed })
-      .eq("id", userId);
+    try {
+      const res = await fetch("/api/user/profile", {
+        method: "PATCH",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ full_name: trimmed }),
+      });
+      const json = (await res.json().catch(() => ({}))) as {
+        error?: string | null;
+      };
 
-    setIsSaving(false);
+      if (!res.ok) {
+        setError(json.error ?? "Failed to update name");
+        return;
+      }
 
-    if (updateError) {
-      setError(updateError.message ?? "Failed to update name");
-      return;
+      onSave(trimmed);
+      // The name is denormalized into feeds and follower lists, so all four
+      // caches go stale together.
+      queryClient.invalidateQueries({ queryKey: ["profile-ratings", userId] });
+      queryClient.invalidateQueries({ queryKey: ["social-feed"] });
+      queryClient.invalidateQueries({ queryKey: ["profile-followers"] });
+      queryClient.invalidateQueries({ queryKey: ["profile-following"] });
+      onClose();
+    } catch {
+      setError("Couldn't reach the server. Check your connection.");
+    } finally {
+      setIsSaving(false);
     }
-
-    onSave(trimmed);
-    queryClient.invalidateQueries({ queryKey: ["profile-ratings", userId] });
-    onClose();
   }
 
   return (
@@ -81,13 +94,15 @@ export function EditFullNameModal({
             setError(null);
           }}
           placeholder="Your name"
-          maxLength={80}
+          maxLength={FULL_NAME_MAX_LENGTH}
           aria-label="Full name"
           autoFocus
         />
 
         {error && (
-          <p className="text-body-s text-status-low">{error}</p>
+          <p role="alert" className="text-body-s text-status-low">
+            {error}
+          </p>
         )}
 
         <Button

@@ -17,6 +17,7 @@ import {
 } from "@/lib/analytics";
 import { ensureAuthForGatedAction } from "@/lib/authGate";
 import { tryCaptureGatedActionCompleted } from "@/lib/gatedAction";
+import { useToast } from "@/components/ui/Toast";
 
 type StatusKind = "open" | "closing-soon" | "closed";
 
@@ -44,6 +45,7 @@ function getOpenStatus(
 export function MapPlacePreview({ place }: { place: FeedItem }) {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { showToast } = useToast();
   const returnPathForRate =
     typeof window !== "undefined"
       ? `${window.location.pathname}${window.location.search}`
@@ -84,7 +86,10 @@ export function MapPlacePreview({ place }: { place: FeedItem }) {
       });
       capturePlaceSaved(place, "map");
     },
-    onError: () => setIsSaved(false),
+    onError: (err) => {
+      setIsSaved(false);
+      showToast(err instanceof Error ? err.message : "Couldn't save that place");
+    },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["saved-places"] });
       queryClient.invalidateQueries({ queryKey: ["feed"] });
@@ -105,7 +110,10 @@ export function MapPlacePreview({ place }: { place: FeedItem }) {
       }
     },
     onMutate: () => setIsSaved(false),
-    onError: () => setIsSaved(true),
+    onError: (err) => {
+      setIsSaved(true);
+      showToast(err instanceof Error ? err.message : "Couldn't remove that save");
+    },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["saved-places"] });
       queryClient.invalidateQueries({ queryKey: ["feed"] });

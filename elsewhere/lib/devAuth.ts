@@ -1,6 +1,8 @@
 import type { User } from "@supabase/supabase-js";
 import type { ReadonlyRequestCookies } from "next/dist/server/web/spec-extension/adapters/request-cookies";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { ensureProfileFullName } from "@/lib/ensureProfileFullName";
+import { ensureProfileUsername } from "@/lib/ensureProfileUsername";
 
 const DEV_COOKIE = "dev_auth";
 
@@ -41,6 +43,16 @@ export async function getOrCreateDevAuthUser(
   let page = 1;
   const perPage = 200;
 
+  // Bootstraps the profiles row the same way the real signup callback does.
+  // Without it the dev user exists in auth.users but has no profile, and every
+  // FK to profiles(id) — saved, user_follows, rating_likes, rating_comments —
+  // fails with a foreign key violation.
+  async function ensureProfile(user: User): Promise<User> {
+    await ensureProfileFullName(serviceClient, user);
+    await ensureProfileUsername(serviceClient, user);
+    return user;
+  }
+
   while (page <= 10) {
     const { data, error } = await serviceClient.auth.admin.listUsers({
       page,
@@ -53,7 +65,7 @@ export async function getOrCreateDevAuthUser(
     const found = users.find(
       (u) => (u.email ?? "").trim().toLowerCase() === credentials.email,
     );
-    if (found) return found;
+    if (found) return ensureProfile(found);
     if (users.length < perPage) break;
     page += 1;
   }
@@ -69,7 +81,7 @@ export async function getOrCreateDevAuthUser(
       `Failed to create dev auth user: ${createError?.message ?? "unknown error"}`,
     );
   }
-  return created.user;
+  return ensureProfile(created.user);
 }
 
 /**

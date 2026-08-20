@@ -9,6 +9,7 @@ import {
 import { computeMatchScoresByPlaceId } from "@/lib/matchScore";
 import type { PlaceStatsRow } from "@/lib/feedItemsFromPlaces";
 import type { RatingCardItem } from "@/components/social/RatingCard";
+import { fetchRatingSocialCounts } from "@/lib/ratingSocial";
 
 export async function GET(
   _req: NextRequest,
@@ -160,6 +161,13 @@ export async function GET(
     savedPlaceIds = new Set((savedRows ?? []).map((s) => String(s.place_id)));
   }
 
+  // Degrades to zeros if the RPC is unavailable.
+  const socialByRatingId = await fetchRatingSocialCounts(
+    serviceClient,
+    rows.map((row) => String(row.id)),
+    viewer?.id ?? null,
+  );
+
   const data: RatingCardItem[] = rows.map((row) => {
     const placeInfo = Array.isArray(row.places) ? row.places[0] : row.places;
     const match = resultsByPlaceId[row.place_id];
@@ -168,6 +176,10 @@ export async function GET(
       notes: row.notes ?? null,
       photo_paths: Array.isArray(row.photo_paths) ? row.photo_paths : [],
       created_at: row.created_at,
+      like_count: socialByRatingId.get(String(row.id))?.like_count ?? 0,
+      comment_count: socialByRatingId.get(String(row.id))?.comment_count ?? 0,
+      viewer_has_liked:
+        socialByRatingId.get(String(row.id))?.viewer_has_liked ?? false,
       place_id: row.place_id,
       place_name: placeInfo?.name ?? "",
       match_score_percent: match?.matchScorePercent ?? null,

@@ -33,6 +33,7 @@ export function AddMissingPlaceModal({
   const [placeType, setPlaceType] = useState("");
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) {
@@ -50,6 +51,7 @@ export function AddMissingPlaceModal({
     if (!name || !addr || !placeType) return;
 
     setLoading(true);
+    setSubmitError(null);
     try {
       const res = await fetch("/api/place-submissions", {
         method: "POST",
@@ -64,14 +66,17 @@ export function AddMissingPlaceModal({
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        console.error(
-          "[AddMissingPlaceModal] submit",
-          (body as { error?: string }).error ?? "Failed to submit place",
+        setSubmitError(
+          (body as { error?: string }).error ??
+            "Couldn't submit that place. Please try again.",
         );
         return;
       }
 
       setSubmitted(true);
+    } catch {
+      // A network-level rejection was previously unhandled entirely.
+      setSubmitError("Couldn't reach the server. Check your connection.");
     } finally {
       setLoading(false);
     }
@@ -190,6 +195,12 @@ export function AddMissingPlaceModal({
               ))}
             </Input>
           </div>
+
+          {submitError && (
+            <p role="alert" className="text-body-s text-status-low">
+              {submitError}
+            </p>
+          )}
 
           <Button
             type="submit"

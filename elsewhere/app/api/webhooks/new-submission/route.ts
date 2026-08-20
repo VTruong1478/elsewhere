@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { timingSafeEqual } from "node:crypto";
 import { createResendClient, EMAIL_FROM } from "@/lib/resend";
 
 interface PlaceSubmissionRecord {
@@ -19,25 +20,26 @@ interface SupabaseWebhookPayload {
   record?: PlaceSubmissionRecord;
 }
 
+/** Length-independent comparison so the secret can't be probed by timing. */
+function secretsMatch(a: string, b: string): boolean {
+  const aBuf = Buffer.from(a);
+  const bBuf = Buffer.from(b);
+  if (aBuf.length !== bBuf.length) return false;
+  return timingSafeEqual(aBuf, bBuf);
+}
+
 export async function POST(request: NextRequest) {
-  console.log("[new-submission webhook] request received");
-
   const secret = process.env.SUPABASE_WEBHOOK_SECRET?.trim();
-  // Accept the secret from either the x-webhook-secret header or query param —
-  // Supabase appends custom headers as query params when the webhook URL includes them.
-  const provided =
-    request.headers.get("x-webhook-secret") ??
-    new URL(request.url).searchParams.get("x-webhook-secret");
+  // Header only: a secret in the query string ends up in access logs.
+  const provided = request.headers.get("x-webhook-secret");
 
-  if (!secret || !provided || provided !== secret) {
+  if (!secret || !provided || !secretsMatch(provided, secret)) {
     console.warn(
       "[new-submission webhook] secret check failed —",
-      !secret ? "SUPABASE_WEBHOOK_SECRET not set in env" : "header value mismatch",
+      !secret ? "SUPABASE_WEBHOOK_SECRET not set in env" : "header mismatch",
     );
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-
-  console.log("[new-submission webhook] secret check passed");
 
   let payload: SupabaseWebhookPayload;
   try {
@@ -47,8 +49,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  console.log("[new-submission webhook] payload type:", payload.type, "table:", payload.table, "schema:", payload.schema);
-
   if (
     payload.type !== "INSERT" ||
     payload.table !== "place_submissions" ||
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
     typeof payload.record !== "object" ||
     payload.record === null
   ) {
-    console.warn("[new-submission webhook] unexpected payload:", JSON.stringify(payload));
+    console.warn("[new-submission webhook] unexpected payload shape");
     return NextResponse.json({ error: "Unexpected payload shape" }, { status: 400 });
   }
 
@@ -74,16 +74,11 @@ export async function POST(request: NextRequest) {
       ? `${google_match_name} (${match_confidence} confidence)`
       : "No Google match found";
 
-  console.log("[new-submission webhook] record parsed — place:", place_name, "| submitter:", submitter_full_name);
-
   const toEmail = process.env.DEVELOPER_NOTIFICATION_EMAIL?.trim();
   if (!toEmail) {
     console.error("[new-submission webhook] DEVELOPER_NOTIFICATION_EMAIL is not set — skipping email");
     return NextResponse.json({ ok: true });
   }
-
-  const resendKeyPrefix = process.env.RESEND_API_KEY?.trim().slice(0, 8) ?? "(not set)";
-  console.log("[new-submission webhook] sending email to:", toEmail, "| RESEND_API_KEY prefix:", resendKeyPrefix);
 
   const searchLine = submitted_from_search
     ? `<tr><td style="padding:4px 0;color:#6B6A62;font-size:14px;white-space:nowrap;">From search</td><td style="padding:4px 0 4px 16px;color:#2F2F2F;font-size:14px;">${escHtml(submitted_from_search)}</td></tr>`
@@ -160,7 +155,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const resend = createResendClient();
-    const { data, error } = await resend.emails.send({
+    const { error } = await resend.emails.send({
       from: EMAIL_FROM,
       to: toEmail,
       subject: `New place submission: ${place_name}`,
@@ -168,9 +163,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (error) {
-      console.error("[new-submission webhook] Resend returned an error:", JSON.stringify(error));
-    } else {
-      console.log("[new-submission webhook] email sent successfully, Resend id:", data?.id);
+      console.error("[new-submission webhook] Resend returned an error");
     }
   } catch (err) {
     console.error("[new-submission webhook] exception calling Resend:", err instanceof Error ? err.message : String(err));

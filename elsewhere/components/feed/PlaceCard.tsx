@@ -12,6 +12,7 @@ import { MetricTile } from "@/components/ui/MetricTile";
 import { Pill } from "@/components/ui/Pill";
 import { StatusDot } from "@/components/ui/StatusDot";
 import { userPhotoProxyUrl } from "@/lib/userPhotoProxyUrl";
+import { useToast } from "@/components/ui/Toast";
 import {
   buildRateHref,
   capturePlaceOpened,
@@ -51,6 +52,7 @@ export function PlaceCard({ place }: { place: FeedItem }) {
   const router = useRouter();
   const pathname = usePathname();
   const queryClient = useQueryClient();
+  const { showToast } = useToast();
 
   const listSource: AnalyticsSource = pathname?.startsWith("/saved")
     ? "saved"
@@ -116,8 +118,9 @@ export function PlaceCard({ place }: { place: FeedItem }) {
         listSource,
       );
     },
-    onError: () => {
+    onError: (err) => {
       setIsSaved(false);
+      showToast(err instanceof Error ? err.message : "Couldn't save that place");
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["saved-places"] });
@@ -146,8 +149,9 @@ export function PlaceCard({ place }: { place: FeedItem }) {
           Array.isArray(prev) ? prev.filter((p) => p.id !== place.id) : prev,
       );
     },
-    onError: () => {
+    onError: (err) => {
       setIsSaved(true);
+      showToast(err instanceof Error ? err.message : "Couldn't remove that save");
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["saved-places"] });

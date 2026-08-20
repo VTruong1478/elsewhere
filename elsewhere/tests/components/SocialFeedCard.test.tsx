@@ -17,6 +17,12 @@ vi.mock('next/link', () => ({
   }) => <a href={href} {...props}>{children}</a>,
 }))
 
+// Saving is gated behind ensureAuthForGatedAction; these cases cover the
+// already-signed-in path, so the gate always allows.
+vi.mock('@/lib/authGate', () => ({
+  ensureAuthForGatedAction: vi.fn().mockResolvedValue(true),
+}))
+
 vi.mock('@/components/ui/MatchRing', () => ({
   MatchRing: ({ score }: { score: number }) => (
     <div data-testid="match-ring">{score}</div>

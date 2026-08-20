@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FollowCard } from "@/components/social/FollowCard";
+import { useToast } from "@/components/ui/Toast";
 
 type SuggestionUser = {
   id: string;
@@ -28,6 +29,7 @@ function relevanceText(user: SuggestionUser): string {
 
 export function PeopleToFollowSection() {
   const queryClient = useQueryClient();
+  const { showToast } = useToast();
   const [dismissedIds, setDismissedIds] = useState<ReadonlySet<string>>(
     new Set(),
   );
@@ -50,12 +52,16 @@ export function PeopleToFollowSection() {
     },
     onMutate: (userId) =>
       setFollowingIds((prev) => new Set([...prev, userId])),
-    onError: (_err, userId) =>
+    onError: (err, userId) => {
+      showToast(
+        err instanceof Error ? err.message : "Couldn't follow that person",
+      );
       setFollowingIds((prev) => {
         const next = new Set(prev);
         next.delete(userId);
         return next;
-      }),
+      });
+    },
     onSettled: () =>
       queryClient.invalidateQueries({ queryKey: ["social-feed"] }),
   });
@@ -74,8 +80,10 @@ export function PeopleToFollowSection() {
         next.delete(userId);
         return next;
       }),
-    onError: (_err, userId) =>
-      setFollowingIds((prev) => new Set([...prev, userId])),
+    onError: (err, userId) => {
+      showToast(err instanceof Error ? err.message : "Couldn't unfollow that person");
+      setFollowingIds((prev) => new Set([...prev, userId]));
+    },
     onSettled: () =>
       queryClient.invalidateQueries({ queryKey: ["social-feed"] }),
   });

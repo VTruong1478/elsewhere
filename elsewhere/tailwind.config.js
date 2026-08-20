@@ -7,6 +7,14 @@ module.exports = {
   ],
   theme: {
     extend: {
+      // The app shell switches to desktop at 1025px (min-[1025px]: in
+      // app/(app)/layout.tsx). Tailwind's default `lg` is 1024px, so at exactly
+      // 1024px the page grids went desktop while the shell stayed mobile —
+      // on /map that left no navigation chrome at all. Aligning `lg` fixes
+      // every `lg:` usage at once.
+      screens: {
+        lg: "1025px",
+      },
       colors: {
         primary: "#4F5D3F",
         secondary: "#8C9F7B",
@@ -48,9 +56,26 @@ module.exports = {
         40: "40",
         50: "50",
         60: "60",
+        // Toasts sit above Modal (z-[60]) so an error raised from inside a
+        // modal is not hidden behind it.
+        70: "70",
       },
       boxShadow: {
         map: "0 2px 8px rgba(47,47,47,0.5)",
+      },
+      keyframes: {
+        "toast-in": {
+          "0%": { opacity: "0", transform: "translateY(8px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+        "toast-out": {
+          "0%": { opacity: "1", transform: "translateY(0)" },
+          "100%": { opacity: "0", transform: "translateY(8px)" },
+        },
+      },
+      animation: {
+        "toast-in": "toast-in 150ms ease-out",
+        "toast-out": "toast-out 150ms ease-in forwards",
       },
       backgroundImage: {
         "image-overlay":

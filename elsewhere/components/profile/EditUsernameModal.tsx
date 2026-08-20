@@ -6,7 +6,11 @@ import { X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
-import { createClient } from "@/lib/supabase/client";
+import {
+  USERNAME_MAX_LENGTH,
+  sanitizeUsername,
+  validateUsername,
+} from "@/lib/constants/profile";
 
 type AvailabilityState = "idle" | "checking" | "available" | "taken";
 
@@ -17,13 +21,6 @@ type EditUsernameModalProps = {
   userId: string;
   onSave: (newUsername: string) => void;
 };
-
-function sanitize(input: string): string {
-  return input
-    .toLowerCase()
-    .replace(/[^a-z0-9_]/g, "")
-    .slice(0, 20);
-}
 
 export function EditUsernameModal({
   open,
@@ -55,7 +52,7 @@ export function EditUsernameModal({
     const trimmed = value.trim();
     const isUnchanged = trimmed === (currentUsername ?? "");
 
-    if (!trimmed || isUnchanged) {
+    if (!trimmed || isUnchanged || validateUsername(trimmed)) {
       setAvailability("idle");
       return;
     }
@@ -95,29 +92,50 @@ export function EditUsernameModal({
 
   async function handleSave() {
     if (saveDisabled) return;
-    setIsSaving(true);
-    setError(null);
 
-    const supabase = createClient();
-    const { error: updateError } = await supabase
-      .from("profiles")
-      .update({ username: trimmed })
-      .eq("id", userId);
-
-    setIsSaving(false);
-
-    if (updateError) {
-      setError(updateError.message ?? "Failed to update username");
+    const invalid = validateUsername(trimmed);
+    if (invalid) {
+      setError(invalid);
       return;
     }
 
-    onSave(trimmed);
-    queryClient.invalidateQueries({ queryKey: ["profile-ratings", userId] });
-    onClose();
+    setIsSaving(true);
+    setError(null);
+
+    try {
+      const res = await fetch("/api/user/profile", {
+        method: "PATCH",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: trimmed }),
+      });
+      const json = (await res.json().catch(() => ({}))) as {
+        error?: string | null;
+      };
+
+      if (!res.ok) {
+        // 409 is the unique-constraint case, already phrased for users.
+        setError(json.error ?? "Failed to update username");
+        if (res.status === 409) setAvailability("taken");
+        return;
+      }
+
+      onSave(trimmed);
+      // The username is denormalized into feeds and follower lists.
+      queryClient.invalidateQueries({ queryKey: ["profile-ratings", userId] });
+      queryClient.invalidateQueries({ queryKey: ["social-feed"] });
+      queryClient.invalidateQueries({ queryKey: ["profile-followers"] });
+      queryClient.invalidateQueries({ queryKey: ["profile-following"] });
+      onClose();
+    } catch {
+      setError("Couldn't reach the server. Check your connection.");
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const sanitized = sanitize(e.target.value);
+    const sanitized = sanitizeUsername(e.target.value);
     setValue(sanitized);
     setError(null);
   }
@@ -149,7 +167,7 @@ export function EditUsernameModal({
             value={value}
             onChange={handleChange}
             placeholder="yourname"
-            maxLength={20}
+            maxLength={USERNAME_MAX_LENGTH}
             aria-label="Username"
             autoFocus
             autoComplete="off"
@@ -162,6 +180,7 @@ export function EditUsernameModal({
         {/* Availability status */}
         {trimmed && !isUnchanged && (
           <p
+            aria-live="polite"
             className={`text-body-s ${
               availability === "available"
                 ? "text-status-high"
@@ -177,7 +196,9 @@ export function EditUsernameModal({
         )}
 
         {error && (
-          <p className="text-body-s text-status-low">{error}</p>
+          <p role="alert" className="text-body-s text-status-low">
+            {error}
+          </p>
         )}
 
         <Button

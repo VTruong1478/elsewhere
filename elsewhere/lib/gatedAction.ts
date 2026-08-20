@@ -5,7 +5,9 @@ export type GatedActionType =
   | "save_place"
   | "rate_place"
   | "upload_photo"
-  | "submit_missing_place";
+  | "submit_missing_place"
+  | "like_rating"
+  | "comment_rating";
 
 const PENDING_KEY = "elsewhere:pendingGatedAction";
 const OAUTH_INTENT_KEY = "elsewhere:oauthAuthIntent";

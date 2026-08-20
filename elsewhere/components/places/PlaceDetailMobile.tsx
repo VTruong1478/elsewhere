@@ -27,6 +27,7 @@ import {
 } from "@/lib/analytics";
 import { ensureAuthForGatedAction } from "@/lib/authGate";
 import { tryCaptureGatedActionCompleted } from "@/lib/gatedAction";
+import { useToast } from "@/components/ui/Toast";
 
 type OpeningHoursType = Parameters<typeof deriveOpeningState>[0];
 
@@ -229,6 +230,8 @@ export function PlaceDetailMobile({
   );
 
   const queryClient = useQueryClient();
+
+  const { showToast } = useToast();
 
   const {
     data: detail,
@@ -850,8 +853,9 @@ export function PlaceDetailMobile({
         analyticsSourceFromPathname(pathname),
       );
     },
-    onError: () => {
+    onError: (err) => {
       setIsSaved(false);
+      showToast(err instanceof Error ? err.message : "Couldn't save that place");
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["saved-places"] });
@@ -881,8 +885,9 @@ export function PlaceDetailMobile({
             : prev,
       );
     },
-    onError: () => {
+    onError: (err) => {
       setIsSaved(true);
+      showToast(err instanceof Error ? err.message : "Couldn't remove that save");
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["saved-places"] });
