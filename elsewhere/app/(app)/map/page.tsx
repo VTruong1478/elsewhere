@@ -132,12 +132,14 @@ function MapContent() {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [mobileSelectionOffsetPx, setMobileSelectionOffsetPx] = useState(0);
 
-  /** Tailwind `lg` (1025px, see tailwind.config.js): mount exactly one FeedMap. */
-  const [isLg, setIsLg] = useState(
-    () =>
-      typeof window !== "undefined" &&
-      window.matchMedia("(min-width: 1025px)").matches,
-  );
+  /**
+   * Tailwind `lg` (1025px, see tailwind.config.js): mount exactly one FeedMap.
+   *
+   * Starts false so the server and the client's first render agree — reading
+   * matchMedia in the initializer made them diverge and failed hydration. The
+   * layout effect below syncs the real value before paint.
+   */
+  const [isLg, setIsLg] = useState(false);
   useLayoutEffect(() => {
     const mq = window.matchMedia("(min-width: 1025px)");
     const sync = () => setIsLg(mq.matches);

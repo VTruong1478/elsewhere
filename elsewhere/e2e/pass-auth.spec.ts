@@ -136,9 +136,15 @@ test.describe("auth", () => {
 
   test("google oauth button is present", async ({ page }) => {
     await page.goto("/login");
-    const google = page.locator("button:visible, a:visible").filter({ hasText: /google/i });
-    const n = await google.count();
-    console.log(`[auth google] visible google controls: ${n}`);
-    expect(n, "expected a Google sign-in affordance").toBeGreaterThan(0);
+    // /login renders a blank Suspense fallback first (it reads useSearchParams),
+    // so wait for the control rather than counting immediately.
+    const google = page
+      .locator("button:visible, a:visible")
+      .filter({ hasText: /google/i })
+      .first();
+    await expect(google, "expected a Google sign-in affordance").toBeVisible({
+      timeout: 20_000,
+    });
+    console.log("[auth google] visible google control found");
   });
 });

@@ -4,7 +4,7 @@ import { captureConsole, summarize } from "./console";
 
 requireDevAuth();
 
-const BASE = "http://localhost:3100";
+const BASE = "http://localhost:3000";
 
 /** A profile that is not the dev user, to follow. */
 async function otherProfile(api: import("@playwright/test").APIRequestContext) {

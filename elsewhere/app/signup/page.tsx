@@ -249,7 +249,7 @@ function SignupPageInner() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="Password"
-          autoComplete="current-password"
+          autoComplete="new-password"
           className="bg-surface"
         />
         <p className="text-body-m text-text">

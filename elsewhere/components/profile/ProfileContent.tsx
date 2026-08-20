@@ -1,7 +1,7 @@
 // NEW COMPONENT
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PenLine, User2 } from "lucide-react";
 import { EditFullNameModal } from "@/components/profile/EditFullNameModal";
@@ -56,6 +56,14 @@ export function ProfileContent({
   const router = useRouter();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
+
+  // Followers is rendered from a server prop, so it went stale after a
+  // follow/unfollow until a full reload. Mirror it locally and adjust
+  // optimistically; re-sync whenever the server sends a new value.
+  const [followersCount, setFollowersCount] = useState(stats.followersCount);
+  useEffect(() => {
+    setFollowersCount(stats.followersCount);
+  }, [stats.followersCount]);
 
   const [activeTab, setActiveTab] = useState<"ratings" | "saved">("ratings");
   const [followersOpen, setFollowersOpen] = useState(false);
@@ -137,15 +145,20 @@ export function ProfileContent({
         );
       }
     },
-    onMutate: () => setIsFollowing(true),
+    onMutate: () => {
+      setIsFollowing(true);
+      setFollowersCount((c) => c + 1);
+    },
     onError: (err) => {
       setIsFollowing(false);
+      setFollowersCount((c) => Math.max(0, c - 1));
       showToast(err instanceof Error ? err.message : "Couldn't follow that person");
     },
     onSettled: () => {
       queryClient.invalidateQueries({
         queryKey: ["profile-followers", userId],
       });
+      queryClient.invalidateQueries({ queryKey: ["profile-following"] });
       queryClient.invalidateQueries({ queryKey: ["social-feed"] });
     },
   });
@@ -164,15 +177,20 @@ export function ProfileContent({
         );
       }
     },
-    onMutate: () => setIsFollowing(false),
+    onMutate: () => {
+      setIsFollowing(false);
+      setFollowersCount((c) => Math.max(0, c - 1));
+    },
     onError: (err) => {
       setIsFollowing(true);
+      setFollowersCount((c) => c + 1);
       showToast(err instanceof Error ? err.message : "Couldn't unfollow that person");
     },
     onSettled: () => {
       queryClient.invalidateQueries({
         queryKey: ["profile-followers", userId],
       });
+      queryClient.invalidateQueries({ queryKey: ["profile-following"] });
       queryClient.invalidateQueries({ queryKey: ["social-feed"] });
     },
   });
@@ -317,7 +335,7 @@ export function ProfileContent({
             className="flex flex-1 flex-col items-center rounded-radius-md bg-surface px-8 py-12 text-center"
           >
             <span className="text-heading-l text-text">
-              {stats.followersCount}
+              {followersCount}
             </span>
             <span className="mt-4 text-body-s text-text-secondary">
               Followers

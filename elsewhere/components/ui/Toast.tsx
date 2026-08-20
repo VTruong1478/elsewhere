@@ -74,12 +74,19 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // The portal must not render during hydration: `typeof document` is false on
+  // the server and true on the client's first render, which makes the server
+  // and client trees differ and fails hydration on every page. Gating on a
+  // state flag keeps both first renders identical.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   const value = useMemo(() => ({ showToast }), [showToast]);
 
   return (
     <ToastContext.Provider value={value}>
       {children}
-      {typeof document !== "undefined" &&
+      {mounted &&
         createPortal(
           <div
             // Above Modal (z-[60]) so errors raised inside a modal stay visible.

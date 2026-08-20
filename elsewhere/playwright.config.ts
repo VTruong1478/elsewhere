@@ -17,8 +17,9 @@ export default defineConfig({
   expect: { timeout: 10_000 },
 
   use: {
-    baseURL: "http://localhost:3100",
-    headless: false,
+    baseURL: "http://localhost:3000",
+    // Headless: the suite must not spawn visible Chrome windows.
+    headless: true,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
@@ -43,12 +44,14 @@ export default defineConfig({
     },
   ],
 
-  // Dedicated port: 3000 is often occupied by another project on this machine,
-  // and reusing it silently runs the whole suite against the wrong app.
+  // Reuses a dev server already running on :3000 so the suite and manual
+  // browsing share one process (Next holds a single .next/dev lock).
+  // Verify the app on :3000 is Elsewhere — another project on this machine
+  // has previously occupied this port.
   webServer: {
-    command: "npm run dev -- --port 3100",
-    url: "http://localhost:3100",
-    reuseExistingServer: false,
+    command: "npm run dev",
+    url: "http://localhost:3000",
+    reuseExistingServer: true,
     timeout: 180_000,
   },
 });
