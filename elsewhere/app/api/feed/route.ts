@@ -11,6 +11,17 @@ import {
   tryGetOrCreateDevAuthUser,
 } from "@/lib/devAuth";
 
+/** Upper bound on `limit` so one request can't ask for the whole radius back. */
+const MAX_PAGE_SIZE = 100;
+
+/** Returns null when the param is absent or not a usable non-negative integer. */
+function parsePositiveInt(raw: string | null, max: number): number | null {
+  if (raw == null || raw.trim() === "") return null;
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed) || parsed < 0) return null;
+  return Math.min(parsed, max);
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const latParam = searchParams.get("lat");
@@ -28,6 +39,13 @@ export async function GET(request: NextRequest) {
   const q = (searchParams.get("q") ?? "").trim();
   const filter = searchParams.get("filter") ?? "";
   const radiusParam = searchParams.get("radius_miles");
+
+  // Pagination is opt-in: without `limit` the route returns the full list, which
+  // is what the map tab wants (it needs every pin in the radius, not a page).
+  const limitParam = parsePositiveInt(searchParams.get("limit"), MAX_PAGE_SIZE);
+  // limit=0 would page forever without ever returning an item; treat it as unset.
+  const limit = limitParam === 0 ? null : limitParam;
+  const offset = parsePositiveInt(searchParams.get("offset"), Number.MAX_SAFE_INTEGER) ?? 0;
 
   const supabase = await createClient();
   const cookieStore = await cookies();
@@ -119,5 +137,15 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  return NextResponse.json({ data: result, error: null });
+  if (limit == null) {
+    return NextResponse.json({ data: result, error: null });
+  }
+
+  const nextOffset = offset + limit;
+  return NextResponse.json({
+    data: result.slice(offset, nextOffset),
+    error: null,
+    has_more: nextOffset < result.length,
+    next_offset: nextOffset,
+  });
 }
