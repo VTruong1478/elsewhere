@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { weekdayHours, type OpeningHours } from "@/lib/openingHours";
 import { distanceMilesBetween } from "@/lib/locationRegion";
+import { addressWithoutCountry } from "@/lib/addressDisplay";
 import type { UserLocationState } from "@/lib/feedLocationContext";
 import {
   BATHROOM_DETAIL_LABEL,
@@ -65,7 +66,7 @@ export function PlaceDetailFacts({
   const [hoursOpen, setHoursOpen] = useState(false);
 
   const hours = weekdayHours(openingHours, timezone);
-  const trimmedAddress = address?.trim() || null;
+  const trimmedAddress = addressWithoutCountry(address) || null;
 
   const distanceMi =
     locationState.status === "ready" &&

@@ -25,6 +25,7 @@ import { ensureAuthForGatedAction } from "@/lib/authGate";
 import { formatPlaceTypeForDisplay } from "@/lib/placeTypeDisplay";
 import { tryCaptureGatedActionCompleted } from "@/lib/gatedAction";
 import { wifiCardLabel } from "@/lib/placeFeatures";
+import { addressCompact } from "@/lib/addressDisplay";
 
 type StatusKind = "open" | "closing-soon" | "closed";
 
@@ -171,7 +172,7 @@ export function PlaceCard({ place }: { place: FeedItem }) {
         ? place.neighborhood
         : place.distance_mi != null
           ? `${place.distance_mi.toFixed(1)} mi`
-          : place.address;
+          : addressCompact(place.address);
   const isUnrated = place.rating_count === 0;
   // "0 ratings" reads as a verdict. Invite the first one instead.
   const ratingLabel =
@@ -287,7 +288,16 @@ export function PlaceCard({ place }: { place: FeedItem }) {
               {place.wifi === "none" ? (
                 <WifiOff size={16} className="shrink-0" aria-hidden />
               ) : place.wifi == null ? (
-                <WifiLow size={16} className="shrink-0" aria-hidden />
+                // `WifiLow` is a dot plus one thin arc, so at 16px on a photo it
+                // carried a fraction of the ink of `Wifi`/`WifiOff` and read as a
+                // smudge rather than an icon. A heavier stroke gives the unknown
+                // state the same optical weight as the two confirmed ones.
+                <WifiLow
+                  size={16}
+                  strokeWidth={2.5}
+                  className="shrink-0"
+                  aria-hidden
+                />
               ) : (
                 <Wifi size={16} className="shrink-0" aria-hidden />
               )}

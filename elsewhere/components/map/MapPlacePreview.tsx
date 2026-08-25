@@ -9,6 +9,7 @@ import { isValidGooglePlacesPhotoRef } from "@/lib/googlePlacePhoto";
 import { userPhotoProxyUrl } from "@/lib/userPhotoProxyUrl";
 import { Button } from "@/components/ui/Button";
 import { MatchRing } from "@/components/ui/MatchRing";
+import { addressCompact } from "@/lib/addressDisplay";
 import { StatusDot } from "@/components/ui/StatusDot";
 import {
   buildRateHref,
@@ -123,7 +124,7 @@ export function MapPlacePreview({ place }: { place: FeedItem }) {
   const distanceLabel =
     place.distance_mi != null
       ? `${place.distance_mi.toFixed(1)} mi`
-      : place.neighborhood ?? place.address;
+      : (place.neighborhood ?? addressCompact(place.address));
   // `null` (no ratings yet) must reach MatchRing so it renders its unrated state.
   const matchPercent = place.match_score_percent;
   const openStatus = getOpenStatus(
