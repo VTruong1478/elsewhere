@@ -135,7 +135,6 @@ function mapToRow(place: PlaceResource): {
   place_type: "cafe";
   google_photo_ref: string | null;
   opening_hours: Record<string, unknown> | null;
-  has_wifi: null;
   is_active: boolean;
   created_by: null;
 } | null {
@@ -177,7 +176,6 @@ function mapToRow(place: PlaceResource): {
     place_type: "cafe",
     google_photo_ref: googlePhotoRef,
     opening_hours: openingHours,
-    has_wifi: null,
     is_active: true,
     created_by: null,
   };

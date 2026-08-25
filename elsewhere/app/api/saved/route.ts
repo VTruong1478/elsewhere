@@ -15,11 +15,28 @@ import {
   type PlaceStatsRow,
 } from "@/lib/feedItemsFromPlaces";
 
+/** Finite number in range, or null. */
+function parseCoord(raw: string | null, max: number): number | null {
+  if (raw == null || raw.trim() === "") return null;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || Math.abs(n) > max) return null;
+  return n;
+}
+
 /**
  * Full feed-shaped cards for the current user's saved places (no geo / radius).
- * Order matches `saved.saved_at` descending.
+ * Order matches `saved.saved_at` descending. Optional `lat`/`lng` are the user's
+ * real position and are used only to report `distance_mi`.
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  // Real user coordinates, when the client has them. Distances used to be
+  // measured from the centroid of the user's own saved places, which made a
+  // single save read "0.0 mi". Without coords we report no distance at all.
+  const userLat = parseCoord(searchParams.get("lat"), 90);
+  const userLng = parseCoord(searchParams.get("lng"), 180);
+  const hasUserCoords = userLat != null && userLng != null;
+
   const supabase = await createClient();
   const cookieStore = await cookies();
   const devBypass = hasDevBypassCookie(cookieStore);
@@ -185,10 +202,11 @@ export async function GET() {
     return NextResponse.json({ data: [], error: null });
   }
 
-  const refLat =
-    placeList.reduce((sum, r) => sum + r.lat, 0) / placeList.length;
-  const refLng =
-    placeList.reduce((sum, r) => sum + r.lng, 0) / placeList.length;
+  // `idOrder` below pins the output to saved_at desc, so the reference point
+  // never affects ordering — it only feeds `distance_mi`, which is withheld
+  // entirely unless the client supplied the user's real position.
+  const refLat = userLat ?? placeList[0].lat;
+  const refLng = userLng ?? placeList[0].lng;
 
   const savedIdSet = new Set(orderedIds);
   const idOrder = placeList.map((pl) => pl.id);
@@ -204,6 +222,7 @@ export async function GET() {
     filterChip: "",
     favoritedPlaceIds: savedIdSet,
     idOrder,
+    omitDistance: !hasUserCoords,
   });
 
   const dedupedIds = new Set<string>();

@@ -1,8 +1,15 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useState, Suspense } from "react";
+import { useInfiniteQuery } from "@tanstack/react-query";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  Suspense,
+} from "react";
 import { usePathname } from "next/navigation";
 import { SearchBar } from "@/components/feed/SearchBar";
 import { FilterChips } from "@/components/feed/FilterChips";
@@ -28,25 +35,54 @@ import {
   TUTORIAL_PENDING_KEY,
 } from "@/components/onboarding/TutorialModal";
 import { SocialFeedSection } from "@/components/social/SocialFeedSection";
+import { CaughtUpDivider } from "@/components/feed/CaughtUpDivider";
+import { FeedPageFallback } from "@/components/feed/FeedPageFallback";
 import { PeopleToFollowSection } from "@/components/social/PeopleToFollowSection";
 
-function fetchFeed(params: {
+/**
+ * Places per request. Roughly four mobile screens of cards: big enough that the
+ * sentinel does not fire immediately on load, small enough to keep the first
+ * payload a fraction of a full 25-mile radius.
+ */
+const FEED_PAGE_SIZE = 25;
+
+/**
+ * Place cards rendered before the social sections. Roughly the first screen and
+ * a half on mobile, so the answer to "where could I work?" is always the first
+ * thing on screen, while Following / People to follow stay discoverable a short
+ * scroll down rather than buried under an infinite list.
+ */
+const PLACES_BEFORE_SOCIAL = 5;
+
+type FeedPage = {
+  data: FeedItem[];
+  has_more: boolean;
+  next_offset: number;
+};
+
+function fetchFeedPage(params: {
   lat: number;
   lng: number;
   q: string;
   filter: string;
   /** Case 3 only; omit so API uses user_preferences. */
   radiusMiles?: number | null;
-}): Promise<FeedItem[]> {
+  /** False when lat/lng is the Annandale fallback — API then omits distances. */
+  coordsAreUserLocation: boolean;
+  offset: number;
+}): Promise<FeedPage> {
   const sp = new URLSearchParams({
     lat: String(params.lat),
     lng: String(params.lng),
+    limit: String(FEED_PAGE_SIZE),
+    offset: String(params.offset),
   });
   if (params.q) sp.set("q", params.q);
   if (params.filter) sp.set("filter", params.filter);
   if (params.radiusMiles != null) {
     sp.set("radius_miles", String(params.radiusMiles));
   }
+  if (!params.coordsAreUserLocation) sp.set("coords_source", "fallback");
   return fetch(`/api/feed?${sp.toString()}`).then(async (res) => {
     const body = await res.json();
     if (!res.ok) {
@@ -54,7 +90,11 @@ function fetchFeed(params: {
         typeof body?.error === "string" ? body.error : res.statusText,
       );
     }
-    return Array.isArray(body?.data) ? body.data : (body ?? []);
+    return {
+      data: Array.isArray(body?.data) ? body.data : [],
+      has_more: body?.has_more ?? false,
+      next_offset: body?.next_offset ?? params.offset + FEED_PAGE_SIZE,
+    };
   });
 }
 
@@ -93,27 +133,67 @@ function FeedContent() {
 
   const feedRequest = getFeedRequestCoords(locationState);
 
-  const query = useQuery({
+  const query = useInfiniteQuery({
     queryKey: [
       "feed",
       feedRequest.feedCoords.lat,
       feedRequest.feedCoords.lng,
       feedRequest.feedRadiusMiles,
+      feedRequest.coordsAreUserLocation,
       q,
       filter,
     ],
-    queryFn: () =>
-      fetchFeed({
+    queryFn: ({ pageParam }) =>
+      fetchFeedPage({
         lat: feedRequest.feedCoords.lat,
         lng: feedRequest.feedCoords.lng,
         q,
         filter,
         radiusMiles: feedRequest.feedRadiusMiles,
+        coordsAreUserLocation: feedRequest.coordsAreUserLocation,
+        offset: pageParam,
       }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage) =>
+      lastPage.has_more ? lastPage.next_offset : undefined,
     enabled: feedRequest.feedQueryEnabled,
   });
 
-  const places: FeedItem[] = query.data ?? [];
+  const places: FeedItem[] = useMemo(
+    () => query.data?.pages.flatMap((page) => page.data) ?? [],
+    [query.data],
+  );
+
+  const leadingPlaces = useMemo(
+    () => places.slice(0, PLACES_BEFORE_SOCIAL),
+    [places],
+  );
+  const trailingPlaces = useMemo(
+    () => places.slice(PLACES_BEFORE_SOCIAL),
+    [places],
+  );
+
+  // Distinguishes "loading the feed" from "appending page N". Only the former
+  // may replace the rendered list with skeletons.
+  const { fetchNextPage, hasNextPage, isFetchingNextPage } = query;
+  const isRefetchingFirstPage = query.isFetching && !isFetchingNextPage;
+
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel || !hasNextPage || isFetchingNextPage) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) void fetchNextPage();
+      },
+      // Start the next page slightly before the sentinel is on screen so the
+      // append lands before the user hits the bottom.
+      { rootMargin: "200px" },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
 
   const locationCtx = computeFeedLocationContext(
     locationState,
@@ -144,20 +224,34 @@ function FeedContent() {
     [setSelectedPlaceId],
   );
 
+  // Reports the first page only. `places.length` grows with every appended page,
+  // so keying the effect on it would re-fire the event on each scroll.
+  const capturedFeedKeyRef = useRef<string | null>(null);
+  const firstPageCount = query.data?.pages[0]?.data.length ?? 0;
+  const feedAnalyticsKey = `${feedRequest.feedCoords.lat}|${feedRequest.feedCoords.lng}|${feedRequest.feedRadiusMiles}|${q}|${filter}`;
   useEffect(() => {
     if (!query.isSuccess || !locationCtx.feedQueryEnabled) return;
+    if (capturedFeedKeyRef.current === feedAnalyticsKey) return;
+    capturedFeedKeyRef.current = feedAnalyticsKey;
     captureFeedLoaded({
       source: "feed",
-      result_count: places.length,
+      result_count: firstPageCount,
       has_query: Boolean(q.trim()),
       filter: filter || "all",
     });
-  }, [query.isSuccess, locationCtx.feedQueryEnabled, places.length, q, filter]);
+  }, [
+    query.isSuccess,
+    locationCtx.feedQueryEnabled,
+    feedAnalyticsKey,
+    firstPageCount,
+    q,
+    filter,
+  ]);
 
   const showSkeletons =
     locationState.status === "loading" ||
     (locationCtx.feedQueryEnabled &&
-      (query.isLoading || (!isLgDesktop && query.isFetching)));
+      (query.isLoading || (!isLgDesktop && isRefetchingFirstPage)));
 
   const showResults = locationCtx.feedQueryEnabled && query.isSuccess;
 
@@ -189,8 +283,6 @@ function FeedContent() {
             )}
           </div>
           <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto py-4 px-16 pb-8">
-            <SocialFeedSection />
-            <PeopleToFollowSection />
             {showSkeletons && (
               <div className="space-y-12">
                 {Array.from({ length: 5 }).map((_, i) => (
@@ -225,11 +317,45 @@ function FeedContent() {
                 />
               )}
             {showResults && places.length > 0 && (
-              <div className="space-y-12">
-                {places.map((place) => (
-                  <PlaceCard key={place.id} place={place} />
-                ))}
-              </div>
+              <>
+                <div className="space-y-12">
+                  {leadingPlaces.map((place) => (
+                    <PlaceCard key={place.id} place={place} />
+                  ))}
+                </div>
+                {/* Social sits BELOW the first screen of places: Elsewhere is a
+                    place-discovery product, and opening it must answer "where
+                    could I work?" before anything else. Both sections render
+                    nothing when the user follows nobody. */}
+                <div className="mt-12">
+                  <SocialFeedSection />
+                  <PeopleToFollowSection />
+                </div>
+                {trailingPlaces.length > 0 && (
+                  <div className="space-y-12">
+                    {trailingPlaces.map((place) => (
+                      <PlaceCard key={place.id} place={place} />
+                    ))}
+                  </div>
+                )}
+                {isFetchingNextPage && (
+                  <div className="mt-12 space-y-12">
+                    <PlaceCardSkeleton />
+                  </div>
+                )}
+                {hasNextPage ? (
+                  <div
+                    ref={sentinelRef}
+                    data-testid="feed-sentinel"
+                    aria-hidden
+                    className="h-1"
+                  />
+                ) : (
+                  <div className="mt-12">
+                    <CaughtUpDivider hasOlder={false} />
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -248,7 +374,7 @@ function FeedContent() {
               />
               {locationCtx.feedQueryEnabled &&
               !isLgDesktop &&
-              query.isFetching &&
+              isRefetchingFirstPage &&
               !query.isLoading ? (
                 <MapLoadingOverlay />
               ) : null}
@@ -268,7 +394,7 @@ function FeedContent() {
               !!(
                 locationCtx.feedQueryEnabled &&
                 isLgDesktop &&
-                query.isFetching
+                isRefetchingFirstPage
               )
             }
           />
@@ -294,32 +420,6 @@ function FeedContent() {
       {/* Onboarding tutorial — layered on top, does not affect feed behavior */}
       <TutorialModal onLocationEnabled={() => setLocationEnabled(true)} />
     </>
-  );
-}
-
-function FeedPageFallback() {
-  return (
-    <div className="flex min-h-0 w-full flex-1 flex-col lg:grid lg:grid-cols-12 lg:overflow-hidden">
-      <div className="flex min-h-0 w-full flex-col overflow-hidden lg:col-span-4 lg:min-h-0 lg:overflow-y-auto">
-        <div className="shrink-0 space-y-4 p-4">
-          <div className="h-12 rounded-radius-sm bg-surface-alt animate-pulse" />
-          <div className="flex gap-2">
-            {[1, 2, 3, 4].map((i) => (
-              <div
-                key={i}
-                className="h-10 w-20 rounded-radius-sm bg-surface-alt animate-pulse"
-              />
-            ))}
-          </div>
-        </div>
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 pb-8 lg:px-6">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <PlaceCardSkeleton key={i} />
-          ))}
-        </div>
-      </div>
-      <div className="hidden min-h-0 lg:col-span-8 lg:block lg:h-full bg-surface-alt animate-pulse" />
-    </div>
   );
 }
 

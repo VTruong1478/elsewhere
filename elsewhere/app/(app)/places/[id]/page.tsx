@@ -25,13 +25,14 @@ export default async function PlaceDetailPage({ params }: PageProps) {
 
   return (
     <>
-      {/* Desktop >= lg: same detail panel the feed renders, for full parity. */}
-      <div className="hidden lg:block">
+      {/* Desktop >= lg: same map + detail panel the feed renders, for full parity.
+          `flex-1` (not a bare block) so the wrapper fills the flex-row <main>. */}
+      <div className="hidden min-h-0 w-full flex-1 lg:flex">
         <PlaceDetailPageDesktop placeId={id} initialCenter={initialCenter} />
       </div>
 
       {/* Mobile/tablet < lg: map background + draggable place bottom sheet (same as map marker) */}
-      <div className="lg:hidden">
+      <div className="flex min-h-0 w-full flex-1 lg:hidden">
         <PlaceDetailPageMobile placeId={id} initialCenter={initialCenter} />
       </div>
     </>

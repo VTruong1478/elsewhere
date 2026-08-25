@@ -13,6 +13,9 @@ const NOISE_VALUES = ["silent", "quiet", "vibrant"] as const;
 const VIBE_VALUES = ["focused", "casual", "social"] as const;
 const TABLES_VALUES = ["limited", "mixed", "plentiful"] as const;
 const OUTLETS_VALUES = ["scarce", "some", "ample"] as const;
+/** Optional attributes: absent/null means "the rater did not say". */
+const WIFI_VALUES = ["none", "works", "fast"] as const;
+const BATHROOM_VALUES = ["open", "key", "none"] as const;
 const MAX_RATINGS_PER_DAY = 100;
 /** Cap for user-uploaded images attached to one rating (storage paths). */
 const MAX_RATING_PHOTOS = 6;
@@ -204,6 +207,8 @@ export async function POST(
     vibe,
     tables,
     outlets,
+    wifi,
+    bathroom,
     overall_rating,
     photo_path,
     photo_paths,
@@ -213,6 +218,8 @@ export async function POST(
     vibe?: string;
     tables?: string;
     outlets?: string;
+    wifi?: string | null;
+    bathroom?: string | null;
     overall_rating?: unknown;
     photo_path?: string;
     photo_paths?: unknown;
@@ -270,6 +277,25 @@ export async function POST(
     );
   }
 
+  // 5b. Optional attributes: validated only when present. `null`/absent is a
+  // valid answer meaning "this rater did not say", which is what leaves the
+  // place in the unknown wifi state on the card.
+  if (wifi != null && !WIFI_VALUES.includes(wifi as (typeof WIFI_VALUES)[number])) {
+    return NextResponse.json(
+      { error: `wifi must be one of: ${WIFI_VALUES.join(", ")}` },
+      { status: 400 },
+    );
+  }
+  if (
+    bathroom != null &&
+    !BATHROOM_VALUES.includes(bathroom as (typeof BATHROOM_VALUES)[number])
+  ) {
+    return NextResponse.json(
+      { error: `bathroom must be one of: ${BATHROOM_VALUES.join(", ")}` },
+      { status: 400 },
+    );
+  }
+
   const { paths: ratingPhotoPaths, error: photoPathsError } =
     await sanitizeRatingPhotoPaths(
       photo_paths,
@@ -290,6 +316,8 @@ export async function POST(
     vibe,
     tables,
     outlets,
+    wifi: wifi ?? null,
+    bathroom: bathroom ?? null,
     overall_rating: Number(overall_rating),
     notes: notes ?? null,
     photo_paths: ratingPhotoPaths,

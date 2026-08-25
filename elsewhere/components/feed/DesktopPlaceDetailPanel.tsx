@@ -40,6 +40,11 @@ import {
 } from "@/lib/analytics";
 import { ensureAuthForGatedAction } from "@/lib/authGate";
 import { tryCaptureGatedActionCompleted } from "@/lib/gatedAction";
+import { feedItemForDetailMap } from "@/lib/detailMapPlace";
+import { dominantBathroom, dominantWifi } from "@/lib/placeFeatures";
+import { PlaceDetailFacts } from "@/components/places/PlaceDetailFacts";
+import { UnratedMetricsNote } from "@/components/ui/UnratedMetricsNote";
+import { useUserLocation } from "@/hooks/useUserLocation";
 
 type OpeningHoursType = Parameters<typeof deriveOpeningState>[0];
 
@@ -152,37 +157,6 @@ function noteAuthorAvatarLetter(authorShortName: string): string {
   return t.charAt(0).toUpperCase();
 }
 
-/** Single place on the map: markers only render from `places`; match % from avg rating when available */
-function feedItemForDetailMap(
-  placeId: string,
-  coords: { lat: number; lng: number },
-  row: PlaceDetailResponse["place"] | null,
-  avgOverall: number | null,
-): FeedItem {
-  const match =
-    avgOverall != null && !Number.isNaN(avgOverall)
-      ? Math.round(Math.min(5, Math.max(0, avgOverall)) * 20)
-      : null;
-  return {
-    id: placeId,
-    name: row?.name ?? "—",
-    address: row?.address ?? "",
-    lat: coords.lat,
-    lng: coords.lng,
-    place_type: row?.place_type ?? "",
-    noise: null,
-    tables: null,
-    outlets: null,
-    match_score_percent: match,
-    why_matched: [],
-    open_now: false,
-    closes_at: null,
-    closing_soon: false,
-    open_late: false,
-    pills: [],
-  };
-}
-
 function previewPlaceFromFeed(
   feed: FeedItem,
   canonicalId: string,
@@ -226,6 +200,9 @@ export function DesktopPlaceDetailPanel({
   );
 
   const queryClient = useQueryClient();
+  // `autoRequest: false`: reuse coords already granted on the feed; a detail
+  // panel must never be what raises the system permission dialog.
+  const locationState = useUserLocation({ autoRequest: false });
 
   const {
     data: detail,
@@ -534,8 +511,8 @@ export function DesktopPlaceDetailPanel({
     },
     onMutate: async () => {
       setIsSaved(true);
-      queryClient.setQueryData<FeedItem[] | undefined>(
-        ["saved-places"],
+      queryClient.setQueriesData<FeedItem[] | undefined>(
+        { queryKey: ["saved-places"] },
         (prev) => {
           if (!Array.isArray(prev) || !normalizedId) return prev;
           if (prev.some((p) => p.id === normalizedId)) return prev;
@@ -597,8 +574,8 @@ export function DesktopPlaceDetailPanel({
     },
     onMutate: async () => {
       setIsSaved(false);
-      queryClient.setQueryData<FeedItem[] | undefined>(
-        ["saved-places"],
+      queryClient.setQueriesData<FeedItem[] | undefined>(
+        { queryKey: ["saved-places"] },
         (prev) =>
           Array.isArray(prev) && normalizedId
             ? prev.filter((p) => p.id !== normalizedId)
@@ -633,56 +610,45 @@ export function DesktopPlaceDetailPanel({
         return {
           status: "closed" as const,
           label: "Closed",
-          subLabel:
-            ratingCount > 0
-              ? `· ${ratingCount} ${ratingCount === 1 ? "rating" : "ratings"}`
-              : undefined,
         };
       }
       if (opening.closing_soon && closes) {
         return {
           status: "closing-soon" as const,
           label: `Closing soon (${closes})`,
-          subLabel: `· ${ratingCount} ${ratingCount === 1 ? "rating" : "ratings"}`,
         };
       }
       if (opening.open_now && closes) {
         return {
           status: "open" as const,
           label: `Open until ${closes}`,
-          subLabel: `· ${ratingCount} ${ratingCount === 1 ? "rating" : "ratings"}`,
         };
       }
       if (openLate) {
         return {
           status: "open" as const,
           label: closes ? `Open until ${closes}` : "Open",
-          subLabel: `· ${ratingCount} ratings`,
         };
       }
       return {
         status: "open" as const,
         label: "Open",
-        subLabel: `· ${ratingCount} ratings`,
       };
     }
     if (previewMatches && previewFeedItem) {
-      const sub = ratingCount > 0 ? `· ${ratingCount} ratings` : undefined;
       if (!previewFeedItem.open_now) {
-        return { status: "closed" as const, label: "Closed", subLabel: sub };
+        return { status: "closed" as const, label: "Closed" };
       }
       if (previewFeedItem.closing_soon && previewFeedItem.closes_at) {
         return {
           status: "closing-soon" as const,
           label: `Closing soon (${previewFeedItem.closes_at})`,
-          subLabel: sub,
         };
       }
       if (previewFeedItem.open_now && previewFeedItem.closes_at) {
         return {
           status: "open" as const,
           label: `Open until ${previewFeedItem.closes_at}`,
-          subLabel: sub,
         };
       }
       if (previewFeedItem.open_late) {
@@ -691,17 +657,17 @@ export function DesktopPlaceDetailPanel({
           label: previewFeedItem.closes_at
             ? `Open until ${previewFeedItem.closes_at}`
             : "Open",
-          subLabel: sub,
         };
       }
-      return { status: "open" as const, label: "Open", subLabel: sub };
+      return { status: "open" as const, label: "Open" };
     }
-    return {
-      status: "closed" as const,
-      label: "—",
-      subLabel: undefined as string | undefined,
-    };
-  }, [opening, ratingCount, openLate, previewMatches, previewFeedItem]);
+    return { status: "closed" as const, label: "—" };
+    // `ratingCount` is no longer part of this memo: PlaceDetailFacts owns the
+    // rating summary, so the status line is purely open/closed now.
+  }, [opening, openLate, previewMatches, previewFeedItem]);
+
+  const dominantWifiValue = stats ? dominantWifi(stats) : null;
+  const dominantBathroomValue = stats ? dominantBathroom(stats) : null;
 
   const dominantNoise = stats
     ? dominantNoiseFromCounts(stats)
@@ -835,11 +801,7 @@ export function DesktopPlaceDetailPanel({
             ) : null}
             <div>
               {place && status ? (
-                <StatusDot
-                  status={status.status}
-                  label={status.label}
-                  subLabel={status.subLabel}
-                />
+                <StatusDot status={status.status} label={status.label} />
               ) : null}
             </div>
           </header>
@@ -880,12 +842,35 @@ export function DesktopPlaceDetailPanel({
                 </div>
               )}
 
-              <div className="grid min-w-0 grid-cols-2 gap-2 pb-12 sm:grid-cols-4">
-                <MetricTile type="noise" value={dominantNoise} />
-                <MetricTile type="vibes" value={dominantVibe} />
-                <MetricTile type="tables" value={dominantTables} />
-                <MetricTile type="outlets" value={dominantOutlets} />
-              </div>
+              {place ? (
+                <div className="min-w-0 pb-12">
+                  <PlaceDetailFacts
+                    address={place.address}
+                    lat={coords.lat}
+                    lng={coords.lng}
+                    openingHours={place.opening_hours as OpeningHoursType}
+                    timezone={place.timezone ?? null}
+                    ratingCount={ratingCount}
+                    avgOverall={avgOverall}
+                    wifi={dominantWifiValue}
+                    bathroom={dominantBathroomValue}
+                    locationState={locationState}
+                  />
+                </div>
+              ) : null}
+
+              {ratingCount === 0 ? (
+                <div className="min-w-0 pb-12">
+                  <UnratedMetricsNote />
+                </div>
+              ) : (
+                <div className="grid min-w-0 grid-cols-2 gap-2 pb-12 sm:grid-cols-4">
+                  <MetricTile type="noise" value={dominantNoise} />
+                  <MetricTile type="vibes" value={dominantVibe} />
+                  <MetricTile type="tables" value={dominantTables} />
+                  <MetricTile type="outlets" value={dominantOutlets} />
+                </div>
+              )}
 
               <div className="min-w-0 pb-8">
                 <div className="text-heading-m text-text font-bold">

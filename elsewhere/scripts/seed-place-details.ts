@@ -1,5 +1,5 @@
 /**
- * One-time script to backfill google_place_id, google_photo_ref, and has_wifi
+ * One-time script to backfill google_place_id and google_photo_ref
  * for the 8 seeded NoVA places using the Google Places API (server-side only).
  *
  * Run from the elsewhere app directory:
@@ -127,7 +127,7 @@ interface PlacesApiPlace {
 
 async function fetchPlaceDetails(
   placeId: string,
-): Promise<{ google_photo_ref: string | null; has_wifi: boolean | null }> {
+): Promise<{ google_photo_ref: string | null }> {
   const url = `https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}`;
   const fieldMask = ["id", "name", "photos.name"].join(",");
 
@@ -151,9 +151,8 @@ async function fetchPlaceDetails(
     data.photos && data.photos.length > 0 && data.photos[0]?.name
       ? data.photos[0].name!
       : null;
-  const has_wifi = null;
 
-  return { google_photo_ref, has_wifi };
+  return { google_photo_ref };
 }
 
 async function main(): Promise<void> {
@@ -182,7 +181,7 @@ async function main(): Promise<void> {
       continue;
     }
 
-    const { google_photo_ref, has_wifi } = await fetchPlaceDetails(
+    const { google_photo_ref } = await fetchPlaceDetails(
       mapping.google_place_id,
     );
 
@@ -191,7 +190,6 @@ async function main(): Promise<void> {
       .update({
         google_place_id: mapping.google_place_id,
         google_photo_ref,
-        has_wifi,
       })
       .eq("id", place.id);
 
@@ -204,7 +202,7 @@ async function main(): Promise<void> {
     }
 
     console.log(
-      `Updated "${mapping.db_name}" with place_id=${mapping.google_place_id}, photo_ref=${google_photo_ref}, has_wifi=${has_wifi}`,
+      `Updated "${mapping.db_name}" with place_id=${mapping.google_place_id}, photo_ref=${google_photo_ref}`,
     );
   }
 }

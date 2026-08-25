@@ -56,6 +56,10 @@ vi.mock('@/lib/gatedAction', () => ({
 vi.mock('@/lib/openingHours', () => ({
   deriveOpeningState: vi.fn(() => null),
   hasOpenLate: vi.fn(() => false),
+  // Partial module mock: every export the panel reaches must be declared here,
+  // or the component throws on an undefined function. `null` = no weekday text,
+  // so PlaceDetailFacts omits the hours row.
+  weekdayHours: vi.fn(() => null),
 }))
 
 vi.mock('@/components/places/PlaceDetailCta', () => ({
@@ -85,6 +89,13 @@ function makePlaceDetail(overrides: Partial<PlaceDetailResponse> = {}): PlaceDet
     place_stats: {
       rating_count: 8,
       avg_overall_rating: 4.2,
+      // Optional attributes: nobody answered, so PlaceDetailFacts omits both rows.
+      wifi_none: 0,
+      wifi_works: 0,
+      wifi_fast: 0,
+      bathroom_open: 0,
+      bathroom_key: 0,
+      bathroom_none: 0,
       noise_silent: 1,
       noise_quiet: 5,
       noise_vibrant: 2,

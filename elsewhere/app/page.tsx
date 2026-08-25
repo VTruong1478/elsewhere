@@ -2,7 +2,7 @@
 
 import { AuthEntryRedirect } from "@/components/auth/AuthEntryRedirect";
 
-/** First visit → signup; returning → feed (see AuthEntryRedirect). */
+/** Everyone → feed; just-logged-out → login (see AuthEntryRedirect). */
 export default function Home() {
   return <AuthEntryRedirect />;
 }

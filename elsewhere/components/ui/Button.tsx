@@ -13,12 +13,32 @@ export type ButtonVariant =
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
+  /**
+   * Looks disabled but stays clickable, so the handler can explain *why* it is
+   * unavailable (e.g. the rating form listing which answers are still missing).
+   * Sets `aria-disabled` rather than `disabled`. Use plain `disabled` when
+   * there is nothing to explain.
+   */
+  inactive?: boolean;
   children: React.ReactNode;
 }
 
+/**
+ * Disabled styling per frontend-plan §5: existing palette only, via opacity.
+ * Shared so `disabled` and `inactive` always read the same.
+ */
+const INACTIVE_TONE = "opacity-50";
+
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   function Button(
-    { variant = "primary", disabled, className = "", children, ...props },
+    {
+      variant = "primary",
+      disabled,
+      inactive = false,
+      className = "",
+      children,
+      ...props
+    },
     ref,
   ) {
     const isIcon = variant === "secondaryIcon";
@@ -53,8 +73,11 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         ref={ref}
         type="button"
         disabled={disabled}
+        aria-disabled={inactive || undefined}
         className={`
-          inline-flex cursor-pointer items-center justify-center
+          inline-flex items-center justify-center
+          ${disabled ? "cursor-not-allowed" : "cursor-pointer"}
+          ${disabled || inactive ? INACTIVE_TONE : ""}
           ${isIcon ? "" : "rounded-radius-md"}
           ${variantTone}
           ${isIcon ? `${iconSizeLayout} ${className}` : `min-w-[44px] max-h-[36px] text-ui-label-l ${className} px-24 py-8`}

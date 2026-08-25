@@ -29,6 +29,12 @@ export type PlaceDetailResponse = {
     vibe_focused: number | bigint;
     vibe_casual: number | bigint;
     vibe_social: number | bigint;
+    wifi_none: number | bigint;
+    wifi_works: number | bigint;
+    wifi_fast: number | bigint;
+    bathroom_open: number | bigint;
+    bathroom_key: number | bigint;
+    bathroom_none: number | bigint;
     avg_overall_rating: number | string | null;
   };
   is_saved: boolean;
@@ -46,6 +52,9 @@ export type PlaceDetailResponse = {
     vibe: string;
     tables: string;
     outlets: string;
+    /** Optional attributes; null when the rater did not answer. */
+    wifi: string | null;
+    bathroom: string | null;
     overall_rating: number;
     photo_path: string | null;
     /** All uploaded image storage paths for this rating (preferred); `photo_path` is the first for legacy UI. */

@@ -2,8 +2,8 @@
 
 import { useEffect, useRef } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
 import { RatingCard, type RatingCardItem } from "@/components/social/RatingCard";
+import { CaughtUpDivider } from "@/components/feed/CaughtUpDivider";
 
 type SocialFeedItem = RatingCardItem & {
   overall_rating: number | null;
@@ -59,43 +59,6 @@ function SocialFeedSkeleton() {
           <div className="mt-10 h-6 w-full animate-pulse rounded-radius-sm bg-surface-alt" />
         </div>
       ))}
-    </div>
-  );
-}
-
-function CaughtUpDivider({
-  hasOlder,
-  onLoadOlder,
-  isLoading,
-}: {
-  hasOlder: boolean;
-  onLoadOlder: () => void;
-  isLoading: boolean;
-}) {
-  return (
-    <div className="flex items-center gap-12 py-8">
-      <div className="h-px flex-1 bg-surface-alt" />
-      <div className="flex shrink-0 flex-col items-center gap-4">
-        <span className="text-body-s text-text-tertiary">
-          You&apos;re all caught up
-        </span>
-        {hasOlder && (
-          <button
-            type="button"
-            onClick={onLoadOlder}
-            disabled={isLoading}
-            className="text-body-s text-accent disabled:opacity-50"
-            aria-label="View older ratings"
-          >
-            {isLoading ? (
-              <Loader2 size={12} className="animate-spin" aria-hidden />
-            ) : (
-              "View older"
-            )}
-          </button>
-        )}
-      </div>
-      <div className="h-px flex-1 bg-surface-alt" />
     </div>
   );
 }

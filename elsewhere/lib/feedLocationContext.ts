@@ -42,12 +42,22 @@ export function getFeedRequestCoords(locationState: UserLocationState): {
    * Case 3 only — otherwise the API falls back to user_preferences (Cases 1, 2, 4).
    */
   feedRadiusMiles: number | null;
+  /**
+   * True only when `feedCoords` is the user's real position. False when the
+   * Annandale fallback stands in (permission denied / unavailable / outside
+   * NoVA). The client must forward this so the API suppresses `distance_mi`:
+   * distances measured from a location the user is not standing in are false,
+   * and a San Francisco visitor was being told a Virginia library was 0.5 mi
+   * away. The fallback itself is intentional — only the distance is not.
+   */
+  coordsAreUserLocation: boolean;
 } {
   if (locationState.status === "loading") {
     return {
       feedCoords: ANNANDALE_FALLBACK,
       feedQueryEnabled: false,
       feedRadiusMiles: null,
+      coordsAreUserLocation: false,
     };
   }
   if (
@@ -58,6 +68,7 @@ export function getFeedRequestCoords(locationState: UserLocationState): {
       feedCoords: ANNANDALE_FALLBACK,
       feedQueryEnabled: true,
       feedRadiusMiles: null,
+      coordsAreUserLocation: false,
     };
   }
   const { lat, lng } = locationState;
@@ -66,12 +77,14 @@ export function getFeedRequestCoords(locationState: UserLocationState): {
       feedCoords: ANNANDALE_FALLBACK,
       feedQueryEnabled: true,
       feedRadiusMiles: CASE3_FEED_RADIUS_MILES,
+      coordsAreUserLocation: false,
     };
   }
   return {
     feedCoords: { lat, lng },
     feedQueryEnabled: true,
     feedRadiusMiles: null,
+    coordsAreUserLocation: true,
   };
 }
 
