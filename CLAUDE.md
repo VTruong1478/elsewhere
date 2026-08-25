@@ -1,233 +1,479 @@
 # CLAUDE.md — Elsewhere
 
-Elsewhere is a place-discovery app for work-friendly venues (cafes, libraries, bookstores, tea shops) in Northern Virginia. Users browse a personalized feed and map, rate venues on noise/vibe/tables/outlets, save favorites, and submit missing places.
+Elsewhere is a place-discovery app for work-friendly venues such as cafes, libraries, bookstores, and tea shops. Users browse a personalized feed and map, evaluate places based on noise, vibe, tables, outlets, and photos, save favorites, rate venues, and submit missing places.
 
-**Before writing any code, read this file in full.**
+**Before writing code, read this file in full.**
+
+## Product Goal
+
+Optimize for one outcome:
+
+> Help users quickly discover a place they genuinely want to work from, feel confident choosing it, and have a reason to use Elsewhere again.
+
+Prioritize:
+
+1. Fast discovery
+2. Confidence in what working there will feel like
+3. Easy decision-making
+4. Excellent mobile UX
+5. Visual, polished, trustworthy experiences
+6. Useful reasons to return
+
+Do not add features just because competitors have them. Every meaningful feature should improve discovery, confidence, decision-making, or retention.
 
 ---
 
-## Development Philosophy
+## Act Like a Product Engineer
 
-- Think before coding. Understand the existing pattern before introducing a new one.
-- Read the relevant source files first. Never assume how something works.
-- Prefer modifying existing abstractions over creating new ones.
-- Make the smallest change that solves the problem. Avoid scope creep.
-- Never bypass architecture for convenience (e.g. don't call the DB from a Client Component to avoid writing a route handler).
+Do not operate only as a ticket-taking coding assistant.
+
+While working, proactively look for:
+
+- bugs
+- confusing UX
+- dead ends
+- missing loading, empty, and error states
+- mobile/responsive problems
+- accessibility problems
+- unnecessary taps or complexity
+- missing or misleading data
+- poorly surfaced existing features
+- useful product opportunities
+- edge cases
+- reasons users may abandon or not return
+
+Do not assume existing behavior is intentional or optimal.
+
+If something works technically but is confusing or poorly designed, flag it.
+
+Maintain meaningful findings in:
+
+`docs/PRODUCT_BACKLOG.md`
+
+Do not fill the backlog with speculative feature ideas. Include evidence, impact, proposed solution, priority, effort, and whether my decision is required.
+
+---
+
+## Autonomy
+
+### Fix autonomously
+
+You may investigate, implement, test, and report without asking first for:
+
+- clear bugs
+- broken responsive behavior
+- accessibility defects
+- missing loading/error/empty states
+- obvious visual inconsistencies
+- malformed or missing-data handling
+- small performance fixes
+- low-risk UX improvements with an obvious correct behavior
+- regressions from the documented design
+
+### Propose before implementing
+
+Ask for a decision before:
+
+- major new features
+- significant UX flow changes
+- schema changes or migrations
+- architecture changes
+- new external services or meaningful dependencies
+- auth behavior changes
+- privacy/security-sensitive behavior
+- ranking/recommendation changes
+- destructive data operations
+- changes that materially alter the visual design
+
+Investigate first. When asking, give me the problem, evidence, recommendation, impact, effort/risk, and exact decision needed.
+
+Do not ask broad questions when you can first form a recommendation.
 
 ---
 
 ## How to Work
 
-- Search the codebase before writing any utility, hook, or component. An equivalent likely exists.
-- Reuse `lib/`, `components/ui/`, and existing hooks before creating anything new.
-- When a change touches architecture (new route, new table access pattern, new auth flow), explain the decision before implementing.
-- Match the conventions in the file you're editing — formatting, naming, response shape, error handling.
-- If something feels overly complex, it probably is. Ask before building it.
+For implementation work:
+
+1. Understand the user journey and reproduce the problem.
+2. Read the relevant code and adjacent paths.
+3. Search for existing components, hooks, utilities, and patterns.
+4. Identify the root cause.
+5. Implement the smallest coherent solution.
+6. Test the complete affected flow using Claude in Chrome.
+7. Test relevant edge cases and mobile behavior.
+8. Run appropriate automated checks.
+9. Review your own diff as if reviewing another engineer's PR.
+10. Fix problems found during self-review.
+11. Update `docs/PRODUCT_BACKLOG.md` with completed or newly discovered work.
+12. Continue through clearly approved/autonomous work unless a product decision is required.
+
+Do not stop after every small fix merely to ask permission to continue.
 
 ---
 
-## Architecture Rules
+## End-to-End Testing
 
-**Business logic lives in `lib/` or route handlers — never inline in components.**
+**Frontend work is not complete until tested end-to-end using Claude in Chrome.**
 
-**Database access:**
+Do not rely only on code inspection, TypeScript, lint, tests, or build success.
 
-- Client Components: never touch the DB directly. Use `fetch()` to call API routes.
-- Server Components / route handlers: use `lib/supabase/server.ts` for user-scoped reads.
-- Route handlers performing writes or cross-user reads: use `lib/supabase/service-role.ts`.
-- Never import `service-role.ts` into Client Components (it's `server-only`).
+For affected flows:
 
-**Server vs Client Components:**
+- use the real running app
+- perform the full user interaction
+- verify resulting UI/state
+- refresh when persistence matters
+- test mobile around 390px
+- test desktop above 1025px
+- test relevant loading, empty, failure, and missing-data states
+- check adjacent behavior for regressions
+- inspect browser console/network behavior when relevant
 
-- Default to Server Components. Add `"use client"` only when needed (interactivity, browser APIs, Zustand, TanStack Query hooks).
-- `mapbox-gl` must be used in a Client Component. Never statically import it server-side.
+For auth, location, map state, saving, rating, submissions, and uploads, test the complete multi-step journey.
 
-**API routes:**
-
-- All mutations go through `app/api/` route handlers. No client-side direct DB writes.
-- Response shape is always `{ data, error }`. Match this exactly.
-- Authenticate with `supabase.auth.getUser()` — never trust headers or cookies directly.
-
-**State management:**
-
-- Server state (feed, place detail): TanStack Query.
-- Map/list selection sync: Zustand (`store/usePlaceStore.ts` — `selectedPlaceId`, `hoveredPlaceId`).
-- Pending auth actions: `sessionStorage` via `lib/gatedAction.ts`.
-- Do not add new global state stores without strong justification.
+If something cannot be tested in Claude in Chrome, state exactly what remains unverified.
 
 ---
 
-## Coding Style
+## Frontend Is Specification-Driven
 
-- Readability over cleverness. If a line needs a comment to explain what it does, rewrite it.
-- Use early returns to reduce nesting. Validate and bail out at the top of functions.
-- Name things explicitly. `handleSavePlace` beats `handleClick`. `isLoadingFeed` beats `loading`.
-- Avoid unnecessary abstractions. Don't wrap something in a helper unless it's used in 3+ places.
-- Keep functions focused. If a function is doing two distinct things, split it.
-- All route handlers return `NextResponse.json({ data, error })`. Do not deviate from this shape.
+I am highly specific about the frontend.
+
+Before changing frontend UI or behavior:
+
+1. Read the relevant parts of `frontend-plan.md`.
+2. Read `FRONTEND.md`.
+3. Inspect the current implementation.
+4. Inspect existing design-system components/tokens.
+5. Inspect the rendered experience using Claude in Chrome.
+
+`frontend-plan.md` is authoritative for specified layout, hierarchy, spacing, typography, responsive behavior, and visual treatment.
+
+Do not redesign specified UI based on personal preference.
+
+If you see a meaningful improvement that conflicts with the frontend plan, add it to the backlog and propose it instead of implementing it silently.
+
+Frontend changes should prioritize:
+
+- clear visual hierarchy
+- mobile usability
+- consistent spacing
+- consistent typography
+- obvious interactions
+- useful imagery
+- strong loading/empty/error states
+- confidence in venue selection
+- minimal layout shift
+
+### Tailwind
+
+Use Elsewhere design tokens, not default Tailwind colors.
+
+Primary:
+
+`bg-primary` / `text-primary`
+
+`#4F5D3F`
+
+Typography:
+
+- `.text-display-*`
+- `.text-heading-*`
+- `.text-body-*`
+- `.text-label-*`
+
+Desktop breakpoint:
+
+`min-[1025px]:`
+
+Do not substitute `lg:`.
+
+Reuse existing UI primitives before creating new ones.
 
 ---
 
-## File & Code Creation Rules
+## Architecture
 
-- Do not create a new hook, util, component, or type until you've confirmed an equivalent doesn't exist in `lib/`, `hooks/`, `components/ui/`, or `types/`.
-- Extend existing code when the change is cohesive. Add a case to an existing utility rather than creating a parallel one.
-- New files go in the existing domain folder (`components/feed/`, `lib/`, etc.) — don't invent new top-level directories.
-- Scripts in `scripts/` are maintainer-only. Never call them from app code.
+All app code is in `elsewhere/`.
+
+Do not touch `elsewhere-landing/` unless explicitly asked.
+
+Read `backend-plan.md` before schema/API changes.
+
+### Business logic
+
+Business logic belongs in `lib/` or route handlers, never inline in components.
+
+### Database
+
+- Client Components never access DB directly. Use API routes.
+- Server Components / user-scoped route handlers use `lib/supabase/server.ts`.
+- Writes or cross-user reads use `lib/supabase/service-role.ts`.
+- Never import service role code client-side.
+
+### Server vs Client
+
+Default to Server Components.
+
+Use `"use client"` only when required for interactivity, browser APIs, Zustand, TanStack Query hooks, etc.
+
+`mapbox-gl` must run client-side.
+
+### API
+
+All mutations go through `app/api/`.
+
+Responses always use:
+
+`{ data, error }`
+
+Authenticate with:
+
+`supabase.auth.getUser()`
+
+### State
+
+- Server state: TanStack Query
+- Map/list selection: Zustand via `store/usePlaceStore.ts`
+- Pending auth actions: `sessionStorage` via `lib/gatedAction.ts`
+
+Do not add new global stores without strong justification.
 
 ---
 
-## Git Hygiene
+## Code Quality
 
-- Only modify files directly related to the task. Do not reformat unrelated code.
-- Preserve comments unless they are factually wrong. Do not "clean up" comments speculatively.
-- Do not change indentation or whitespace in files you're not otherwise editing.
+- Read before editing.
+- Prefer existing abstractions over new ones.
+- Search before creating hooks, utilities, components, or types.
+- Fix root causes, not symptoms.
+- Prefer readability over cleverness.
+- Use explicit names and early returns.
+- Avoid unnecessary abstractions.
+- Keep functions focused.
+- Do not reformat unrelated code.
+- Do not modify unrelated files.
+- Never discard unrelated uncommitted work.
+- Review `git status` and the final diff.
 
----
-
-## Tech Stack
-
-| Layer        | Technology                                                                    |
-| ------------ | ----------------------------------------------------------------------------- |
-| Framework    | Next.js 16, App Router                                                        |
-| Language     | TypeScript 5, React 19                                                        |
-| Database     | Supabase (Postgres 17)                                                        |
-| Auth         | Supabase Auth — email/password + Google OAuth                                 |
-| Styling      | Tailwind CSS v3 with custom design tokens                                     |
-| Map          | `mapbox-gl` (primary). `@vis.gl/react-google-maps` is installed but secondary |
-| Server state | TanStack Query v5                                                             |
-| Client state | Zustand v5                                                                    |
-| Analytics    | PostHog                                                                       |
-| Deployment   | Vercel (`iad1`)                                                               |
-
-All app code is in `elsewhere/` (the Next.js root). Do not touch `elsewhere-landing/` unless explicitly asked. Planning docs at the monorepo root (`backend-plan.md`, `frontend-plan.md`) are authoritative — read them before making schema or API changes.
+Use `@/` imports from the app root.
 
 ---
 
 ## Auth
 
-**Provider:** Supabase Auth. `NEXTAUTH_SECRET` is required by `lib/env.ts` but is not used for NextAuth — it's a production security check. Do not remove it.
+Supabase Auth is used.
 
-**Middleware** (`middleware.ts`) refreshes sessions on every request and redirects unauthenticated users to `/signup?next=<path>` (not `/login`). Public paths include `/feed`, `/map`, `/places/[id]` — but NOT `/places/[id]/rate`.
+`NEXTAUTH_SECRET` is required by `lib/env.ts` as a production security check. Do not remove it.
 
-**Three Supabase clients — use the right one:**
+Unauthenticated protected routes redirect to:
 
-- `lib/supabase/client.ts` — browser only, Client Components
-- `lib/supabase/server.ts` — Server Components and route handlers, user-scoped
-- `lib/supabase/service-role.ts` — route handlers only, bypasses RLS (`server-only`)
+`/signup?next=<path>`
 
-**Gated actions** (save/rate/upload photo) when unauthenticated:
+Public:
 
-1. `ensureAuthForGatedAction()` stores the pending intent in `sessionStorage`
-2. Redirects to `/signup?next=<returnPath>`
-3. `ResumePendingGatedActions` component resumes the action after auth completes
+- `/feed`
+- `/map`
+- `/places/[id]`
 
-**Dev auth** (local only, requires `DEV_AUTH_EMAIL` + `DEV_AUTH_PASSWORD`): sets a `dev_auth` cookie; middleware accepts it; route handlers call `tryGetOrCreateDevAuthUser()`. Never reference dev auth patterns in production code paths.
+Protected:
 
----
+- `/places/[id]/rate`
 
-## Data & Schema
+Supabase clients:
 
-Read `supabase/schema-dev.sql` for the authoritative column names and types. There is no generated `database.types.ts` — types are hand-written in `types/` and inline in route handlers. Schema drift is a real risk; check migrations before assuming a column exists.
+- browser: `lib/supabase/client.ts`
+- server/user-scoped: `lib/supabase/server.ts`
+- service role: `lib/supabase/service-role.ts`
 
-**Core tables:**
+Gated unauthenticated actions such as save/rate/photo upload use:
 
-- `places` — venue data. Never write from client. Set `is_active = false` to deactivate; never hard-delete.
-- `place_stats` — aggregated rating counts, managed entirely by Postgres triggers. Never write directly.
-- `ratings` — one row per user per place. Upserted via `POST /api/places/[id]/rate`.
-- `saved` — user saves. Use this table. The `favorites` table exists in the schema but is dead code — do not write to it.
-- `profiles`, `user_preferences` — one row per user, auto-bootstrapped on signup.
-- `place_submissions` — user-submitted missing places; `submitter_name`/`submitter_avatar_url` are denormalized at write time.
+`ensureAuthForGatedAction()` → `sessionStorage` → signup → `ResumePendingGatedActions`
 
-**Enum values** (current, post-migration):
+Preserve this unless explicitly changing the auth flow.
 
-- `place_type`: `cafe`, `library`, `bookstore`, `tea_shop`
-- `noise_level`: `silent`, `quiet`, `vibrant`
-- `tables_label`: `limited`, `mixed`, `plentiful`
-- `outlets_label`: `scarce`, `some`, `ample`
-
-**Enum fallback warning:** Early migrations used `ideal`, `none`, `focus`. Legacy rows with old values may still exist. Fallback handling in `feedItemsFromPlaces.ts` and `saved/route.ts` exists for this reason — do not remove it.
-
-**Feed RPC:** `get_feed_places` is called from `GET /api/feed` via service role. Raw rows must go through `buildFeedItemsFromPlaces()` in `lib/feedItemsFromPlaces.ts` to produce `FeedItem[]`. Never construct `FeedItem` objects manually.
-
-**Feed sort order:** match score DESC → distance ASC → rating count DESC. Match score = 70% preference alignment + 30% community quality (`avg_overall_rating`). Cold-start users (no preferences) use community quality only.
+Dev auth is local-only. Never introduce it into production paths.
 
 ---
 
-## Key Conventions
+## Data
 
-**Tailwind:**
+Read `supabase/schema-dev.sql` and relevant migrations before assuming schema.
 
-- Use custom design tokens, not default Tailwind colors. Primary = `bg-primary` / `text-primary` (`#4F5D3F`).
-- Typography: `.text-display-*`, `.text-heading-*`, `.text-body-*`, `.text-label-*` — not default Tailwind text classes.
-- Desktop breakpoint: `min-[1025px]:` — not `lg:` (which is 1024px).
+There is no generated `database.types.ts`.
 
-**Photos:**
+Core tables:
 
-- `places.google_photo_ref` is a reference string, never a URL. Always proxy through `GET /api/place-photo?ref=...`.
-- User photos are stored in Supabase Storage (`user-photos` bucket). Serve via `GET /api/storage/user-photos/...`. Never expose the raw storage URL.
-- Vibe photo priority: `vibe_photo_path` (admin-set user upload) → `vibe_photo_ref` (admin-set Google ref) → `google_photo_ref` (default).
-- Photo upload is two steps: `POST /api/places/[id]/upload-photo` returns a path, then `PATCH /api/places/[id]/rate` attaches it. Max 6 photos per rating.
+- `places`: deactivate with `is_active = false`; never hard-delete
+- `place_stats`: trigger-managed; never write directly
+- `ratings`: one row per user/place
+- `saved`: canonical saves table
+- `favorites`: dead code; do not write
+- `profiles`
+- `user_preferences`
+- `place_submissions`
 
-**Serialization:** Postgres `bigint` columns must be cast with `Number()` before `NextResponse.json()` — otherwise JSON serialization breaks silently.
+Current enum values:
 
-**Path alias:** Use `@/` for all imports from the app root (e.g. `@/lib/supabase/server`).
+`place_type`: `cafe`, `library`, `bookstore`, `tea_shop`
 
-**Location fallback:** When geolocation is denied or the user is outside NoVA, the app defaults to `{ lat: 38.8304, lng: -77.1941 }` (Annandale, VA). This is intentional.
+`noise_level`: `silent`, `quiet`, `vibrant`
 
-**Rate limit:** 100 ratings per user per UTC day, enforced in `POST /api/places/[id]/rate`.
+`tables_label`: `limited`, `mixed`, `plentiful`
 
----
+`outlets_label`: `scarce`, `some`, `ample`
 
-## Environment Variables
+Legacy enum values may still exist. Do not remove fallback handling in `feedItemsFromPlaces.ts` or `saved/route.ts`.
 
-```
-# Required — app will not start without these
-NEXT_PUBLIC_SUPABASE_URL
-NEXT_PUBLIC_SUPABASE_ANON_KEY
-SUPABASE_SERVICE_ROLE_KEY
-NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
-GOOGLE_PLACES_API_KEY
-NEXTAUTH_SECRET                  # or AUTH_SECRET
-
-# Required for maps
-NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN
-NEXT_PUBLIC_MAPBOX_STYLE
-
-# Optional — analytics
-NEXT_PUBLIC_POSTHOG_KEY
-NEXT_PUBLIC_POSTHOG_HOST
-
-# Optional — admin and dev
-ELSEWHERE_ADMIN_EMAILS           # comma-separated admin emails
-DEV_AUTH_EMAIL
-DEV_AUTH_PASSWORD
-
-# Optional — scripts / local DB
-DATABASE_URL
-DIRECT_URL
-SUPABASE_DB_PASSWORD
-LOCAL_SUPABASE_DATABASE_URL
-```
-
-Copy `.env.example` to `.env.local`. Never commit `.env.local`.
+Postgres `bigint` values must use `Number()` before JSON serialization.
 
 ---
 
-## Before You Finish
+## Feed
 
-Check all of the following before considering a task done:
+`GET /api/feed` uses the `get_feed_places` RPC.
 
-- [ ] No TypeScript errors introduced (`npm run build` or tsc)
-- [ ] No duplicated logic — search for similar utilities before leaving new ones in place
-- [ ] API responses match `{ data, error }` shape
-- [ ] Correct Supabase client used (browser vs server vs service role)
-- [ ] No `bigint` values passed raw to `NextResponse.json()`
-- [ ] Auth checks present on all protected route handlers
-- [ ] Tailwind uses custom tokens, not default colors; breakpoint is `min-[1025px]:` not `lg:`
-- [ ] No new files created when extending an existing file would suffice
-- [ ] No unrelated files modified
+Raw rows must go through:
 
-## Additional context
+`buildFeedItemsFromPlaces()`
 
-See FRONTEND.md, BACKEND.md, and .cursorrules for extended conventions.
+Never construct `FeedItem[]` manually.
+
+Current sort:
+
+1. match score DESC
+2. distance ASC
+3. rating count DESC
+
+Match score:
+
+- 70% preference alignment
+- 30% community quality
+
+Cold-start users use community quality only.
+
+Do not change ranking behavior without approval unless fixing a clear bug.
+
+---
+
+## Photos
+
+`places.google_photo_ref` is a reference, not a URL.
+
+Proxy through:
+
+`GET /api/place-photo?ref=...`
+
+User photos live in Supabase Storage `user-photos` and must be served through:
+
+`GET /api/storage/user-photos/...`
+
+Never expose raw storage URLs.
+
+Vibe photo priority:
+
+1. `vibe_photo_path`
+2. `vibe_photo_ref`
+3. `google_photo_ref`
+
+Photo upload:
+
+1. `POST /api/places/[id]/upload-photo`
+2. `PATCH /api/places/[id]/rate`
+
+Maximum 6 photos per rating.
+
+Imagery is important to Elsewhere. Proactively identify weak or missing-photo experiences, but do not add new image providers, scraping, or storage pipelines without approval.
+
+---
+
+## Location
+
+When geolocation is denied or the user is outside NoVA, fallback location is intentionally:
+
+`{ lat: 38.8304, lng: -77.1941 }`
+
+Annandale, VA.
+
+Do not change the fallback without approval.
+
+You should still test whether the UI communicates the fallback clearly.
+
+---
+
+## Tech Stack
+
+- Next.js 16 App Router
+- React 19
+- TypeScript 5
+- Supabase / Postgres 17
+- Supabase Auth
+- Tailwind CSS v3
+- Mapbox GL
+- TanStack Query v5
+- Zustand v5
+- PostHog
+- Vercel
+
+---
+
+## Before Finishing
+
+Verify:
+
+- [ ] Root cause understood
+- [ ] Existing patterns searched before creating new code
+- [ ] TypeScript/build/tests appropriate to the change pass
+- [ ] API responses remain `{ data, error }`
+- [ ] Correct Supabase client used
+- [ ] Auth checks remain correct
+- [ ] No raw `bigint` serialization
+- [ ] Elsewhere design tokens and typography preserved
+- [ ] `min-[1025px]:` used instead of `lg:`
+- [ ] `frontend-plan.md` followed
+- [ ] Mobile tested
+- [ ] Full affected journey tested in Claude in Chrome
+- [ ] Loading/error/empty states considered
+- [ ] Adjacent regressions checked
+- [ ] Final diff self-reviewed
+- [ ] Product backlog updated where relevant
+- [ ] No unrelated files changed
+
+## Completion Reports
+
+Keep reports concise:
+
+### Completed
+
+What changed and why.
+
+### Verified
+
+Claude in Chrome flows plus automated checks.
+
+### Discovered
+
+Important bugs, edge cases, or opportunities found.
+
+### Decisions Needed
+
+Only genuine product decisions.
+
+---
+
+## Standing Instruction
+
+Your job is not simply to keep Elsewhere technically functional.
+
+Continuously ask:
+
+> **What is preventing this from being an app people genuinely want to use?**
+
+Find those problems.
+
+Fix the clear ones.
+
+Surface the consequential ones with a recommendation.
+
+Test the actual experience.
