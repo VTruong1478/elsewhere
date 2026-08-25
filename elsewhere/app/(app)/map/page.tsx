@@ -131,8 +131,19 @@ function MapContent() {
     setHoveredPlaceId(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: run once when MapContent mounts
   }, []);
-  /** Radius implied by the current map zoom. Local to this view — never persisted. */
-  const [zoomRadiusMiles, setZoomRadiusMiles] = useState<number | null>(null);
+  /**
+   * Radius implied by the current map zoom. Local to this view — never persisted.
+   *
+   * Seeded from the map's own starting zoom rather than null: Mapbox fires a
+   * zoom/move event as part of initial load, so starting at null meant the
+   * first request went out with the account default and was immediately
+   * followed by a second at the viewport radius. Seeding makes the very first
+   * request already match what the map is showing, and the load-time event a
+   * no-op.
+   */
+  const [zoomRadiusMiles, setZoomRadiusMiles] = useState<number>(() =>
+    zoomToRadiusMiles(DEFAULT_MAP_ZOOM),
+  );
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [mobileSelectionOffsetPx, setMobileSelectionOffsetPx] = useState(0);
 

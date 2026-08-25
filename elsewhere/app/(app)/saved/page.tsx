@@ -74,10 +74,19 @@ export default function SavedPage() {
   const savedQuery = useQuery({
     queryKey: ["saved-places", userCoords?.lat ?? null, userCoords?.lng ?? null],
     queryFn: () => fetchSavedPlaces(userCoords),
+    // `useUserLocation` reports "loading" on its first render and only resolves
+    // after mount, so firing immediately sent one request with no coords and a
+    // second with them — two round trips, and distances popping in late.
+    // Waiting for a terminal state costs nothing (it resolves synchronously
+    // after mount from localStorage) and makes it a single request.
+    enabled: locationState.status !== "loading",
   });
 
   const places = savedQuery.data ?? [];
-  const isLoading = savedQuery.isLoading;
+  // A disabled query reports `isLoading: false`, so the "waiting for location"
+  // window has to count as loading too — otherwise the empty state flashes
+  // before the request has even been allowed to start.
+  const isLoading = savedQuery.isLoading || locationState.status === "loading";
   const errMsg =
     savedQuery.isError && savedQuery.error instanceof Error
       ? savedQuery.error.message

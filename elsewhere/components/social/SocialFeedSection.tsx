@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { RatingCard, type RatingCardItem } from "@/components/social/RatingCard";
 import { CaughtUpDivider } from "@/components/feed/CaughtUpDivider";
+import { useHasSession } from "@/hooks/useHasSession";
 
 type SocialFeedItem = RatingCardItem & {
   overall_rating: number | null;
@@ -65,6 +66,10 @@ function SocialFeedSkeleton() {
 
 export function SocialFeedSection() {
   const hasFiredViewedRef = useRef(false);
+  // Following is meaningless without a session: /api/social/feed 401s for
+  // anonymous visitors, so every logged-out feed load was spending a round trip
+  // to be told no, and logging a console error while doing it.
+  const hasSession = useHasSession();
 
   const query = useInfiniteQuery({
     queryKey: ["social-feed"],
@@ -74,6 +79,7 @@ export function SocialFeedSection() {
       lastPage.has_older && lastPage.oldest_created_at != null
         ? lastPage.oldest_created_at
         : undefined,
+    enabled: hasSession === true,
   });
 
   // Fire last_feed_view_at update exactly once, after the initial query resolves.
@@ -88,6 +94,7 @@ export function SocialFeedSection() {
     });
   }, [query.isSuccess]);
 
+  if (hasSession !== true) return null;
   if (query.isLoading) return <SocialFeedSkeleton />;
 
   const allItems = query.data?.pages.flatMap((p) => p.data) ?? [];

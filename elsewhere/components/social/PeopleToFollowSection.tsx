@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FollowCard } from "@/components/social/FollowCard";
 import { useToast } from "@/components/ui/Toast";
+import { useHasSession } from "@/hooks/useHasSession";
 
 type SuggestionUser = {
   id: string;
@@ -28,6 +29,9 @@ function relevanceText(user: SuggestionUser): string {
 }
 
 export function PeopleToFollowSection() {
+  // Suggestions return an empty list for anonymous visitors, and following
+  // requires a session anyway — so do not spend the request.
+  const hasSession = useHasSession();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const [dismissedIds, setDismissedIds] = useState<ReadonlySet<string>>(
@@ -40,6 +44,7 @@ export function PeopleToFollowSection() {
   const query = useQuery({
     queryKey: ["social-suggestions"],
     queryFn: fetchSuggestions,
+    enabled: hasSession === true,
   });
 
   const followMutation = useMutation({
@@ -90,6 +95,7 @@ export function PeopleToFollowSection() {
 
   const visible = (query.data ?? []).filter((u) => !dismissedIds.has(u.id));
 
+  if (hasSession !== true) return null;
   if (!query.isLoading && visible.length === 0) return null;
 
   return (
