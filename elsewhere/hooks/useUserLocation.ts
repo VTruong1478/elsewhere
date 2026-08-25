@@ -6,16 +6,50 @@ import { captureEvent } from "@/lib/analytics";
 const COORDS_CACHE_KEY = "elsewhere:lastCoords";
 const MEANINGFUL_DISTANCE_METERS = 200;
 const LOCATION_TIMEOUT_MS = 5_000;
+/**
+ * How long a cached fix may be trusted.
+ *
+ * The cache used to have no expiry at all, which meant a position saved on one
+ * trip was replayed forever: a visitor who granted location in Annandale and
+ * later opened the app from another state saw "1.8 mi" against places a
+ * thousand miles away, presented as fact. The silent refresh does not rescue
+ * that case, because it only runs when the Permissions API still reports
+ * "granted" — a user who has since revoked or reset the permission keeps the
+ * stale coordinates indefinitely.
+ *
+ * A day is long enough that a returning daily user is never re-prompted mid-use
+ * and short enough that a stale fix cannot outlive a trip.
+ */
+const COORDS_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
+function writeCachedCoords(coords: { lat: number; lng: number }): void {
+  try {
+    window.localStorage.setItem(
+      COORDS_CACHE_KEY,
+      JSON.stringify({ lat: coords.lat, lng: coords.lng, ts: Date.now() }),
+    );
+  } catch {
+    // Ignore cache write failures
+  }
+}
 
 function readCachedCoords(): { lat: number; lng: number } | null {
   if (typeof window === "undefined") return null;
   try {
     const raw = window.localStorage.getItem(COORDS_CACHE_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as { lat?: unknown; lng?: unknown };
+    const parsed = JSON.parse(raw) as {
+      lat?: unknown;
+      lng?: unknown;
+      ts?: unknown;
+    };
     const lat = typeof parsed?.lat === "number" ? parsed.lat : NaN;
     const lng = typeof parsed?.lng === "number" ? parsed.lng : NaN;
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    // Entries written before the TTL existed carry no timestamp. Their age is
+    // unknowable, so they are treated as expired rather than trusted.
+    const ts = typeof parsed?.ts === "number" ? parsed.ts : null;
+    if (ts == null || Date.now() - ts > COORDS_CACHE_TTL_MS) return null;
     return { lat, lng };
   } catch {
     return null;
@@ -116,14 +150,7 @@ export function useUserLocation(
                 lat: pos.coords.latitude,
                 lng: pos.coords.longitude,
               };
-              try {
-                window.localStorage.setItem(
-                  COORDS_CACHE_KEY,
-                  JSON.stringify({ lat: fresh.lat, lng: fresh.lng }),
-                );
-              } catch {
-                // Ignore cache write failures
-              }
+              writeCachedCoords(fresh);
               const movedMeters = distanceMetersBetween(cachedCoords, fresh);
               if (movedMeters >= MEANINGFUL_DISTANCE_METERS) {
                 setState({ status: "ready", lat: fresh.lat, lng: fresh.lng });
@@ -158,7 +185,14 @@ export function useUserLocation(
 
     const timeoutId = window.setTimeout(() => {
       if (cancelled) return;
-      reportPermissionDenied();
+      // Falling back to the regional view after 5s is right — we cannot wait on
+      // the dialog forever. Calling it a denial is not: the dialog is still
+      // open, and the user may well allow it a moment later, at which point the
+      // real outcome is recorded by one of the callbacks below. Reporting a
+      // denial here counted every slow reader as a refusal and inflated the
+      // denial rate with events that a `location_permission_granted` then
+      // contradicted seconds later.
+      captureEvent("location_prompt_timed_out");
       setState({ status: "denied" });
     }, LOCATION_TIMEOUT_MS);
 
@@ -171,14 +205,7 @@ export function useUserLocation(
           lat: pos.coords.latitude,
           lng: pos.coords.longitude,
         };
-        try {
-          window.localStorage.setItem(
-            COORDS_CACHE_KEY,
-            JSON.stringify({ lat: fresh.lat, lng: fresh.lng }),
-          );
-        } catch {
-          // Ignore cache write failures
-        }
+        writeCachedCoords(fresh);
         setState({
           status: "ready",
           lat: pos.coords.latitude,
