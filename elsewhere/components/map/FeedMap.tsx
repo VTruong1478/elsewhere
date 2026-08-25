@@ -31,7 +31,7 @@ function getTierColor(score: number | null): string {
   return TIER_COLORS.low;
 }
 
-/** Matches pin styling: colored ring vs gray "--" when there is no match score. */
+/** Matches pin styling: colored ring vs gray "New" pin when there is no match score. */
 function placeHasMatchScore(place: FeedItem): boolean {
   return (
     place.match_score_percent != null &&
@@ -144,9 +144,10 @@ function PinContent({
   const color = getTierColor(score);
   const scale = selected ? 1.2 : hovered ? 1.1 : 1;
   const ring = selected ? "0 0 0 3px rgba(255,255,255,0.9)" : "none";
+  // "New" (not "--") for unrated places, matching the card's MatchRing.
   const label =
     score == null || Number.isNaN(score)
-      ? "--"
+      ? "New"
       : `${Math.round(Math.min(100, Math.max(0, score)))}%`;
 
   return (

@@ -18,7 +18,10 @@ type OpeningPeriod = {
 };
 
 export type OpeningHours = {
+  /** Legacy Places API field. */
   weekday_text?: string[];
+  /** Places API (New) field — what the seeded rows actually carry. */
+  weekday_descriptions?: string[];
   periods?: OpeningPeriod[];
 };
 
@@ -347,4 +350,30 @@ export function hasOpenLate(openingHours: OpeningHours | null, timezone: string 
     if (closeTime != null && closeTime >= OPEN_LATE_MINUTES) return true;
   }
   return false;
+}
+
+/**
+ * Human-readable opening hours, one line per day, with the index of today in
+ * the place's own timezone.
+ *
+ * Google returns these already localised (e.g. "Monday: 10:00 AM – 9:00 PM"),
+ * so this only picks the right source field and works out which line is today —
+ * it never reformats or invents a line. Returns `null` when the place has no
+ * usable weekday text, so callers can omit the section entirely rather than
+ * render an empty one.
+ *
+ * `weekday_descriptions` (Places API New) and `weekday_text` (legacy) are both
+ * Monday-first; `Date#getDay()` is Sunday-first, hence the rotation.
+ */
+export function weekdayHours(
+  openingHours: OpeningHours | null,
+  timezone: string | null,
+): { lines: string[]; todayIndex: number } | null {
+  const lines =
+    openingHours?.weekday_descriptions ?? openingHours?.weekday_text ?? null;
+  if (!Array.isArray(lines) || lines.length !== 7) return null;
+  if (!lines.every((l) => typeof l === "string" && l.trim() !== "")) return null;
+
+  const { day } = getTodayInTz(timezone ?? DEFAULT_TZ);
+  return { lines, todayIndex: (day + 6) % 7 };
 }

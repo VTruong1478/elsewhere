@@ -40,6 +40,11 @@ export async function GET(request: NextRequest) {
   const filter = searchParams.get("filter") ?? "";
   const radiusParam = searchParams.get("radius_miles");
 
+  // `coords_source=fallback` means lat/lng is the Annandale stand-in, not where
+  // the user is. Distances from it are fabricated, so they are withheld.
+  // Defaults to treating coords as real so other callers are unaffected.
+  const coordsAreFallback = searchParams.get("coords_source") === "fallback";
+
   // Pagination is opt-in: without `limit` the route returns the full list, which
   // is what the map tab wants (it needs every pin in the radius, not a page).
   const limitParam = parsePositiveInt(searchParams.get("limit"), MAX_PAGE_SIZE);
@@ -118,7 +123,10 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  let result = await buildFeedItemsFromPlaces({
+  // `get_feed_places` already applies `search_q` against BOTH name and address.
+  // A second name-only filter used to run here and silently discarded every
+  // address match, so searching a street or area ("Braddock") returned nothing.
+  const result = await buildFeedItemsFromPlaces({
     supabase,
     serviceRoleClient,
     ratingsClient: serviceRoleClient,
@@ -128,14 +136,8 @@ export async function GET(request: NextRequest) {
     refLng: lng,
     filterChip: filter,
     favoritedPlaceIds: savedPlaceIds,
+    omitDistance: coordsAreFallback,
   });
-
-  if (q) {
-    const normalizedQuery = q.toLowerCase();
-    result = result.filter((item) =>
-      item.name.toLowerCase().includes(normalizedQuery),
-    );
-  }
 
   if (limit == null) {
     return NextResponse.json({ data: result, error: null });

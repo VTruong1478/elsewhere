@@ -60,17 +60,20 @@ test.describe("map", () => {
     console.log(`[map retry] refetched (${before} -> ${calls})`);
   });
 
-  test("zoom writes the radius preference", async ({ page }) => {
+  test("zoom adjusts the map radius without persisting it", async ({ page }) => {
     const c = captureConsole(page);
     const patches: string[] = [];
+    const feedCalls: string[] = [];
     page.on("request", (r) => {
       if (r.url().includes("/api/user/preferences") && r.method() === "PATCH") {
         patches.push(r.postData() ?? "");
       }
+      if (r.url().includes("/api/feed")) feedCalls.push(r.url());
     });
 
     await page.goto("/map");
     await page.waitForTimeout(8000);
+    const before = feedCalls.length;
 
     const canvas = page.locator("canvas").first();
     const box = await canvas.boundingBox();
@@ -83,9 +86,19 @@ test.describe("map", () => {
       }
     }
     await page.waitForTimeout(4000);
+
+    const withRadius = feedCalls.slice(before).filter((u) => u.includes("radius_miles="));
     console.log(
-      `[map zoom-radius] preference PATCHes: ${patches.length} ${JSON.stringify(patches.slice(0, 2))} | ${summarize(c)}`,
+      `[map zoom-radius] preference PATCHes: ${patches.length} | feed calls after zoom: ${feedCalls.length - before} (with radius_miles: ${withRadius.length}) | ${summarize(c)}`,
     );
+
+    // Zoom is viewport state: it must never rewrite the account-wide radius.
+    expect(patches, "map zoom must not PATCH user preferences").toHaveLength(0);
+    // ...but it must still re-query the feed at the new radius.
+    expect(
+      withRadius.length,
+      "zooming should refetch the feed with an explicit radius_miles",
+    ).toBeGreaterThan(0);
   });
 
   test("mapbox token is present so the map is not in fallback mode", async ({ page }) => {

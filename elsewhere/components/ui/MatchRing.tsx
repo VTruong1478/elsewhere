@@ -11,8 +11,15 @@ const SVG_COLORS = {
 } as const;
 
 interface MatchRingProps {
-  /** Score 0–100; ring color: 80–100 green, 60–79 yellow, 0–59 orange/red. */
-  score: number;
+  /**
+   * Score 0–100; ring color: 70–100 green, 50–69 yellow, 0–49 orange/red.
+   *
+   * `null` means the place has no community ratings yet — there is no score to
+   * show. Callers must pass the raw value through: coercing null to 0 painted
+   * a red "0%" on every unrated place, which reads as "bad match" rather than
+   * "no data yet".
+   */
+  score: number | null;
 }
 
 function getRingColor(score: number): string {
@@ -30,12 +37,51 @@ const CY = SIZE / 2;
 const CIRCUMFERENCE = 2 * Math.PI * R;
 
 export function MatchRing({ score }: MatchRingProps) {
+  if (score == null || Number.isNaN(score)) {
+    return (
+      <div
+        role="img"
+        className="relative flex h-[48px] w-[48px] items-center justify-center rounded-full bg-surface"
+        aria-label="Not rated yet"
+      >
+        <svg
+          width={SIZE}
+          height={SIZE}
+          viewBox={`0 0 ${SIZE} ${SIZE}`}
+          className="absolute"
+          aria-hidden
+        >
+          {/* Track only — no progress arc, so nothing implies a low score. */}
+          <circle
+            cx={CX}
+            cy={CY}
+            r={R}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={STROKE}
+            className="text-surface-alt"
+          />
+        </svg>
+        <span
+          className="relative z-10 text-center text-ui-label-s text-text-secondary"
+          aria-hidden
+        >
+          New
+        </span>
+      </div>
+    );
+  }
+
   const clamped = Math.min(100, Math.max(0, score));
   const strokeDashoffset = CIRCUMFERENCE - (clamped / 100) * CIRCUMFERENCE;
   const color = getRingColor(clamped);
 
   return (
-    <div className="relative flex h-[48px] w-[48px] items-center justify-center rounded-full bg-surface">
+    <div
+      role="img"
+      className="relative flex h-[48px] w-[48px] items-center justify-center rounded-full bg-surface"
+      aria-label={`${Math.round(clamped)}% match`}
+    >
       <svg
         width={SIZE}
         height={SIZE}
@@ -66,7 +112,10 @@ export function MatchRing({ score }: MatchRingProps) {
           strokeLinecap="round"
         />
       </svg>
-      <span className="relative z-10 text-center text-ui-label-s text-text">
+      <span
+        className="relative z-10 text-center text-ui-label-s text-text"
+        aria-hidden
+      >
         {Math.round(clamped)}%
       </span>
     </div>

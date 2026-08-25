@@ -17,6 +17,12 @@ type PlaceStatsRow = {
   vibe_focused: number | bigint;
   vibe_casual: number | bigint;
   vibe_social: number | bigint;
+  wifi_none: number | bigint;
+  wifi_works: number | bigint;
+  wifi_fast: number | bigint;
+  bathroom_open: number | bigint;
+  bathroom_key: number | bigint;
+  bathroom_none: number | bigint;
   avg_overall_rating: number | string | null;
 };
 
@@ -27,7 +33,6 @@ type PlaceRow = {
   lat: number;
   lng: number;
   place_type: string;
-  has_wifi: boolean | null;
   opening_hours: unknown;
   timezone: string | null;
   google_photo_ref: string | null;
@@ -43,6 +48,8 @@ type MyRatingRow = {
   vibe: string;
   tables: string;
   outlets: string;
+  wifi: string | null;
+  bathroom: string | null;
   overall_rating: number;
   photo_path: string | null;
   photo_paths: string[] | null;
@@ -72,6 +79,12 @@ function serializePlaceStats(stats: PlaceStatsRow) {
     vibe_focused: Number(stats.vibe_focused),
     vibe_casual: Number(stats.vibe_casual),
     vibe_social: Number(stats.vibe_social),
+    wifi_none: Number(stats.wifi_none ?? 0),
+    wifi_works: Number(stats.wifi_works ?? 0),
+    wifi_fast: Number(stats.wifi_fast ?? 0),
+    bathroom_open: Number(stats.bathroom_open ?? 0),
+    bathroom_key: Number(stats.bathroom_key ?? 0),
+    bathroom_none: Number(stats.bathroom_none ?? 0),
     avg_overall_rating:
       stats.avg_overall_rating == null
         ? null
@@ -97,6 +110,12 @@ function emptyPlaceStats(placeId: string): PlaceStatsRow {
     vibe_focused: 0,
     vibe_casual: 0,
     vibe_social: 0,
+    wifi_none: 0,
+    wifi_works: 0,
+    wifi_fast: 0,
+    bathroom_open: 0,
+    bathroom_key: 0,
+    bathroom_none: 0,
     avg_overall_rating: null,
   };
 }
@@ -158,7 +177,7 @@ export async function GET(
       const { data: mine } = await serviceClient
         .from("ratings")
         .select(
-          "id, noise, vibe, tables, outlets, overall_rating, photo_path, photo_paths, notes, created_at, updated_at",
+          "id, noise, vibe, tables, outlets, wifi, bathroom, overall_rating, photo_path, photo_paths, notes, created_at, updated_at",
         )
         .eq("place_id", placeId)
         .eq("user_id", user.id)
@@ -180,6 +199,8 @@ export async function GET(
           vibe: String(m.vibe),
           tables: String(m.tables),
           outlets: String(m.outlets),
+          wifi: m.wifi == null ? null : String(m.wifi),
+          bathroom: m.bathroom == null ? null : String(m.bathroom),
           overall_rating: Number(m.overall_rating),
           photo_path: pathsFromDb[0] ?? legacyPath,
           photo_paths: pathsFromDb.length > 0 ? pathsFromDb : null,

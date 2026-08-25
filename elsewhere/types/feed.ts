@@ -46,6 +46,11 @@ export interface FeedItem {
   vibe_photo_attribution?: unknown;
   /** Number of ratings (when available) */
   rating_count?: number;
+  /**
+   * Dominant reported wifi, or null when nobody has answered — the card shows
+   * a distinct "unknown" icon for null rather than assuming either way.
+   */
+  wifi?: "none" | "works" | "fast" | null;
   /** Cost indicator for card pill, e.g. "Free" or "$" (when available) */
   cost?: string | null;
 }

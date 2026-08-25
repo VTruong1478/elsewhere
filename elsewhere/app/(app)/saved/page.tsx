@@ -8,9 +8,17 @@ import { PlaceCardSkeleton } from "@/components/feed/PlaceCardSkeleton";
 import { MapPanel } from "@/components/map/MapPanel";
 import { MapPin } from "lucide-react";
 import { usePlaceStore } from "@/store/usePlaceStore";
+import { useUserLocation } from "@/hooks/useUserLocation";
 
-async function fetchSavedPlaces(): Promise<FeedItem[]> {
-  const res = await fetch("/api/saved", {
+async function fetchSavedPlaces(
+  userCoords: { lat: number; lng: number } | null,
+): Promise<FeedItem[]> {
+  // Only real coordinates are sent. Without them the API omits distance rather
+  // than inventing one (it used to measure from the centroid of the saves).
+  const qs = userCoords
+    ? `?lat=${encodeURIComponent(String(userCoords.lat))}&lng=${encodeURIComponent(String(userCoords.lng))}`
+    : "";
+  const res = await fetch(`/api/saved${qs}`, {
     credentials: "same-origin",
     cache: "no-store",
   });
@@ -55,9 +63,17 @@ function SavedEmptyState() {
  */
 export default function SavedPage() {
   const { selectedPlaceId, setSelectedPlaceId } = usePlaceStore();
+  // `autoRequest: false`: reuse coords the user already granted on the feed,
+  // never raise the permission dialog from the Saved tab.
+  const locationState = useUserLocation({ autoRequest: false });
+  const userCoords =
+    locationState.status === "ready"
+      ? { lat: locationState.lat, lng: locationState.lng }
+      : null;
+
   const savedQuery = useQuery({
-    queryKey: ["saved-places"],
-    queryFn: fetchSavedPlaces,
+    queryKey: ["saved-places", userCoords?.lat ?? null, userCoords?.lng ?? null],
+    queryFn: () => fetchSavedPlaces(userCoords),
   });
 
   const places = savedQuery.data ?? [];

@@ -46,6 +46,14 @@ import { PeopleToFollowSection } from "@/components/social/PeopleToFollowSection
  */
 const FEED_PAGE_SIZE = 25;
 
+/**
+ * Place cards rendered before the social sections. Roughly the first screen and
+ * a half on mobile, so the answer to "where could I work?" is always the first
+ * thing on screen, while Following / People to follow stay discoverable a short
+ * scroll down rather than buried under an infinite list.
+ */
+const PLACES_BEFORE_SOCIAL = 5;
+
 type FeedPage = {
   data: FeedItem[];
   has_more: boolean;
@@ -59,6 +67,8 @@ function fetchFeedPage(params: {
   filter: string;
   /** Case 3 only; omit so API uses user_preferences. */
   radiusMiles?: number | null;
+  /** False when lat/lng is the Annandale fallback — API then omits distances. */
+  coordsAreUserLocation: boolean;
   offset: number;
 }): Promise<FeedPage> {
   const sp = new URLSearchParams({
@@ -72,6 +82,7 @@ function fetchFeedPage(params: {
   if (params.radiusMiles != null) {
     sp.set("radius_miles", String(params.radiusMiles));
   }
+  if (!params.coordsAreUserLocation) sp.set("coords_source", "fallback");
   return fetch(`/api/feed?${sp.toString()}`).then(async (res) => {
     const body = await res.json();
     if (!res.ok) {
@@ -128,6 +139,7 @@ function FeedContent() {
       feedRequest.feedCoords.lat,
       feedRequest.feedCoords.lng,
       feedRequest.feedRadiusMiles,
+      feedRequest.coordsAreUserLocation,
       q,
       filter,
     ],
@@ -138,6 +150,7 @@ function FeedContent() {
         q,
         filter,
         radiusMiles: feedRequest.feedRadiusMiles,
+        coordsAreUserLocation: feedRequest.coordsAreUserLocation,
         offset: pageParam,
       }),
     initialPageParam: 0,
@@ -149,6 +162,15 @@ function FeedContent() {
   const places: FeedItem[] = useMemo(
     () => query.data?.pages.flatMap((page) => page.data) ?? [],
     [query.data],
+  );
+
+  const leadingPlaces = useMemo(
+    () => places.slice(0, PLACES_BEFORE_SOCIAL),
+    [places],
+  );
+  const trailingPlaces = useMemo(
+    () => places.slice(PLACES_BEFORE_SOCIAL),
+    [places],
   );
 
   // Distinguishes "loading the feed" from "appending page N". Only the former
@@ -261,8 +283,6 @@ function FeedContent() {
             )}
           </div>
           <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto py-4 px-16 pb-8">
-            <SocialFeedSection />
-            <PeopleToFollowSection />
             {showSkeletons && (
               <div className="space-y-12">
                 {Array.from({ length: 5 }).map((_, i) => (
@@ -299,10 +319,25 @@ function FeedContent() {
             {showResults && places.length > 0 && (
               <>
                 <div className="space-y-12">
-                  {places.map((place) => (
+                  {leadingPlaces.map((place) => (
                     <PlaceCard key={place.id} place={place} />
                   ))}
                 </div>
+                {/* Social sits BELOW the first screen of places: Elsewhere is a
+                    place-discovery product, and opening it must answer "where
+                    could I work?" before anything else. Both sections render
+                    nothing when the user follows nobody. */}
+                <div className="mt-12">
+                  <SocialFeedSection />
+                  <PeopleToFollowSection />
+                </div>
+                {trailingPlaces.length > 0 && (
+                  <div className="space-y-12">
+                    {trailingPlaces.map((place) => (
+                      <PlaceCard key={place.id} place={place} />
+                    ))}
+                  </div>
+                )}
                 {isFetchingNextPage && (
                   <div className="mt-12 space-y-12">
                     <PlaceCardSkeleton />

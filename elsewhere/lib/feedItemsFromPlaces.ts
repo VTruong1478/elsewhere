@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { deriveOpeningState, hasOpenLate } from "@/lib/openingHours";
 import type { FeedItem } from "@/types/feed";
 import { computeMatchScoresByPlaceId } from "@/lib/matchScore";
+import { dominantWifi } from "@/lib/placeFeatures";
 
 export type PlaceStatsRow = {
   id: string;
@@ -78,6 +79,13 @@ type BuildFeedItemsOptions = {
   idOrder?: string[];
   /** Max items (e.g. feed home). Omit for no limit. */
   limit?: number;
+  /**
+   * When true, `distance_mi` is left off every item because `refLat`/`refLng`
+   * is not where the user actually is (Annandale fallback, or no user coords
+   * at all). Distance is still computed internally so ranking is unchanged —
+   * only the reported number is withheld.
+   */
+  omitDistance?: boolean;
 };
 
 /**
@@ -98,6 +106,7 @@ export async function buildFeedItemsFromPlaces(
     favoritedPlaceIds,
     idOrder,
     limit,
+    omitDistance = false,
   } = opts;
   const ratingsDb = ratingsDbOpt ?? serviceRoleClient;
 
@@ -130,6 +139,30 @@ export async function buildFeedItemsFromPlaces(
         placeRows.map((r) => [
           r.id as string,
           (r.vibe_photo_path as string | null) ?? null,
+        ]),
+      );
+    }
+  }
+
+  // Wifi counts come from a supplementary place_stats read rather than from
+  // `get_feed_places`: that RPC enumerates every stat column in its RETURNS
+  // TABLE signature, so adding one would need a DROP + recreate. Same approach
+  // already used above for vibe_photo_path.
+  let wifiByPlaceId: Record<string, "none" | "works" | "fast" | null> = {};
+  if (placeIds.length > 0) {
+    const { data: wifiRows } = await serviceRoleClient
+      .from("place_stats")
+      .select("place_id, wifi_none, wifi_works, wifi_fast")
+      .in("place_id", placeIds);
+    if (wifiRows) {
+      wifiByPlaceId = Object.fromEntries(
+        wifiRows.map((r) => [
+          r.place_id as string,
+          dominantWifi({
+            wifi_none: (r.wifi_none as number | null) ?? 0,
+            wifi_works: (r.wifi_works as number | null) ?? 0,
+            wifi_fast: (r.wifi_fast as number | null) ?? 0,
+          }),
         ]),
       );
     }
@@ -235,8 +268,9 @@ export async function buildFeedItemsFromPlaces(
       pills: pillsByPlace[row.id] ?? [],
       is_favorited: favoritedPlaceIds.has(row.id),
       user_has_rated: userRatedPlaceIds.has(row.id),
-      distance_mi: dist / 1609.344,
+      distance_mi: omitDistance ? undefined : dist / 1609.344,
       rating_count: ratingCount,
+      wifi: wifiByPlaceId[row.id] ?? null,
       image_url: null,
       google_photo_ref:
         googlePhotoRef && String(googlePhotoRef).trim() ? googlePhotoRef : null,

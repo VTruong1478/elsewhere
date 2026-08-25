@@ -27,7 +27,12 @@ import {
 } from "@/lib/analytics";
 import { ensureAuthForGatedAction } from "@/lib/authGate";
 import { tryCaptureGatedActionCompleted } from "@/lib/gatedAction";
+import { feedItemForDetailMap } from "@/lib/detailMapPlace";
+import { dominantBathroom, dominantWifi } from "@/lib/placeFeatures";
+import { PlaceDetailFacts } from "@/components/places/PlaceDetailFacts";
+import { UnratedMetricsNote } from "@/components/ui/UnratedMetricsNote";
 import { useToast } from "@/components/ui/Toast";
+import { useUserLocation } from "@/hooks/useUserLocation";
 
 type OpeningHoursType = Parameters<typeof deriveOpeningState>[0];
 
@@ -142,37 +147,6 @@ function noteAuthorAvatarLetter(authorShortName: string): string {
   return t.charAt(0).toUpperCase();
 }
 
-/** Single place on the map: markers only render from `places`; match % from avg rating when available */
-function feedItemForDetailMap(
-  placeId: string,
-  coords: { lat: number; lng: number },
-  row: PlaceDetailResponse["place"] | null,
-  avgOverall: number | null,
-): FeedItem {
-  const match =
-    avgOverall != null && !Number.isNaN(avgOverall)
-      ? Math.round(Math.min(5, Math.max(0, avgOverall)) * 20)
-      : null;
-  return {
-    id: placeId,
-    name: row?.name ?? "—",
-    address: row?.address ?? "",
-    lat: coords.lat,
-    lng: coords.lng,
-    place_type: row?.place_type ?? "",
-    noise: null,
-    tables: null,
-    outlets: null,
-    match_score_percent: match,
-    why_matched: [],
-    open_now: false,
-    closes_at: null,
-    closing_soon: false,
-    open_late: false,
-    pills: [],
-  };
-}
-
 function previewPlaceFromFeed(
   feed: FeedItem,
   canonicalId: string,
@@ -232,6 +206,10 @@ export function PlaceDetailMobile({
   const queryClient = useQueryClient();
 
   const { showToast } = useToast();
+
+  // `autoRequest: false`: reuse coords already granted on the feed; a detail
+  // page must never be what raises the system permission dialog.
+  const locationState = useUserLocation({ autoRequest: false });
 
   const {
     data: detail,
@@ -483,6 +461,12 @@ export function PlaceDetailMobile({
   } | null>(null);
   const DISMISS_DRAG_BUFFER_PX = 80;
   const DISMISS_THRESHOLD_PX = 40;
+  /**
+   * Vertical space the viewport-fixed CTA stack + BottomTabs occupy, measured
+   * up from the bottom of the screen: 56px tabs + ~88px CTA stack + breathing room.
+   * See PlaceDetailCta `dock="viewport"`.
+   */
+  const CTA_CLEARANCE_PX = 160;
   // Layout effect so `heights` is committed before the first paint — together with the
   // initial-`translateY` layout effect below, this guarantees the sheet paints directly
   // at the `initialSnap` position (mid by default) instead of flashing at full (ty=0)
@@ -813,8 +797,8 @@ export function PlaceDetailMobile({
     },
     onMutate: async () => {
       setIsSaved(true);
-      queryClient.setQueryData<FeedItem[] | undefined>(
-        ["saved-places"],
+      queryClient.setQueriesData<FeedItem[] | undefined>(
+        { queryKey: ["saved-places"] },
         (prev) => {
           if (!Array.isArray(prev) || !normalizedId) return prev;
           if (prev.some((p) => p.id === normalizedId)) return prev;
@@ -877,8 +861,8 @@ export function PlaceDetailMobile({
     },
     onMutate: async () => {
       setIsSaved(false);
-      queryClient.setQueryData<FeedItem[] | undefined>(
-        ["saved-places"],
+      queryClient.setQueriesData<FeedItem[] | undefined>(
+        { queryKey: ["saved-places"] },
         (prev) =>
           Array.isArray(prev) && normalizedId
             ? prev.filter((p) => p.id !== normalizedId)
@@ -914,56 +898,45 @@ export function PlaceDetailMobile({
         return {
           status: "closed" as const,
           label: "Closed",
-          subLabel:
-            ratingCount > 0
-              ? `· ${ratingCount} ${ratingCount === 1 ? "rating" : "ratings"}`
-              : undefined,
         };
       }
       if (opening.closing_soon && closes) {
         return {
           status: "closing-soon" as const,
           label: `Closing soon (${closes})`,
-          subLabel: `· ${ratingCount} ${ratingCount === 1 ? "rating" : "ratings"}`,
         };
       }
       if (opening.open_now && closes) {
         return {
           status: "open" as const,
           label: `Open until ${closes}`,
-          subLabel: `· ${ratingCount} ${ratingCount === 1 ? "rating" : "ratings"}`,
         };
       }
       if (openLate) {
         return {
           status: "open" as const,
           label: closes ? `Open until ${closes}` : "Open",
-          subLabel: `· ${ratingCount} ${ratingCount === 1 ? "rating" : "ratings"}`,
         };
       }
       return {
         status: "open" as const,
         label: "Open",
-        subLabel: `· ${ratingCount} ${ratingCount === 1 ? "rating" : "ratings"}`,
       };
     }
     if (previewMatches && previewFeedItem) {
-      const sub = ratingCount > 0 ? `· ${ratingCount} ratings` : undefined;
       if (!previewFeedItem.open_now) {
-        return { status: "closed" as const, label: "Closed", subLabel: sub };
+        return { status: "closed" as const, label: "Closed" };
       }
       if (previewFeedItem.closing_soon && previewFeedItem.closes_at) {
         return {
           status: "closing-soon" as const,
           label: `Closing soon (${previewFeedItem.closes_at})`,
-          subLabel: sub,
         };
       }
       if (previewFeedItem.open_now && previewFeedItem.closes_at) {
         return {
           status: "open" as const,
           label: `Open until ${previewFeedItem.closes_at}`,
-          subLabel: sub,
         };
       }
       if (previewFeedItem.open_late) {
@@ -972,17 +945,17 @@ export function PlaceDetailMobile({
           label: previewFeedItem.closes_at
             ? `Open until ${previewFeedItem.closes_at}`
             : "Open",
-          subLabel: sub,
         };
       }
-      return { status: "open" as const, label: "Open", subLabel: sub };
+      return { status: "open" as const, label: "Open" };
     }
-    return {
-      status: "closed" as const,
-      label: "—",
-      subLabel: undefined as string | undefined,
-    };
-  }, [opening, ratingCount, openLate, previewMatches, previewFeedItem]);
+    return { status: "closed" as const, label: "—" };
+    // `ratingCount` is no longer part of this memo: PlaceDetailFacts owns the
+    // rating summary, so the status line is purely open/closed now.
+  }, [opening, openLate, previewMatches, previewFeedItem]);
+
+  const dominantWifiValue = stats ? dominantWifi(stats) : null;
+  const dominantBathroomValue = stats ? dominantBathroom(stats) : null;
 
   const dominantNoise = stats
     ? dominantNoiseFromCounts(stats)
@@ -1210,11 +1183,7 @@ export function PlaceDetailMobile({
                 ) : null}
                 <div>
                   {place && status ? (
-                    <StatusDot
-                      status={status.status}
-                      label={status.label}
-                      subLabel={status.subLabel}
-                    />
+                    <StatusDot status={status.status} label={status.label} />
                   ) : null}
                 </div>
               </header>
@@ -1223,7 +1192,18 @@ export function PlaceDetailMobile({
 
           <div
             ref={sheetScrollRef}
-            className="mt-8 min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-16 scrollbar-hide [-webkit-overflow-scrolling:touch] pb-[240px] flex flex-col"
+            className="mt-8 min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-16 pb-24 scrollbar-hide [-webkit-overflow-scrolling:touch] flex flex-col"
+            // The sheet is `height: full`, pinned to the viewport bottom and then
+            // pushed DOWN by `translateY`, so its last `translateY` px sit off
+            // screen. Padding alone could not fix the CTA covering the notes:
+            // content shorter than the box never scrolls, so it just sat under
+            // the CTA anyway. Shrinking the scroll viewport instead puts its
+            // bottom edge exactly CTA_CLEARANCE_PX above the bottom of the
+            // screen at every snap position, so content is laid out in the
+            // clear area and scrolls within it.
+            style={{
+              marginBottom: Math.max(0, CTA_CLEARANCE_PX + translateY),
+            }}
           >
             {loadError && !place ? (
               <p className="text-body-m text-text-secondary pr-4">
@@ -1261,12 +1241,33 @@ export function PlaceDetailMobile({
                   </div>
                 )}
 
-                <div className="grid grid-cols-4 gap-2 pb-12">
-                  <MetricTile type="noise" value={dominantNoise} />
-                  <MetricTile type="vibes" value={dominantVibe} />
-                  <MetricTile type="tables" value={dominantTables} />
-                  <MetricTile type="outlets" value={dominantOutlets} />
+                <div className="pb-12">
+                  <PlaceDetailFacts
+                    address={place.address}
+                    lat={coords.lat}
+                    lng={coords.lng}
+                    openingHours={place.opening_hours as OpeningHoursType}
+                    timezone={place.timezone ?? null}
+                    ratingCount={ratingCount}
+                    avgOverall={avgOverall}
+                    wifi={dominantWifiValue}
+                    bathroom={dominantBathroomValue}
+                    locationState={locationState}
+                  />
                 </div>
+
+                {ratingCount === 0 ? (
+                  <div className="pb-12">
+                    <UnratedMetricsNote />
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-4 gap-2 pb-12">
+                    <MetricTile type="noise" value={dominantNoise} />
+                    <MetricTile type="vibes" value={dominantVibe} />
+                    <MetricTile type="tables" value={dominantTables} />
+                    <MetricTile type="outlets" value={dominantOutlets} />
+                  </div>
+                )}
 
                 <div className="pb-8">
                   <div className="text-heading-m text-text font-bold">

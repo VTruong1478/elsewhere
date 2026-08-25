@@ -5,11 +5,14 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Camera,
+  ChevronDown,
   Headphones,
   Pencil,
   Plug,
   Star,
+  Toilet,
   Volume2,
+  Wifi,
   X,
 } from "lucide-react";
 import { PiPicnicTableBold } from "react-icons/pi";
@@ -17,6 +20,7 @@ import { Button } from "@/components/ui/Button";
 import { MapLoadingOverlay } from "@/components/map/MapLoadingOverlay";
 import { Pill } from "@/components/ui/Pill";
 import { TextArea } from "@/components/ui/TextArea";
+import { useToast } from "@/components/ui/Toast";
 import { userPhotoProxyUrl } from "@/lib/userPhotoProxyUrl";
 import { normalizePlaceId } from "@/lib/placeId";
 import {
@@ -36,6 +40,23 @@ const VIBE_OPTIONS = ["focused", "casual", "social"] as const;
 const TABLES_OPTIONS = ["limited", "mixed", "plentiful"] as const;
 const OUTLETS_OPTIONS = ["scarce", "some", "ample"] as const;
 
+/**
+ * Optional "Features" attributes. Ordered best-first, unlike the required rows
+ * above them; leaving either blank means "did not say" and is what leaves a
+ * place in the unknown wifi state on its card.
+ */
+const WIFI_OPTIONS = [
+  { value: "fast", label: "Fast & reliable" },
+  { value: "works", label: "Works" },
+  { value: "none", label: "No WiFi" },
+] as const;
+
+const BATHROOM_OPTIONS = [
+  { value: "open", label: "Open to all" },
+  { value: "key", label: "Key or code required" },
+  { value: "none", label: "None" },
+] as const;
+
 /** Matches /api/places/[id]/rate MAX_RATING_PHOTOS */
 const MAX_RATING_PHOTOS = 6;
 
@@ -43,12 +64,16 @@ type NoiseValue = (typeof NOISE_OPTIONS)[number];
 type VibeValue = (typeof VIBE_OPTIONS)[number];
 type TablesValue = (typeof TABLES_OPTIONS)[number];
 type OutletsValue = (typeof OUTLETS_OPTIONS)[number];
+type WifiValue = (typeof WIFI_OPTIONS)[number]["value"];
+type BathroomValue = (typeof BATHROOM_OPTIONS)[number]["value"];
 
 type RatingPayload = {
   noise: NoiseValue;
   vibe: VibeValue;
   tables: TablesValue;
   outlets: OutletsValue;
+  wifi?: WifiValue | null;
+  bathroom?: BathroomValue | null;
   overall_rating: number;
   notes?: string | null;
   photo_path?: string | null;
@@ -74,6 +99,12 @@ function isTablesValue(v: string): v is TablesValue {
 }
 function isOutletsValue(v: string): v is OutletsValue {
   return (OUTLETS_OPTIONS as readonly string[]).includes(v);
+}
+function isWifiValue(v: string): v is WifiValue {
+  return WIFI_OPTIONS.some((o) => o.value === v);
+}
+function isBathroomValue(v: string): v is BathroomValue {
+  return BATHROOM_OPTIONS.some((o) => o.value === v);
 }
 
 async function submitRating(placeId: string, payload: RatingPayload) {
@@ -170,6 +201,7 @@ export function RatingForm({
 }) {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { showToast } = useToast();
   const normalizedPlaceId = useMemo(() => normalizePlaceId(placeId), [placeId]);
   const [ratingFlowSource] = useState<AnalyticsSource>(() => source);
   const [ratingStartedSent, setRatingStartedSent] = useState(false);
@@ -184,6 +216,8 @@ export function RatingForm({
   const [vibe, setVibe] = useState<VibeValue | null>(null);
   const [tables, setTables] = useState<TablesValue | null>(null);
   const [outlets, setOutlets] = useState<OutletsValue | null>(null);
+  const [wifi, setWifi] = useState<WifiValue | null>(null);
+  const [bathroom, setBathroom] = useState<BathroomValue | null>(null);
   const [overallRating, setOverallRating] = useState<number | null>(null);
   const [notes, setNotes] = useState("");
   /** Storage paths already saved for this rating (subset user keeps). */
@@ -218,6 +252,8 @@ export function RatingForm({
     if (isVibeValue(m.vibe)) setVibe(m.vibe);
     if (isTablesValue(m.tables)) setTables(m.tables);
     if (isOutletsValue(m.outlets)) setOutlets(m.outlets);
+    if (m.wifi != null && isWifiValue(m.wifi)) setWifi(m.wifi);
+    if (m.bathroom != null && isBathroomValue(m.bathroom)) setBathroom(m.bathroom);
     const o = Number(m.overall_rating);
     if (Number.isFinite(o) && o >= 0 && o <= 5) setOverallRating(o);
     if (m.notes != null) {
@@ -350,6 +386,13 @@ export function RatingForm({
         action_type: "rate_place",
         place_id: normalizedPlaceId ?? placeId,
       });
+      // The form navigates away on success; the toast host lives in the root
+      // providers, so this survives the transition and is the only confirmation
+      // the user gets that their rating landed.
+      showToast(
+        isEditMode ? "Rating updated. Thanks!" : "Rating posted. Thanks!",
+        "success",
+      );
       queryClient.invalidateQueries({ queryKey: ["feed"] });
       queryClient.invalidateQueries({ queryKey: ["saved-places"] });
       if (normalizedPlaceId) {
@@ -402,6 +445,45 @@ export function RatingForm({
     tables != null &&
     outlets != null &&
     overallRating != null;
+
+  /** Unanswered required questions, in the order they appear in the form. */
+  const missingFields = useMemo(
+    () =>
+      (
+        [
+          { key: "noise", label: "Noise level", answered: noise != null },
+          { key: "vibe", label: "Vibes", answered: vibe != null },
+          { key: "tables", label: "Tables", answered: tables != null },
+          { key: "outlets", label: "Outlets", answered: outlets != null },
+          {
+            key: "overall",
+            label: "Workability rating",
+            answered: overallRating != null,
+          },
+        ] as const
+      ).filter((f) => !f.answered),
+    [noise, vibe, tables, outlets, overallRating],
+  );
+
+  /**
+   * Set when the user presses Submit with answers still missing. The button is
+   * `inactive` (looks disabled, stays clickable) precisely so this can happen —
+   * a natively `disabled` button swallowed the click and explained nothing.
+   */
+  const [showMissingFields, setShowMissingFields] = useState(false);
+
+  /** "Features" panel starts open: wifi data is the whole point of collecting it. */
+  const [featuresOpen, setFeaturesOpen] = useState(true);
+
+  /** Shown only while the Features panel is collapsed, so answers stay visible. */
+  const featuresSummary = [
+    WIFI_OPTIONS.find((o) => o.value === wifi)?.label &&
+      `WiFi: ${WIFI_OPTIONS.find((o) => o.value === wifi)!.label}`,
+    BATHROOM_OPTIONS.find((o) => o.value === bathroom)?.label &&
+      `Bathroom: ${BATHROOM_OPTIONS.find((o) => o.value === bathroom)!.label}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   const photoCount = serverPaths.length + localPhotos.length;
   const canAddMorePhotos = photoCount < MAX_RATING_PHOTOS;
@@ -485,7 +567,21 @@ export function RatingForm({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!isComplete || mutation.isPending || overallRating == null) return;
+    if (mutation.isPending) return;
+
+    if (!isComplete || overallRating == null) {
+      // Say what is still needed and take the user to the first gap, instead of
+      // the click appearing to do nothing.
+      setShowMissingFields(true);
+      const first = missingFields[0];
+      if (first && typeof document !== "undefined") {
+        document
+          .getElementById(`rating-field-${first.key}`)
+          ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+      return;
+    }
+    setShowMissingFields(false);
 
     const pathsPayload = [...serverPaths];
     const payload: RatingPayload = {
@@ -493,6 +589,10 @@ export function RatingForm({
       vibe: vibe!,
       tables: tables!,
       outlets: outlets!,
+      // Optional: null is a meaningful value here ("did not say"), so it is
+      // always sent rather than omitted — that lets an edit clear a prior answer.
+      wifi,
+      bathroom,
       overall_rating: overallRating,
       notes: notes.trim() ? notes.trim() : null,
       photo_paths: pathsPayload,
@@ -505,7 +605,61 @@ export function RatingForm({
     });
   }
 
+  /**
+   * Optional attribute row. Differs from {@link renderOptionRow} in two ways:
+   * options carry explicit labels (so wording is independent of the stored
+   * value), and tapping the selected pill clears it back to unanswered — which
+   * a required row never needs but an optional one does, or a mis-tap sticks.
+   */
+  function renderFeatureRow<T extends string>({
+    label,
+    icon,
+    options,
+    value,
+    onChange,
+  }: {
+    label: string;
+    icon: React.ReactNode;
+    options: readonly { value: T; label: string }[];
+    value: T | null;
+    onChange: (v: T | null) => void;
+  }) {
+    return (
+      <section className="space-y-8">
+        <div className="flex items-center gap-8">
+          <span className="text-text">{icon}</span>
+          <p className="text-ui-label-l text-text">{label}</p>
+        </div>
+        <div className="flex flex-wrap gap-8">
+          {options.map((opt) => {
+            const isSelected = value === opt.value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                aria-pressed={isSelected}
+                onClick={() => {
+                  ensureRatingStarted();
+                  onChange(isSelected ? null : opt.value);
+                }}
+                className="relative rounded-radius-md focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              >
+                <Pill
+                  variant="placeType"
+                  className={isSelected ? "!bg-accent !text-text-inverse" : ""}
+                >
+                  {opt.label}
+                </Pill>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+    );
+  }
+
   function renderOptionRow<T extends string>({
+    fieldKey,
     label,
     required,
     icon,
@@ -514,6 +668,8 @@ export function RatingForm({
     onChange,
     onFirstInteraction,
   }: {
+    /** Anchors `#rating-field-<key>` so submit can scroll to the first gap. */
+    fieldKey: string;
     label: string;
     required?: boolean;
     icon: React.ReactNode;
@@ -522,12 +678,17 @@ export function RatingForm({
     onChange: (v: T) => void;
     onFirstInteraction?: () => void;
   }) {
+    const isMissing = Boolean(required) && showMissingFields && value == null;
     return (
-      <section className="space-y-8">
+      <section id={`rating-field-${fieldKey}`} className="space-y-8">
         <div className="space-y-8">
           <div className="flex items-center gap-8">
-            <span className="text-text">{icon}</span>
-            <p className="text-ui-label-l text-text">
+            <span className={isMissing ? "text-status-low" : "text-text"}>
+              {icon}
+            </span>
+            <p
+              className={`text-ui-label-l ${isMissing ? "text-status-low" : "text-text"}`}
+            >
               {label}
               {required && <span className="text-status-low"> *</span>}
             </p>
@@ -687,6 +848,7 @@ export function RatingForm({
       </section>
 
       {renderOptionRow<NoiseValue>({
+        fieldKey: "noise",
         label: "Noise level",
         required: true,
         icon: <Volume2 size={20} />,
@@ -697,6 +859,7 @@ export function RatingForm({
       })}
 
       {renderOptionRow<VibeValue>({
+        fieldKey: "vibe",
         label: "Vibes",
         required: true,
         icon: <Headphones size={20} />,
@@ -707,6 +870,7 @@ export function RatingForm({
       })}
 
       {renderOptionRow<TablesValue>({
+        fieldKey: "tables",
         label: "Tables",
         required: true,
         icon: <PiPicnicTableBold size={20} />,
@@ -717,6 +881,7 @@ export function RatingForm({
       })}
 
       {renderOptionRow<OutletsValue>({
+        fieldKey: "outlets",
         label: "Outlets",
         required: true,
         icon: <Plug size={20} />,
@@ -726,10 +891,63 @@ export function RatingForm({
         onFirstInteraction: ensureRatingStarted,
       })}
 
+      {/* Features — optional attributes, grouped so they read as skippable.
+          Tinted panel rather than a border: `Pill variant="placeType"` is
+          itself bg-surface, so a surface-filled card would swallow unselected
+          pills, while surface-chip sits below them and makes them stand out. */}
+      <section className="space-y-16 rounded-radius-md bg-surface-chip p-16">
+        <button
+          type="button"
+          onClick={() => setFeaturesOpen((v) => !v)}
+          aria-expanded={featuresOpen}
+          className="flex w-full items-center gap-8 rounded-radius-sm text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        >
+          <span className="text-ui-label-l text-text">Features</span>
+          <span className="text-body-s text-text-secondary">Optional</span>
+          <ChevronDown
+            size={16}
+            className={`ml-auto shrink-0 text-text-secondary ${featuresOpen ? "rotate-180" : ""}`}
+            aria-hidden
+          />
+          <span className="sr-only">
+            {featuresOpen ? "Hide features" : "Show features"}
+          </span>
+        </button>
+
+        {!featuresOpen && featuresSummary && (
+          <p className="text-body-s text-text-secondary">{featuresSummary}</p>
+        )}
+
+        {featuresOpen && (
+          <div className="space-y-16">
+            {renderFeatureRow<WifiValue>({
+              label: "WiFi",
+              icon: <Wifi size={20} />,
+              options: WIFI_OPTIONS,
+              value: wifi,
+              onChange: setWifi,
+            })}
+            {renderFeatureRow<BathroomValue>({
+              label: "Bathroom",
+              icon: <Toilet size={20} />,
+              options: BATHROOM_OPTIONS,
+              value: bathroom,
+              onChange: setBathroom,
+            })}
+          </div>
+        )}
+      </section>
+
       {/* Overall rating — 5 stars with half-star support (hover/drag to select) */}
-      <section className="space-y-16 text-center">
+      <section id="rating-field-overall" className="space-y-16 text-center">
         <div className="space-y-0">
-          <p className="text-ui-label-l text-text">
+          <p
+            className={`text-ui-label-l ${
+              showMissingFields && overallRating == null
+                ? "text-status-low"
+                : "text-text"
+            }`}
+          >
             Workability rating <span className="text-status-low">*</span>
           </p>
           <p className="text-body-s text-text-secondary">
@@ -842,7 +1060,8 @@ export function RatingForm({
       <Button
         variant="primary"
         type="submit"
-        disabled={!isComplete || mutation.isPending}
+        inactive={!isComplete}
+        disabled={mutation.isPending}
         className="w-full rounded-full py-12"
       >
         {mutation.isPending
@@ -851,6 +1070,11 @@ export function RatingForm({
             ? "Update Rating"
             : "Submit rating"}
       </Button>
+      <p className="text-body-s text-status-low" aria-live="polite">
+        {showMissingFields && missingFields.length > 0
+          ? `Still needed: ${missingFields.map((f) => f.label).join(", ")}.`
+          : ""}
+      </p>
       {mutation.isError && (
         <p className="text-body-s text-status-low">
           {mutation.error instanceof Error

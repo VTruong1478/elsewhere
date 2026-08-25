@@ -2,13 +2,14 @@
 
 import { useEffect, useLayoutEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Bookmark, Check } from "lucide-react";
+import { Bookmark, Check, Wifi, WifiLow, WifiOff } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { FeedItem } from "@/types/feed";
 import { usePlaceStore } from "@/store/usePlaceStore";
 import { Button } from "@/components/ui/Button";
 import { MatchRing } from "@/components/ui/MatchRing";
 import { MetricTile } from "@/components/ui/MetricTile";
+import { UnratedMetricsNote } from "@/components/ui/UnratedMetricsNote";
 import { Pill } from "@/components/ui/Pill";
 import { StatusDot } from "@/components/ui/StatusDot";
 import { userPhotoProxyUrl } from "@/lib/userPhotoProxyUrl";
@@ -23,6 +24,7 @@ import {
 import { ensureAuthForGatedAction } from "@/lib/authGate";
 import { formatPlaceTypeForDisplay } from "@/lib/placeTypeDisplay";
 import { tryCaptureGatedActionCompleted } from "@/lib/gatedAction";
+import { wifiCardLabel } from "@/lib/placeFeatures";
 
 type StatusKind = "open" | "closing-soon" | "closed";
 
@@ -94,8 +96,8 @@ export function PlaceCard({ place }: { place: FeedItem }) {
     },
     onMutate: async () => {
       setIsSaved(true);
-      queryClient.setQueryData<FeedItem[] | undefined>(
-        ["saved-places"],
+      queryClient.setQueriesData<FeedItem[] | undefined>(
+        { queryKey: ["saved-places"] },
         (prev) => {
           if (!Array.isArray(prev)) return prev;
           if (prev.some((p) => p.id === place.id)) return prev;
@@ -143,8 +145,8 @@ export function PlaceCard({ place }: { place: FeedItem }) {
     },
     onMutate: async () => {
       setIsSaved(false);
-      queryClient.setQueryData<FeedItem[] | undefined>(
-        ["saved-places"],
+      queryClient.setQueriesData<FeedItem[] | undefined>(
+        { queryKey: ["saved-places"] },
         (prev) =>
           Array.isArray(prev) ? prev.filter((p) => p.id !== place.id) : prev,
       );
@@ -159,7 +161,9 @@ export function PlaceCard({ place }: { place: FeedItem }) {
     },
   });
 
-  const matchPercent = place.match_score_percent ?? 0;
+  // Pass through unchanged: `null` means "no ratings yet" and MatchRing renders
+  // its own unrated state. Coercing to 0 painted a red "0%" on every unrated place.
+  const matchPercent = place.match_score_percent;
   const distanceNeighborhood =
     place.distance_mi != null && place.neighborhood
       ? `${place.distance_mi.toFixed(1)} mi · ${place.neighborhood}`
@@ -168,10 +172,14 @@ export function PlaceCard({ place }: { place: FeedItem }) {
         : place.distance_mi != null
           ? `${place.distance_mi.toFixed(1)} mi`
           : place.address;
+  const isUnrated = place.rating_count === 0;
+  // "0 ratings" reads as a verdict. Invite the first one instead.
   const ratingLabel =
-    place.rating_count != null
-      ? `· ${place.rating_count} ${place.rating_count === 1 ? "rating" : "ratings"}`
-      : undefined;
+    place.rating_count == null
+      ? undefined
+      : place.rating_count === 0
+        ? "· Be the first to rate"
+        : `· ${place.rating_count} ${place.rating_count === 1 ? "rating" : "ratings"}`;
   const openStatus = getOpenStatus(
     place.open_now,
     place.closes_at,
@@ -272,8 +280,18 @@ export function PlaceCard({ place }: { place: FeedItem }) {
 
           <div className="absolute bottom-12 left-12 right-12 flex flex-col pr-[48px]">
             <h2 className="text-heading-m text-text-inverse">{place.name}</h2>
-            <p className="text-body-s text-text-inverse">
-              {distanceNeighborhood}
+            <p className="flex items-center gap-8 text-body-s text-text-inverse">
+              <span className="min-w-0 truncate">{distanceNeighborhood}</span>
+              {/* Wifi sits inline after the location line. `WifiLow` (the 2-mark
+                  glyph) means nobody has answered yet — not "weak signal". */}
+              {place.wifi === "none" ? (
+                <WifiOff size={16} className="shrink-0" aria-hidden />
+              ) : place.wifi == null ? (
+                <WifiLow size={16} className="shrink-0" aria-hidden />
+              ) : (
+                <Wifi size={16} className="shrink-0" aria-hidden />
+              )}
+              <span className="sr-only">{wifiCardLabel(place.wifi ?? null)}</span>
             </p>
           </div>
 
@@ -323,25 +341,32 @@ export function PlaceCard({ place }: { place: FeedItem }) {
         </div>
       </div>
 
-      {/* Stats row: equal-width tiles, 8px gap, full width */}
-      <div className="grid w-full grid-cols-4 gap-2 p-16">
-        <MetricTile
-          type="noise"
-          value={place.noise}
-          iconClassName="text-accent"
-        />
-        <MetricTile
-          type="vibes"
-          value={place.dominant_vibe ?? null}
-          iconClassName="text-accent"
-        />
-        <MetricTile type="tables" value={place.tables} />
-        <MetricTile
-          type="outlets"
-          value={place.outlets}
-          iconClassName="text-accent"
-        />
-      </div>
+      {/* Stats row: equal-width tiles, 8px gap, full width.
+          Unrated places get one compact line instead of four "NOT ENOUGH DATA" tiles. */}
+      {isUnrated ? (
+        <div className="p-16">
+          <UnratedMetricsNote />
+        </div>
+      ) : (
+        <div className="grid w-full grid-cols-4 gap-2 p-16">
+          <MetricTile
+            type="noise"
+            value={place.noise}
+            iconClassName="text-accent"
+          />
+          <MetricTile
+            type="vibes"
+            value={place.dominant_vibe ?? null}
+            iconClassName="text-accent"
+          />
+          <MetricTile type="tables" value={place.tables} />
+          <MetricTile
+            type="outlets"
+            value={place.outlets}
+            iconClassName="text-accent"
+          />
+        </div>
+      )}
 
       {/* Amenity tags row */}
       {place.pills.length > 0 && (
@@ -367,7 +392,9 @@ export function PlaceCard({ place }: { place: FeedItem }) {
         </div>
         <a
           href={rateHref}
-          className="inline-flex"
+          // `ml-auto` keeps Rate right-aligned even when the status line is long
+          // enough to wrap it onto its own row (e.g. "Be the first to rate").
+          className="ml-auto inline-flex"
           data-tutorial="rate-btn"
           onClick={(e) => {
             e.stopPropagation();

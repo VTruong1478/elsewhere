@@ -177,7 +177,6 @@ export function mapPlaceToRow(place: PlaceResource, placeType: PlaceType) {
     place_type: placeType,
     google_photo_ref: googlePhotoRef,
     opening_hours: openingHours,
-    has_wifi: null,
     is_active: true,
     created_by: null,
   };

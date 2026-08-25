@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   useCallback,
   useEffect,
@@ -55,8 +55,10 @@ function fetchFeed(params: {
   lng: number;
   q: string;
   filter: string;
-  /** Case 3 only; omit so API uses user_preferences. */
+  /** Explicit radius for this request; omit to use the account default. */
   radiusMiles?: number | null;
+  /** False when lat/lng is the Annandale fallback — API then omits distances. */
+  coordsAreUserLocation: boolean;
 }): Promise<FeedItem[]> {
   const sp = new URLSearchParams({
     lat: String(params.lat),
@@ -67,6 +69,7 @@ function fetchFeed(params: {
   if (params.radiusMiles != null) {
     sp.set("radius_miles", String(params.radiusMiles));
   }
+  if (!params.coordsAreUserLocation) sp.set("coords_source", "fallback");
   return fetch(`/api/feed?${sp.toString()}`).then(async (res) => {
     const body = await res.json();
     if (!res.ok) {
@@ -128,7 +131,8 @@ function MapContent() {
     setHoveredPlaceId(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: run once when MapContent mounts
   }, []);
-  const radiusMilesRef = useRef<number | undefined>(undefined);
+  /** Radius implied by the current map zoom. Local to this view — never persisted. */
+  const [zoomRadiusMiles, setZoomRadiusMiles] = useState<number | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [mobileSelectionOffsetPx, setMobileSelectionOffsetPx] = useState(0);
 
@@ -157,9 +161,10 @@ function MapContent() {
       feedRequest.feedCoords.lat,
       feedRequest.feedCoords.lng,
       feedRequest.feedRadiusMiles,
+      feedRequest.coordsAreUserLocation,
       debouncedMapQ,
       filter,
-      radiusMilesRef.current,
+      zoomRadiusMiles,
     ],
     queryFn: () =>
       fetchFeed({
@@ -167,54 +172,35 @@ function MapContent() {
         lng: feedRequest.feedCoords.lng,
         q: debouncedMapQ,
         filter,
-        radiusMiles: feedRequest.feedRadiusMiles,
+        // Case 3 (out of region) pins a wide radius so the seeded NoVA places
+        // are reachable from the Annandale fallback at all — zoom must not
+        // shrink it, which is also how this behaved before zoom went local.
+        // Otherwise the zoom radius stands in for the account default.
+        radiusMiles: feedRequest.feedRadiusMiles ?? zoomRadiusMiles,
+        coordsAreUserLocation: feedRequest.coordsAreUserLocation,
       }),
     enabled: feedRequest.feedQueryEnabled,
     /** Keeps previous pins visible during zoom→radius refetch; avoids isLoading flash + empty map. */
     placeholderData: (previousData) => previousData,
   });
 
-  const patchRadiusMutation = useMutation({
-    mutationFn: async (radius: number) => {
-      const res = await fetch("/api/user/preferences", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ radius_miles: radius }),
-      });
-      if (!res.ok) throw new Error("Failed to update radius");
-    },
-  });
-
-  const handleZoomEnd = useCallback(
-    (zoom: number) => {
-      const newRadius = zoomToRadiusMiles(zoom);
-      if (radiusMilesRef.current === newRadius) return;
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      debounceRef.current = setTimeout(() => {
-        debounceRef.current = null;
-        radiusMilesRef.current = newRadius;
-        patchRadiusMutation.mutate(newRadius, {
-          onSuccess: () => {
-            queryClient.invalidateQueries({
-              queryKey: ["feed", "map"],
-              exact: false,
-              refetchType: "active",
-            });
-          },
-          onError: () => {
-            // Guests get a 401 here on every zoom. Keep the map usable by
-            // refetching at the new radius even though it was not persisted.
-            queryClient.invalidateQueries({
-              queryKey: ["feed", "map"],
-              exact: false,
-              refetchType: "active",
-            });
-          },
-        });
-      }, 1000);
-    },
-    [patchRadiusMutation, queryClient],
-  );
+  /**
+   * Map zoom adjusts the radius for THIS map view only.
+   *
+   * It used to PATCH `user_preferences.radius_miles`, which silently rewrote the
+   * account-wide discovery radius that `/api/feed` reads — zooming in to inspect
+   * one block permanently narrowed the user's feed with no way to see or undo it.
+   * Keeping it in component state means the query key changes and TanStack
+   * refetches on its own; no mutation, no invalidation, nothing persisted.
+   */
+  const handleZoomEnd = useCallback((zoom: number) => {
+    const newRadius = zoomToRadiusMiles(zoom);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      debounceRef.current = null;
+      setZoomRadiusMiles((prev) => (prev === newRadius ? prev : newRadius));
+    }, 1000);
+  }, []);
 
   useEffect(() => {
     return () => {
