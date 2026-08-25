@@ -263,6 +263,7 @@ export async function buildFeedItemsFromPlaces(
       why_matched: [],
       open_now: opening.open_now,
       closes_at: opening.closes_at,
+      opens_at: opening.opens_at,
       closing_soon: opening.closing_soon,
       open_late: openLate,
       pills: pillsByPlace[row.id] ?? [],

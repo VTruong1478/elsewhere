@@ -192,6 +192,65 @@ function formatCloseTime(closeTime: number): string {
     : `${closeHour}:${closeMin.toString().padStart(2, '0')}am`;
 }
 
+const DAY_ABBREVIATIONS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+/**
+ * Compact clock label for an opening time: "10am", "10:30am". Deliberately
+ * terser than `formatCloseTime` — this one shares the card's status line with
+ * the rating count, so the ":00" is dropped when it carries nothing.
+ */
+function formatOpenTime(minutes: number): string {
+  const hour24 = Math.floor(minutes / 60) % 24;
+  const min = minutes % 60;
+  const suffix = hour24 >= 12 ? 'pm' : 'am';
+  const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12;
+  return min === 0
+    ? `${hour12}${suffix}`
+    : `${hour12}:${min.toString().padStart(2, '0')}${suffix}`;
+}
+
+/**
+ * When the next opening is, for a place that is currently closed.
+ *
+ * Scans forward by weekday rather than by date: the seeded `periods` carry
+ * `date` objects frozen at the time the place was imported (April 2026 for the
+ * current catalog), so anything anchored to those calendar dates would never
+ * match. The weekday numbers stay valid, which is the same reason
+ * `deriveOpeningState`'s fallback path uses them.
+ *
+ * Returns a label such as "10am", "tomorrow 10am" or "Mon 10am" — never a bare
+ * weekday for today or tomorrow, since "Tue 10am" read on Tuesday is ambiguous
+ * about whether it means today or a week away.
+ */
+function deriveNextOpening(
+  periods: OpeningPeriod[],
+  nowDay: number,
+  nowMinutes: number,
+): string | null {
+  for (let offset = 0; offset < 8; offset += 1) {
+    const day = (nowDay + offset) % 7;
+    let earliest: number | null = null;
+
+    for (const period of periods) {
+      if (period.open?.day !== day) continue;
+      const openMinutes = getMinutesFromEnd(period.open);
+      if (openMinutes == null) continue;
+      // A window that already started today is not a *next* opening. The place
+      // is closed, so that window has ended.
+      if (offset === 0 && openMinutes <= nowMinutes) continue;
+      if (earliest == null || openMinutes < earliest) earliest = openMinutes;
+    }
+
+    if (earliest == null) continue;
+    const time = formatOpenTime(earliest);
+    if (offset === 0) return time;
+    if (offset === 1) return `tomorrow ${time}`;
+    return `${DAY_ABBREVIATIONS[day]} ${time}`;
+  }
+
+  return null;
+}
+
 type MatchKind = 'open_day' | 'close_day_carryover';
 
 export function deriveOpeningState(
@@ -202,6 +261,7 @@ export function deriveOpeningState(
   closes_at: string | null;
   closing_soon: boolean;
   open_late: boolean;
+  opens_at: string | null;
 } {
   const tz = timezone ?? DEFAULT_TZ;
   const now = getTodayInTz(tz);
@@ -215,6 +275,7 @@ export function deriveOpeningState(
     closes_at: null as string | null,
     closing_soon: false,
     open_late: false,
+    opens_at: null as string | null,
   };
 
   if (!openingHours?.periods?.length) {
@@ -312,6 +373,13 @@ export function deriveOpeningState(
   }
 
   if (!matchKind) {
+    // Closed. A bare "Closed" is a dead end — it gives the user nothing to act
+    // on and, outside business hours, that is every card in the feed at once.
+    result.opens_at = deriveNextOpening(
+      openingHours.periods,
+      now.day,
+      nowMinutes,
+    );
     return result;
   }
 

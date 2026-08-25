@@ -34,6 +34,7 @@ export function feedItemForDetailMap(
     why_matched: [],
     open_now: false,
     closes_at: null,
+    opens_at: null,
     closing_soon: false,
     open_late: false,
     pills: [],

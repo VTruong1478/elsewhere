@@ -28,7 +28,8 @@ import { StatusDot } from "@/components/ui/StatusDot";
 import { MetricTile } from "@/components/ui/MetricTile";
 import { Button } from "@/components/ui/Button";
 import { PlaceDetailCta } from "@/components/places/PlaceDetailCta";
-import { deriveOpeningState, hasOpenLate } from "@/lib/openingHours";
+import { openStatusFrom } from "@/lib/openStatus";
+import { deriveOpeningState } from "@/lib/openingHours";
 import { normalizePlaceId } from "@/lib/placeId";
 import { fetchPlaceDetail, placeDetailQueryKey } from "@/lib/placeDetailQuery";
 import {
@@ -597,74 +598,21 @@ export function DesktopPlaceDetailPanel({
     return deriveOpeningState(openingHours, place.timezone);
   }, [place]);
 
-  const openLate = useMemo(() => {
-    if (!place) return false;
-    const openingHours = place.opening_hours as OpeningHoursType | null;
-    return hasOpenLate(openingHours, place.timezone);
-  }, [place]);
 
   const status = useMemo(() => {
     if (opening) {
-      const closes = opening.closes_at ?? "";
-      if (!opening.open_now) {
-        return {
-          status: "closed" as const,
-          label: "Closed",
-        };
-      }
-      if (opening.closing_soon && closes) {
-        return {
-          status: "closing-soon" as const,
-          label: `Closing soon (${closes})`,
-        };
-      }
-      if (opening.open_now && closes) {
-        return {
-          status: "open" as const,
-          label: `Open until ${closes}`,
-        };
-      }
-      if (openLate) {
-        return {
-          status: "open" as const,
-          label: closes ? `Open until ${closes}` : "Open",
-        };
-      }
-      return {
-        status: "open" as const,
-        label: "Open",
-      };
+      return openStatusFrom(opening) ?? { status: "open" as const, label: "Open" };
     }
     if (previewMatches && previewFeedItem) {
-      if (!previewFeedItem.open_now) {
-        return { status: "closed" as const, label: "Closed" };
-      }
-      if (previewFeedItem.closing_soon && previewFeedItem.closes_at) {
-        return {
-          status: "closing-soon" as const,
-          label: `Closing soon (${previewFeedItem.closes_at})`,
-        };
-      }
-      if (previewFeedItem.open_now && previewFeedItem.closes_at) {
-        return {
+      return (
+        openStatusFrom(previewFeedItem) ?? {
           status: "open" as const,
-          label: `Open until ${previewFeedItem.closes_at}`,
-        };
-      }
-      if (previewFeedItem.open_late) {
-        return {
-          status: "open" as const,
-          label: previewFeedItem.closes_at
-            ? `Open until ${previewFeedItem.closes_at}`
-            : "Open",
-        };
-      }
-      return { status: "open" as const, label: "Open" };
+          label: "Open",
+        }
+      );
     }
     return { status: "closed" as const, label: "—" };
-    // `ratingCount` is no longer part of this memo: PlaceDetailFacts owns the
-    // rating summary, so the status line is purely open/closed now.
-  }, [opening, openLate, previewMatches, previewFeedItem]);
+  }, [opening, previewMatches, previewFeedItem]);
 
   const dominantWifiValue = stats ? dominantWifi(stats) : null;
   const dominantBathroomValue = stats ? dominantBathroom(stats) : null;

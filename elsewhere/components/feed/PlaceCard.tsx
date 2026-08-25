@@ -26,29 +26,7 @@ import { formatPlaceTypeForDisplay } from "@/lib/placeTypeDisplay";
 import { tryCaptureGatedActionCompleted } from "@/lib/gatedAction";
 import { wifiCardLabel } from "@/lib/placeFeatures";
 import { addressCompact } from "@/lib/addressDisplay";
-
-type StatusKind = "open" | "closing-soon" | "closed";
-
-function getOpenStatus(
-  open_now: boolean,
-  closes_at: string | null,
-  closing_soon: boolean,
-  open_late: boolean,
-): { status: StatusKind; label: string } | null {
-  if (closing_soon && closes_at) {
-    return { status: "closing-soon", label: `Closing soon (${closes_at})` };
-  }
-  if (open_now && closes_at) {
-    return { status: "open", label: `Open until ${closes_at}` };
-  }
-  if (!open_now) {
-    return { status: "closed", label: "Closed" };
-  }
-  if (open_late && open_now) {
-    return { status: "open", label: "Open" };
-  }
-  return null;
-}
+import { openStatusFrom } from "@/lib/openStatus";
 
 export function PlaceCard({ place }: { place: FeedItem }) {
   const { setSelectedPlaceId } = usePlaceStore();
@@ -181,12 +159,7 @@ export function PlaceCard({ place }: { place: FeedItem }) {
       : place.rating_count === 0
         ? "· Be the first to rate"
         : `· ${place.rating_count} ${place.rating_count === 1 ? "rating" : "ratings"}`;
-  const openStatus = getOpenStatus(
-    place.open_now,
-    place.closes_at,
-    place.closing_soon,
-    place.open_late,
-  );
+  const openStatus = openStatusFrom(place);
 
   const returnPathForRate =
     typeof window !== "undefined"

@@ -10,6 +10,7 @@ import { userPhotoProxyUrl } from "@/lib/userPhotoProxyUrl";
 import { Button } from "@/components/ui/Button";
 import { MatchRing } from "@/components/ui/MatchRing";
 import { addressCompact } from "@/lib/addressDisplay";
+import { openStatusFrom } from "@/lib/openStatus";
 import { StatusDot } from "@/components/ui/StatusDot";
 import {
   buildRateHref,
@@ -19,29 +20,6 @@ import {
 import { ensureAuthForGatedAction } from "@/lib/authGate";
 import { tryCaptureGatedActionCompleted } from "@/lib/gatedAction";
 import { useToast } from "@/components/ui/Toast";
-
-type StatusKind = "open" | "closing-soon" | "closed";
-
-function getOpenStatus(
-  open_now: boolean,
-  closes_at: string | null,
-  closing_soon: boolean,
-  open_late: boolean,
-): { status: StatusKind; label: string } | null {
-  if (closing_soon && closes_at) {
-    return { status: "closing-soon", label: `Closing soon (${closes_at})` };
-  }
-  if (open_now && closes_at) {
-    return { status: "open", label: `Open until ${closes_at}` };
-  }
-  if (!open_now) {
-    return { status: "closed", label: "Closed" };
-  }
-  if (open_late && open_now) {
-    return { status: "open", label: "Open" };
-  }
-  return null;
-}
 
 export function MapPlacePreview({ place }: { place: FeedItem }) {
   const router = useRouter();
@@ -127,12 +105,7 @@ export function MapPlacePreview({ place }: { place: FeedItem }) {
       : (place.neighborhood ?? addressCompact(place.address));
   // `null` (no ratings yet) must reach MatchRing so it renders its unrated state.
   const matchPercent = place.match_score_percent;
-  const openStatus = getOpenStatus(
-    place.open_now,
-    place.closes_at,
-    place.closing_soon,
-    place.open_late,
-  );
+  const openStatus = openStatusFrom(place);
   const noiseVibe = [place.noise, place.vibe]
     .filter(Boolean)
     .join(" · ") || "—";

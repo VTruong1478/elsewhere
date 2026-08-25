@@ -25,6 +25,8 @@ export interface FeedItem {
   why_matched: string[];
   open_now: boolean;
   closes_at: string | null;
+  /** When a closed place next opens: "10am", "tomorrow 10am", "Mon 10am". */
+  opens_at: string | null;
   closing_soon: boolean;
   open_late: boolean;
   pills: string[];
